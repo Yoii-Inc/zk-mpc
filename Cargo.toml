@@ -6,3 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ark-std = { version = "0.3.0", features = ["std"] }
+ark-bls12-377 = "0.4.0"

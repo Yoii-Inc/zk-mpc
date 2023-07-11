@@ -2,7 +2,7 @@ mod ZKPoPK {
     type Plaintext = i32; // Finite field
     type Ciphertext = i32;
 
-    struct Parameters {
+    pub struct Parameters {
         V: i32,
         N: i32,
         tau: i32,
@@ -11,8 +11,27 @@ mod ZKPoPK {
         rho: i32,
     }
 
-    struct Instance {
+    impl Parameters {
+        pub fn new(V: i32, N: i32, tau: i32, sec: i32, d: i32, rho: i32) -> Self {
+            Self {
+                V: V,
+                N: N,
+                tau: tau,
+                sec: sec,
+                d: d,
+                rho: rho,
+            }
+        }
+    }
+
+    pub struct Instance {
         c: Vec<Ciphertext>,
+    }
+
+    impl Instance {
+        pub fn new(c: Vec<Ciphertext>) -> Self {
+            Self { c: c }
+        }
     }
 
     struct Witness {
@@ -20,7 +39,7 @@ mod ZKPoPK {
     }
 
     #[derive(Debug)]
-    struct Proof {
+    pub struct Proof {
         a: Vec<Ciphertext>, //G^V
         z: Vec<Vec<i32>>,   //\mathbb{Z}^{N\times V}
         T: Vec<Vec<i32>>,   //\mathbb{Z}^{V\times d}
@@ -69,7 +88,7 @@ mod ZKPoPK {
     //     Proof {a,z,T}
     // }
 
-    fn dummy_prove() -> Proof {
+    pub fn dummy_prove() -> Proof {
         let a = vec![0, 0];
         let z = vec![vec![0, 0], vec![0, 0]];
         let T = vec![vec![0, 0], vec![0, 0]];
@@ -77,7 +96,7 @@ mod ZKPoPK {
         Proof { a, z, T }
     }
 
-    fn verify(proof: Proof, parameters: Parameters, instance: Instance) -> Result<(), ()> {
+    pub fn verify(proof: Proof, parameters: Parameters, instance: Instance) -> Result<(), ()> {
         // TODO: SHEを整えてから実装する
         // step 6
         // let e = h(proof.a, instance.c);
@@ -146,5 +165,76 @@ mod ZKPoPK {
         let dummy_proof = dummy_prove();
 
         verify(dummy_proof, parameters, instance).unwrap();
+    }
+}
+
+use ark_bls12_377::Fr;
+use ark_std::{test_rng, UniformRand};
+type Ciphertext = i32;
+
+type Angle = Vec<Fr>;
+enum CiphertextOpiton {
+    NewCiphertext,
+    NoNewCiphertext,
+}
+
+fn encode(f: Fr) -> Ciphertext {
+    0
+}
+
+fn decode(c: Ciphertext) -> Fr {
+    Fr::from(0)
+}
+
+fn reshare(e_m: Ciphertext, enc: CiphertextOpiton) -> (Angle, Option<Ciphertext>) {
+    let n = 3;
+
+    // step 1
+    let rng = &mut test_rng();
+
+    let f: Vec<Fr> = (0..n).map(|_| Fr::rand(rng)).collect();
+
+    // // step 2
+    let e_f_vec: Vec<i32> = f.iter().map(|&f_i| encode(f_i)).collect();
+
+    // step 3
+    let parameters = ZKPoPK::Parameters::new(2, 2, 2, 2, 2, 2);
+
+    let instance = ZKPoPK::Instance::new(vec![0, 0]);
+
+    let dummy_proof = ZKPoPK::dummy_prove();
+
+    ZKPoPK::verify(dummy_proof, parameters, instance).unwrap();
+
+    // step4
+    let e_f: Ciphertext = e_f_vec.iter().sum();
+    let e_mf: Ciphertext = e_m + e_f;
+
+    // step 5
+    let mf = decode(e_mf);
+
+    // step 6
+    let mut m: Vec<Fr> = vec![Fr::from(0); n];
+    m[0] = mf - f[0];
+
+    for i in 1..n {
+        m[i] = -f[i];
+    }
+
+    // step 7
+    let e_m_new = encode(mf) - e_f;
+    match enc {
+        _NewCiphertext => (m, Some(e_m_new)),
+        _NoNewCiphertext => (m, None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_reshare() {
+        let result = reshare(0, CiphertextOpiton::NewCiphertext);
     }
 }
