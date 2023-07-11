@@ -172,7 +172,6 @@ use ark_bls12_377::Fr;
 use ark_std::{test_rng, UniformRand};
 type Ciphertext = i32;
 
-type Angle = Vec<Fr>;
 enum CiphertextOpiton {
     NewCiphertext,
     NoNewCiphertext,
@@ -186,7 +185,7 @@ fn decode(c: Ciphertext) -> Fr {
     Fr::from(0)
 }
 
-fn reshare(e_m: Ciphertext, enc: CiphertextOpiton) -> (Angle, Option<Ciphertext>) {
+fn reshare(e_m: Ciphertext, enc: CiphertextOpiton) -> (Vec<Fr>, Option<Ciphertext>) {
     let n = 3;
 
     // step 1
@@ -229,6 +228,60 @@ fn reshare(e_m: Ciphertext, enc: CiphertextOpiton) -> (Angle, Option<Ciphertext>
     }
 }
 
+struct AngleShare {
+    public_modifier: Fr,
+    share: Vec<Fr>,
+    MAC: Vec<Fr>,
+}
+
+fn angle(m_vec: Vec<Fr>, e_m: Ciphertext) -> AngleShare {
+    let e_alpha = encode(Fr::from(0));
+    let e_malpha: Ciphertext = e_m * e_alpha;
+    let (gamma_vec, _) = reshare(e_malpha, CiphertextOpiton::NoNewCiphertext);
+
+    AngleShare {
+        public_modifier: Fr::from(0),
+        share: m_vec,
+        MAC: gamma_vec,
+    }
+}
+
+type PrivateKey = Fr;
+struct BracketShare {
+    share: Vec<Fr>,
+    MAC: Vec<(PrivateKey, Vec<Fr>)>,
+}
+
+fn bracket(m_vec: Vec<Fr>, e_m: Ciphertext) -> BracketShare {
+    let n = 3;
+
+    // step 1
+    let beta_vec = vec![Fr::from(0); n];
+    let e_beta_vec = vec![encode(Fr::from(0)); n];
+
+    let e_gamma_vec: Vec<Ciphertext> = e_beta_vec.iter().map(|&e_beta_i| e_beta_i * e_m).collect();
+
+    // step 2
+    let gamma_vecvec: Vec<Vec<Fr>> = e_gamma_vec
+        .iter()
+        .map(|&e_gamma_i| {
+            let (gamma_vec, _) = reshare(e_gamma_i, CiphertextOpiton::NoNewCiphertext);
+            gamma_vec
+        })
+        .collect();
+
+    // step 3
+    // step 4
+    let mac: Vec<(PrivateKey, Vec<Fr>)> = (1..n)
+        .map(|i| (beta_vec[i], (1..n).map(|j| gamma_vecvec[j][i]).collect()))
+        .collect();
+
+    BracketShare {
+        share: m_vec,
+        MAC: mac,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,5 +289,19 @@ mod tests {
     #[test]
     fn test_reshare() {
         let result = reshare(0, CiphertextOpiton::NewCiphertext);
+    }
+
+    #[test]
+    fn test_angle() {
+        let m_vec = vec![Fr::from(0); 3];
+        let e_m = 0;
+        let result = angle(m_vec, e_m);
+    }
+
+    #[test]
+    fn test_bracket() {
+        let m_vec = vec![Fr::from(0); 3];
+        let e_m = 0;
+        let result = bracket(m_vec, e_m);
     }
 }
