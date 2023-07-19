@@ -10,11 +10,11 @@ pub struct Plaintext(Vec<Fr>); // Finite field
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Encodedtext {
-    x: Vec<i32>, // \mathbb{Z}^N or Aq = Zq[X]/F(X) = Zq[X]/Phi_m(X)
-    q: i32,      // modulus of Aq
+    x: Vec<i128>, // \mathbb{Z}^N or Aq = Zq[X]/F(X) = Zq[X]/Phi_m(X)
+    q: i128,      // modulus of Aq
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Ciphertext {
     c0: Encodedtext,
     c1: Encodedtext,
@@ -28,7 +28,7 @@ pub struct SecretKey {
 pub struct PublicKey {
     a: Encodedtext,
     b: Encodedtext,
-    p: i32,
+    p: i128,
 }
 
 impl Plaintext {
@@ -41,17 +41,17 @@ impl Plaintext {
         Encodedtext {
             //0: self.0.iter().map(|&x| x.0.to_i32().unwrap()).collect(),
             x: self.0.iter().map(|&x| 0).collect(),
-            q: 37,
+            q: 83380292323641237751, //7427466391,
         }
     }
 }
 
 impl Encodedtext {
-    pub fn new(x: Vec<i32>, q: i32) -> Encodedtext {
+    pub fn new(x: Vec<i128>, q: i128) -> Encodedtext {
         Encodedtext { x, q }
     }
 
-    pub fn rand<T: Rng>(degree: i32, q: i32, rng: &mut T) -> Encodedtext {
+    pub fn rand<T: Rng>(degree: i32, q: i128, rng: &mut T) -> Encodedtext {
         let mut res = vec![0; degree as usize];
 
         for i in 0..(degree as usize) {
@@ -60,11 +60,15 @@ impl Encodedtext {
         Encodedtext { x: res, q }
     }
 
-    pub fn get_q(&self) -> i32 {
+    pub fn get_q(&self) -> i128 {
         self.q
     }
 
-    pub fn norm(&self) -> i32 {
+    pub fn get_degree(&self) -> usize {
+        self.x.len()
+    }
+
+    pub fn norm(&self) -> i128 {
         self.x.iter().map(|&x_i| x_i.abs()).max().unwrap()
     }
 
@@ -76,7 +80,7 @@ impl Encodedtext {
         Encodedtext { x: res, q: self.q }
     }
 
-    fn modulo_p(&self, p: i32) -> Encodedtext {
+    pub fn modulo_p(&self, p: i128) -> Encodedtext {
         let mut res = vec![0; self.x.len()];
         for i in 0..self.x.len() {
             res[i] = ((self.x[i] % p) + p) % p;
@@ -142,10 +146,10 @@ impl Sub for Encodedtext {
     }
 }
 
-impl Mul<i32> for Encodedtext {
+impl Mul<i128> for Encodedtext {
     type Output = Self;
 
-    fn mul(self, other: i32) -> Self {
+    fn mul(self, other: i128) -> Self {
         let out_val = self.x.iter().map(|&x| x * other).collect();
         Self {
             x: out_val,
@@ -183,7 +187,7 @@ impl Ciphertext {
         Ciphertext { c0, c1, c2 }
     }
 
-    pub fn rand<T: Rng>(length: i32, q: i32, rng: &mut T) -> Ciphertext {
+    pub fn rand<T: Rng>(length: i32, q: i128, rng: &mut T) -> Ciphertext {
         Ciphertext {
             c0: Encodedtext::rand(length, q, rng),
             c1: Encodedtext::rand(length, q, rng),
@@ -191,8 +195,12 @@ impl Ciphertext {
         }
     }
 
-    pub fn get_q(&self) -> i32 {
+    pub fn get_q(&self) -> i128 {
         self.c0.q
+    }
+
+    pub fn get_degree(&self) -> usize {
+        self.c0.x.len()
     }
 
     pub fn decrypt(&self, sk: &SecretKey) -> Encodedtext {
@@ -202,6 +210,8 @@ impl Ciphertext {
         for i in 0..result.x.len() {
             if result.x[i] > result.q / 2 {
                 result.x[i] -= result.q;
+            } else if result.x[i] < -result.q / 2 {
+                result.x[i] += result.q;
             }
         }
         result
@@ -220,10 +230,10 @@ impl Add for Ciphertext {
     }
 }
 
-impl Mul<i32> for Ciphertext {
+impl Mul<i128> for Ciphertext {
     type Output = Self;
 
-    fn mul(self, other: i32) -> Self {
+    fn mul(self, other: i128) -> Self {
         Self {
             c0: self.c0 * other,
             c1: self.c1 * other,
@@ -232,21 +242,32 @@ impl Mul<i32> for Ciphertext {
     }
 }
 
+impl Mul<Ciphertext> for Ciphertext {
+    type Output = Self;
+
+    fn mul(self, other: Ciphertext) -> Self {
+        let c0 = self.c0.clone() * other.c0.clone();
+        let c1 = self.c0.clone() * other.c1.clone() + self.c1.clone() * other.c0.clone();
+        let c2 = self.c1.clone() * other.c1.clone() * (-1);
+        Self { c0, c1, c2 }
+    }
+}
+
 impl SecretKey {
     fn new(sk: Encodedtext) -> Self {
         Self { s: sk }
     }
 
-    fn generate<T: Rng>(degree: i32, q: i32, std_dev: f64, rng: &mut T) -> Self {
+    pub fn generate<T: Rng>(degree: i32, q: i128, std_dev: f64, rng: &mut T) -> Self {
         let s = get_gaussian(std_dev, degree as usize, q, rng);
         Self { s }
     }
 
-    fn public_key_gen<T: Rng>(
+    pub fn public_key_gen<T: Rng>(
         &self,
         degree: i32,
-        p: i32,
-        q: i32,
+        p: i128,
+        q: i128,
         std_dev: f64,
         rng: &mut T,
     ) -> PublicKey {
@@ -260,19 +281,19 @@ impl SecretKey {
 }
 
 impl PublicKey {
-    pub fn new(a: Encodedtext, b: Encodedtext, p: i32) -> Self {
+    pub fn new(a: Encodedtext, b: Encodedtext, p: i128) -> Self {
         Self { a, b, p }
     }
 }
 
-fn poly_remainder(a: &Vec<i32>, b: &Vec<i32>, degree: usize) -> Vec<i32> {
+fn poly_remainder(a: &Vec<i128>, b: &Vec<i128>, degree: usize) -> Vec<i128> {
     let mut r = a.to_vec();
 
     while r.len() >= b.len() {
         let ratio = r.last().unwrap() / b.last().unwrap();
         let degree = r.len() - b.len();
 
-        let t = b.iter().map(|&x| x * ratio).collect::<Vec<i32>>();
+        let t = b.iter().map(|&x| x * ratio).collect::<Vec<i128>>();
 
         for i in (0..t.len()).rev() {
             r[i + degree] -= t[i];
@@ -289,10 +310,10 @@ fn poly_remainder(a: &Vec<i32>, b: &Vec<i32>, degree: usize) -> Vec<i32> {
     r
 }
 
-pub fn get_gaussian<T: Rng>(std_dev: f64, dimension: usize, q: i32, rng: &mut T) -> Encodedtext {
+pub fn get_gaussian<T: Rng>(std_dev: f64, dimension: usize, q: i128, rng: &mut T) -> Encodedtext {
     let gaussian = Normal::new(0.0, std_dev).unwrap(); // ?
-    let val: Vec<i32> = (0..dimension)
-        .map(|_| gaussian.sample(rng).abs() as i32)
+    let val: Vec<i128> = (0..dimension)
+        .map(|_| gaussian.sample(rng).abs() as i128)
         .collect();
     Encodedtext::new(val, q)
 }
@@ -304,7 +325,7 @@ fn test() {
     // // Set the parameters for this instantiation of BV11
     let std_dev = 3.2; // Standard deviation for generating the error
     let p = 41; // modulus 1
-    let q = 9973; // modulus 2
+    let q: i128 = 7427466391; // modulus 2
     let degree = 10; // degree = length = N     Degree of polynomials used for encoding and encrypting messages
 
     // // Generate secret, public keys using the given parameters
@@ -315,12 +336,22 @@ fn test() {
     // let et = pt.encode();
 
     let et = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
+    let et_2 = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
+    let et_3 = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
 
     let r = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
+    let r_2 = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
+    let r_3 = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
 
     let ct = et.encrypt(&public_key, &r);
+    let ct_2 = et_2.encrypt(&public_key, &r_2);
+    let ct_3 = et_3.encrypt(&public_key, &r_3);
 
-    let dect = ct.decrypt(&secret_key).modulo_p(p);
+    let expr_ct = (ct.clone() * ct_2.clone()) + ct_3.clone();
 
-    assert_eq!(et, dect);
+    let dect = expr_ct.decrypt(&secret_key).modulo_p(p);
+
+    let expected_et = ((et * et_2) + et_3).modulo_p(p);
+
+    assert_eq!(expected_et, dect);
 }
