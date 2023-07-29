@@ -1,9 +1,10 @@
-use ark_bls12_377::{Fr, FrConfig};
+use ark_bls12_377::Fr;
 use ark_ff::PrimeField;
-//use num_bigint::BigInt;
+use ark_std::UniformRand;
+use num_bigint::{BigInt, ToBigInt};
 use rand::{thread_rng, Rng};
-use rand_distr::{Distribution, Normal};
-use std::ops::{Add, Mul, Sub};
+use rand_distr::{num_traits::ToPrimitive, Distribution, Normal};
+use std::ops::{Add, Mul, Neg, Sub};
 
 #[derive(Clone)]
 pub struct Plaintext(Vec<Fr>); // Finite field
@@ -21,10 +22,12 @@ pub struct Ciphertext {
     c2: Encodedtext,
 } // G=Aq^3
 
+#[derive(Clone)]
 pub struct SecretKey {
     s: Encodedtext,
 }
 
+#[derive(Clone)]
 pub struct PublicKey {
     a: Encodedtext,
     b: Encodedtext,
@@ -36,13 +39,67 @@ impl Plaintext {
         Plaintext { 0: val }
     }
 
+    pub fn rand<T: Rng>(length_s: usize, rng: &mut T) -> Plaintext {
+        let mut res = vec![Fr::from(0); length_s];
+        for i in 0..length_s {
+            res[i] = Fr::rand(rng);
+        }
+        Plaintext { 0: res }
+    }
+
+    // TODO: preprocessingの並列処理とセキュリティを考慮したのちに実装
     pub fn encode(&self) -> Encodedtext {
-        let x = self.0[0].0;
+        let N = 10;
+        let mut vec = vec![0; N];
+
+        // let s = self.0[0].into_bigint().into();
+        for i in 0..self.0.len() {
+            vec[i] = self.0[i].into_bigint().0[0] as i128;
+        }
+
+        // let y = self.0[1].into_bigint();
         Encodedtext {
             //0: self.0.iter().map(|&x| x.0.to_i32().unwrap()).collect(),
-            x: self.0.iter().map(|&x| 0).collect(),
+            //x: self.0.iter().map(|&x| 0).collect(),
+            x: vec,
             q: 83380292323641237751, //7427466391,
         }
+    }
+}
+
+impl Add for Plaintext {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        let mut res = vec![Fr::from(0); self.0.len()];
+        for i in 0..self.0.len() {
+            res[i] = self.0[i] + other.0[i];
+        }
+        Plaintext { 0: res }
+    }
+}
+
+impl Sub for Plaintext {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        let mut res = vec![Fr::from(0); self.0.len()];
+        for i in 0..self.0.len() {
+            res[i] = self.0[i] - other.0[i];
+        }
+        Plaintext { 0: res }
+    }
+}
+
+impl Neg for Plaintext {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        let mut result = vec![Fr::from(0); self.0.len()];
+        for i in (0..result.len()) {
+            result[i] = -self.0[i];
+        }
+        Plaintext { 0: result }
     }
 }
 
@@ -66,6 +123,13 @@ impl Encodedtext {
 
     pub fn get_degree(&self) -> usize {
         self.x.len()
+    }
+
+    // TODO: preprocessingの並列処理とセキュリティを考慮したのちに実装
+    pub fn decode(&self) -> Plaintext {
+        let mut res = vec![Fr::from(0); 1];
+        res[0] = Fr::from(0);
+        Plaintext { 0: res }
     }
 
     pub fn norm(&self) -> i128 {
@@ -167,7 +231,11 @@ impl Mul<Encodedtext> for Encodedtext {
         for (i, self_i) in self.x.iter().enumerate() {
             for (j, other_j) in other.x.iter().enumerate() {
                 let target_degree = i + j;
-                out_raw_val[target_degree] += self_i * other_j;
+                let self_i_times_other_j_bigint: BigInt = (&self_i.to_bigint().unwrap() % self.q)
+                    * (&other_j.to_bigint().unwrap() % self.q)
+                    % self.q;
+                out_raw_val[target_degree] += self_i_times_other_j_bigint.to_i128().unwrap();
+                out_raw_val[target_degree] %= self.q;
             }
         }
 
@@ -187,12 +255,10 @@ impl Ciphertext {
         Ciphertext { c0, c1, c2 }
     }
 
-    pub fn rand<T: Rng>(length: i32, q: i128, rng: &mut T) -> Ciphertext {
-        Ciphertext {
-            c0: Encodedtext::rand(length, q, rng),
-            c1: Encodedtext::rand(length, q, rng),
-            c2: Encodedtext::rand(length, q, rng),
-        }
+    pub fn rand<T: Rng>(pk: &PublicKey, length: i32, q: i128, rng: &mut T) -> Ciphertext {
+        let et = Encodedtext::rand(length, q, rng);
+        let r = get_gaussian(3.2, (length * 3) as usize, q, rng);
+        et.encrypt(pk, &r)
     }
 
     pub fn get_q(&self) -> i128 {
@@ -226,6 +292,18 @@ impl Add for Ciphertext {
             c0: self.c0 + other.c0,
             c1: self.c1 + other.c1,
             c2: self.c2 + other.c2,
+        }
+    }
+}
+
+impl Sub for Ciphertext {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self {
+            c0: self.c0 - other.c0,
+            c1: self.c1 - other.c1,
+            c2: self.c2 - other.c2,
         }
     }
 }
