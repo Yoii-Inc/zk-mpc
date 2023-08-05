@@ -448,12 +448,12 @@ fn angle(
 }
 
 struct BracketShare {
-    share: Vec<Fr>,
+    share: Vec<Plaintext>,
     MAC: Vec<(SecretKey, Vec<Plaintext>)>,
 }
 
 fn bracket(
-    m_vec: Vec<Fr>,
+    m_vec: Vec<Plaintext>,
     e_m: Ciphertext,
     parameters: &Parameters,
     pk: &PublicKey,
@@ -510,27 +510,102 @@ fn bracket(
     }
 }
 
-// // initialize
-// fn initialize() {
-//     let n = 3;
-//     // step 1
-//     pk = keygendec
-//     // step 2
-//     beta = (1..n).map(|_| Fr::rand(rng)).collect();
+// initialize
+fn initialize(parameters: &Parameters) {
+    let n = 3;
 
-//     // step 3
-//     alpha_vec = (0..n).map(|_| Fr::rand(rng)).collect();
+    let mut rng = thread_rng();
+    let length_s = 1;
 
-//     // step 4
-//     e_alpha_vec = alpha_vec.iter().map(|&alpha_i| encode(alpha_i)).collect();
-//     e_beta_vec = beta.iter().map(|&beta_i| encode(beta_i)).collect();
+    // step 1
+    //pk = keygendec
 
-//     // step 5
-//     // ZKPoPK
+    let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
+    let pk = sk.public_key_gen(
+        parameters.get_N(),
+        parameters.get_p(),
+        parameters.get_q(),
+        3.2,
+        &mut rng,
+    );
 
-//     // step 6
-//     diag bracket
-// }
+    let r = get_gaussian(
+        3.2,
+        parameters.get_N() as usize * 3,
+        parameters.get_q(),
+        &mut rng,
+    );
+
+    // step 2
+    let beta: Vec<Plaintext> = (0..n)
+        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .collect();
+
+    // step 3
+    let alpha_vec: Vec<Plaintext> = (0..n)
+        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .collect();
+
+    // step 4
+    // TODO 対角化
+    let e_alpha_vec: Vec<Ciphertext> = alpha_vec
+        .iter()
+        .map(|alpha_i| alpha_i.encode().encrypt(&pk, &r))
+        .collect();
+    let e_beta_vec: Vec<Ciphertext> = beta
+        .iter()
+        .map(|beta_i| beta_i.encode().encrypt(&pk, &r))
+        .collect();
+
+    // step 5
+    // ZKPoPK
+    for i in (0..n) {
+        let instance_alpha = ZKPoPK::Instance::new(pk.clone(), vec![e_alpha_vec[i].clone()]);
+
+        // TODO これは何？
+        let r2: Vec<Encodedtext> =
+            vec![
+                Encodedtext::new(vec![0; parameters.get_d() as usize], parameters.get_q());
+                parameters.get_sec() as usize
+            ];
+
+        let witness_alpha = ZKPoPK::Witness::new(
+            vec![alpha_vec[i].clone()],
+            &vec![alpha_vec[i].encode()],
+            &vec![r.clone(); parameters.get_sec() as usize],
+        );
+
+        let proof_alpha = ZKPoPK::prove(&parameters, &witness_alpha, &instance_alpha);
+
+        let instance_beta = ZKPoPK::Instance::new(pk.clone(), vec![e_beta_vec[i].clone()]);
+
+        let witness_beta = ZKPoPK::Witness::new(
+            vec![beta[i].clone()],
+            &vec![beta[i].encode()],
+            &vec![r.clone(); parameters.get_sec() as usize],
+        );
+
+        let proof_beta = ZKPoPK::prove(&parameters, &witness_beta, &instance_beta);
+
+        ZKPoPK::verify(&proof_beta, &parameters, &instance_beta).unwrap();
+    }
+
+    // step 6
+    // let e_alpha = e_alpha_vec.iter().sum();
+
+    let mut sum = Ciphertext::new(
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+    );
+
+    for i in 0..e_alpha_vec.len() {
+        sum = sum + e_alpha_vec[i].clone();
+    }
+
+    //let diag_alpha = bracket(diag_alpha_vec, e_alpha, parameters, &pk, &sk);
+    let diag_alpha = bracket(alpha_vec, sum, parameters, &pk, &sk);
+}
 
 #[cfg(test)]
 mod tests {
@@ -605,10 +680,45 @@ mod tests {
         let result = angle(m_vec, e_m, &parameters, &pk, &sk);
     }
 
-    // #[test]
-    // fn test_bracket() {
-    //     let m_vec = vec![Fr::from(0); 3];
-    //     let e_m = 0;
-    //     let result = bracket(m_vec, e_m);
-    // }
+    #[test]
+    fn test_bracket() {
+        let n = 3;
+        let mut rng = rand::thread_rng();
+
+        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
+
+        let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
+        let pk = sk.public_key_gen(
+            parameters.get_N(),
+            parameters.get_p(),
+            parameters.get_q(),
+            3.2,
+            &mut rng,
+        );
+
+        let r = get_gaussian(
+            3.2,
+            parameters.get_N() as usize * 3,
+            parameters.get_q(),
+            &mut rng,
+        );
+
+        let m_vec: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(10, &mut rng)).collect();
+
+        let mut sum = Plaintext::new(vec![Fr::from(0); 10]);
+
+        for i in 0..m_vec.len() {
+            sum = sum + m_vec[i].clone();
+        }
+        let e_m = sum.encode().encrypt(&pk, &r);
+
+        let result = bracket(m_vec, e_m, &parameters, &pk, &sk);
+    }
+
+    #[test]
+    fn test_initialize() {
+        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
+
+        initialize(&parameters);
+    }
 }
