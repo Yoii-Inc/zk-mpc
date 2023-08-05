@@ -587,6 +587,7 @@ fn initialize(parameters: &Parameters) {
 
         let proof_beta = ZKPoPK::prove(&parameters, &witness_beta, &instance_beta);
 
+        ZKPoPK::verify(&proof_alpha, &parameters, &instance_alpha).unwrap();
         ZKPoPK::verify(&proof_beta, &parameters, &instance_beta).unwrap();
     }
 
@@ -663,6 +664,103 @@ fn pair(pk: &PublicKey, sk: &SecretKey, parameters: &Parameters) -> (BracketShar
     let r_angle = angle(r_vec, sum, parameters, &pk, &sk);
 
     (r_bracket, r_angle)
+}
+
+fn triple(
+    pk: &PublicKey,
+    sk: &SecretKey,
+    parameters: &Parameters,
+) -> (AngleShare, AngleShare, AngleShare) {
+    let n = 3;
+    let length_s = 10;
+    let mut rng = thread_rng();
+
+    let r = get_gaussian(
+        3.2,
+        parameters.get_N() as usize * 3,
+        parameters.get_q(),
+        &mut rng,
+    );
+
+    // step 1
+    let a_vec: Vec<Plaintext> = (0..n)
+        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .collect();
+    let b_vec: Vec<Plaintext> = (0..n)
+        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .collect();
+
+    // step 2
+    let e_a_vec: Vec<Ciphertext> = a_vec
+        .iter()
+        .map(|a_vec_i| a_vec_i.encode().encrypt(&pk, &r))
+        .collect();
+    let e_b_vec: Vec<Ciphertext> = b_vec
+        .iter()
+        .map(|b_vec_i| b_vec_i.encode().encrypt(&pk, &r))
+        .collect();
+
+    // step 3
+    for i in (0..n) {
+        let instance_a = ZKPoPK::Instance::new(pk.clone(), vec![e_a_vec[i].clone()]);
+
+        let witness_a = ZKPoPK::Witness::new(
+            vec![a_vec[i].clone()],
+            &vec![a_vec[i].encode()],
+            &vec![r.clone(); parameters.get_sec() as usize],
+        );
+
+        let proof_a = ZKPoPK::prove(&parameters, &witness_a, &instance_a);
+
+        let instance_b = ZKPoPK::Instance::new(pk.clone(), vec![e_b_vec[i].clone()]);
+
+        let witness_b = ZKPoPK::Witness::new(
+            vec![b_vec[i].clone()],
+            &vec![b_vec[i].encode()],
+            &vec![r.clone(); parameters.get_sec() as usize],
+        );
+
+        let proof_b = ZKPoPK::prove(&parameters, &witness_b, &instance_b);
+
+        ZKPoPK::verify(&proof_a, &parameters, &instance_a).unwrap();
+        ZKPoPK::verify(&proof_b, &parameters, &instance_b).unwrap();
+    }
+
+    // step 4
+    let mut e_a = Ciphertext::new(
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+    );
+
+    for i in 0..e_a_vec.len() {
+        e_a = e_a + e_a_vec[i].clone();
+    }
+
+    let mut e_b = Ciphertext::new(
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+    );
+
+    for i in 0..e_b_vec.len() {
+        e_b = e_b + e_b_vec[i].clone();
+    }
+
+    // step 5
+    let a_angle = angle(a_vec, e_a.clone(), parameters, &pk, &sk);
+    let b_angle = angle(b_vec, e_b.clone(), parameters, &pk, &sk);
+
+    // step 6
+    let e_c = e_a * e_b;
+
+    // step 7
+    let (c_vec, ct) = reshare(e_c, CiphertextOpiton::NewCiphertext, &parameters, &pk, &sk);
+
+    // step 8
+    let c_angle = angle(c_vec, ct.unwrap(), parameters, &pk, &sk);
+
+    (a_angle, b_angle, c_angle)
 }
 
 #[cfg(test)]
@@ -795,5 +893,22 @@ mod tests {
         );
 
         let (r_bracket, r_angle) = pair(&pk, &sk, &parameters);
+    }
+
+    #[test]
+    fn test_triple() {
+        let mut rng = rand::thread_rng();
+        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
+
+        let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
+        let pk = sk.public_key_gen(
+            parameters.get_N(),
+            parameters.get_p(),
+            parameters.get_q(),
+            3.2,
+            &mut rng,
+        );
+
+        let (a_angle, b_angle, c_angle) = triple(&pk, &sk, &parameters);
     }
 }
