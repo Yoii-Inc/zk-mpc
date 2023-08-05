@@ -607,6 +607,64 @@ fn initialize(parameters: &Parameters) {
     let diag_alpha = bracket(alpha_vec, sum, parameters, &pk, &sk);
 }
 
+fn pair(pk: &PublicKey, sk: &SecretKey, parameters: &Parameters) -> (BracketShare, AngleShare) {
+    let n = 3;
+    let length_s = 10;
+    let mut rng = thread_rng();
+
+    let r = get_gaussian(
+        3.2,
+        parameters.get_N() as usize * 3,
+        parameters.get_q(),
+        &mut rng,
+    );
+
+    // step 1
+    let r_vec: Vec<Plaintext> = (0..n)
+        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .collect();
+
+    // step 2
+    let e_r_vec: Vec<Ciphertext> = r_vec
+        .iter()
+        .map(|r_vec_i| r_vec_i.encode().encrypt(&pk, &r))
+        .collect();
+
+    // step 3
+    for i in (0..n) {
+        let r_i = &r_vec[i];
+        let e_r_i = &e_r_vec[i];
+
+        let instance = ZKPoPK::Instance::new(pk.clone(), vec![e_r_i.clone()]);
+
+        let witness = ZKPoPK::Witness::new(
+            vec![r_i.clone()],
+            &vec![r_i.encode()],
+            &vec![r.clone(); parameters.get_sec() as usize],
+        );
+
+        let proof = ZKPoPK::prove(&parameters, &witness, &instance);
+
+        ZKPoPK::verify(&proof, &parameters, &instance).unwrap();
+    }
+
+    // step 4
+    let mut sum = Ciphertext::new(
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+    );
+
+    for i in 0..e_r_vec.len() {
+        sum = sum + e_r_vec[i].clone();
+    }
+
+    let r_bracket = bracket(r_vec.clone(), sum.clone(), parameters, &pk, &sk);
+    let r_angle = angle(r_vec, sum, parameters, &pk, &sk);
+
+    (r_bracket, r_angle)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -720,5 +778,22 @@ mod tests {
         let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
 
         initialize(&parameters);
+    }
+
+    #[test]
+    fn test_pair() {
+        let mut rng = rand::thread_rng();
+        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
+
+        let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
+        let pk = sk.public_key_gen(
+            parameters.get_N(),
+            parameters.get_p(),
+            parameters.get_q(),
+            3.2,
+            &mut rng,
+        );
+
+        let (r_bracket, r_angle) = pair(&pk, &sk, &parameters);
     }
 }
