@@ -8,7 +8,11 @@ edition = "2021"
 [dependencies]
 ark-std = { version = "0.3.0", features = ["std"] }
 ark-bls12-377 = "0.4.0"
-ark-ff = "0.4.2"
+ark-ff = "0.4.1"
 rand = "0.8.5"
 rand_distr = "0.4.3"
 num-bigint = "0.4.3"
+ark-groth16 = "0.4.0"
+ark-snark = "0.4.0"
+ark-ec = "0.4.1"
+ark-relations = "0.4.0"
