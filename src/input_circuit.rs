@@ -1,7 +1,12 @@
-use ark_ff::Field;
+use ark_ff::{Field, PrimeField};
 use ark_relations::{
     lc,
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
+};
+
+use ark_r1cs_std::{
+    fields::fp::FpVar,
+    prelude::{AllocVar, EqGadget},
 };
 
 use ark_bls12_377::{Bls12_377, Fr};
@@ -14,7 +19,7 @@ use ark_std::UniformRand;
 use crate::she::{Ciphertext, SecretKey};
 
 #[derive(Clone)]
-pub struct MySecretInputCircuit<F: Field> {
+pub struct MySecretInputCircuit<F: PrimeField> {
     // private witness to the circuit
     x: Option<F>,
     r: Option<F>,
@@ -28,18 +33,38 @@ pub struct MySecretInputCircuit<F: Field> {
 
 impl<F> MySecretInputCircuit<F>
 where
-    F: Field,
+    F: PrimeField,
 {
     fn verify_encryption(&self) {}
 
-    fn verify_epsilon(&self) {}
+    fn verify_epsilon(&self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
+        let x = FpVar::new_witness(cs.clone(), || {
+            self.x.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+        let r = FpVar::new_witness(cs.clone(), || {
+            self.r.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
+        let epsilon = FpVar::new_input(cs.clone(), || {
+            self.epsilon.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
+        let x_minus_r = x - r;
+
+        // 多分これでいいと思う
+        epsilon.enforce_equal(&x_minus_r)?;
+
+        Ok(())
+    }
 
     fn verify_constraints(&self) {}
 
     fn verify_commitment(&self) {}
 }
 
-impl<ConstraintF: Field> ConstraintSynthesizer<ConstraintF> for MySecretInputCircuit<ConstraintF> {
+impl<ConstraintF: PrimeField> ConstraintSynthesizer<ConstraintF>
+    for MySecretInputCircuit<ConstraintF>
+{
     fn generate_constraints(
         self,
         cs: ConstraintSystemRef<ConstraintF>,
@@ -48,7 +73,7 @@ impl<ConstraintF: Field> ConstraintSynthesizer<ConstraintF> for MySecretInputCir
         self.verify_encryption();
 
         // 2nd
-        self.verify_epsilon();
+        self.verify_epsilon(cs)?;
 
         // 3rd
         self.verify_constraints();
@@ -95,7 +120,7 @@ fn test_no_circom() {
     let x = Fr::rand(&mut rng);
     let r = Fr::rand(&mut rng);
     let e_r = Ciphertext::rand(&public_key, degree, q, &mut rng);
-    let epsilon = Fr::rand(&mut rng);
+    let epsilon = x - r;
     // TODO: implement correct h_x
     let h_x = Fr::rand(&mut rng);
 
@@ -114,5 +139,5 @@ fn test_no_circom() {
     .unwrap();
 
     // validate the proof
-    assert!(Groth16::<Bls12_377>::verify(&circuit_vk, &[], &proof).unwrap());
+    assert!(Groth16::<Bls12_377>::verify(&circuit_vk, &[epsilon], &proof).unwrap());
 }
