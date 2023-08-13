@@ -54,7 +54,8 @@ impl Plaintext {
 
         // let s = self.0[0].into_bigint().into();
         for i in 0..self.0.len() {
-            vec[i] = self.0[i].into_bigint().0[0] as i128;
+            //vec[i] = self.0[i].into_bigint().0[0] as i128;
+            vec[i] = self.0[i].into_repr().0[0] as i128;
         }
 
         // let y = self.0[1].into_bigint();
