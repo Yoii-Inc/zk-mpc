@@ -122,6 +122,19 @@ impl Neg for Plaintext {
     }
 }
 
+// multiplication of plaintext: multiply element with same index
+impl Mul for Plaintext {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        let mut result = Plaintext::new(vec![Fr::from(0); self.0.len()]);
+        for i in 0..result.0.len() {
+            result.0[i] = self.0[i] * rhs.0[i];
+        }
+        result
+    }
+}
+
 impl Encodedtext {
     pub fn new(x: Vec<i128>, q: i128) -> Encodedtext {
         Encodedtext { x, q }
