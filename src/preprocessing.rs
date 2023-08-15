@@ -837,9 +837,11 @@ mod tests {
 
         let m_vec: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(10, &mut rng)).collect();
         let m_sum = m_vec.iter().cloned().sum::<Plaintext>();
-        
+
         let e_m = m_sum.encode().encrypt(&pk, &r);
         let result = generate_angle_share(m_vec, e_m, &parameters, &pk, &sk);
+
+        assert!(verify_angle_share(&result, &Plaintext::new(vec![Fr::from(0); 10])));
     }
 
     #[test]
