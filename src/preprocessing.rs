@@ -447,6 +447,16 @@ fn generate_angle_share(
     }
 }
 
+fn verify_angle_share(
+    angle_share: &AngleShare,
+    alpha: &Plaintext,
+) -> bool {
+    let mac_1: Plaintext = angle_share.MAC.iter().cloned().sum();
+    let original: Plaintext = angle_share.share.iter().cloned().sum();
+    let mac_2: Plaintext = alpha.clone() * (angle_share.public_modifier.clone() + original);
+    return false;
+}
+
 struct BracketShare {
     share: Vec<Plaintext>,
     MAC: Vec<(SecretKey, Vec<Plaintext>)>,
@@ -826,13 +836,9 @@ mod tests {
         );
 
         let m_vec: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(10, &mut rng)).collect();
-
-        let mut sum = Plaintext::new(vec![Fr::from(0); 10]);
-
-        for i in 0..m_vec.len() {
-            sum = sum + m_vec[i].clone();
-        }
-        let e_m = sum.encode().encrypt(&pk, &r);
+        let m_sum = m_vec.iter().cloned().sum::<Plaintext>();
+        
+        let e_m = m_sum.encode().encrypt(&pk, &r);
         let result = generate_angle_share(m_vec, e_m, &parameters, &pk, &sk);
     }
 
