@@ -4,9 +4,9 @@ use ark_std::UniformRand;
 use num_bigint::{BigInt, ToBigInt};
 use rand::{thread_rng, Rng};
 use rand_distr::{num_traits::ToPrimitive, Distribution, Normal};
-use std::ops::{Add, Mul, Neg, Sub};
+use std::{ops::{Add, Mul, Neg, Sub}, iter::Sum};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Plaintext(Vec<Fr>); // Finite field
 
 #[derive(Clone, PartialEq, Debug)]
@@ -89,6 +89,24 @@ impl Sub for Plaintext {
             res[i] = self.0[i] - other.0[i];
         }
         Plaintext { 0: res }
+    }
+}
+
+impl Sum for Plaintext {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let sum_vec = iter
+            .map(|plaintext| plaintext.0)
+            .fold(Vec::new(), |mut acc, vec| {
+                for (i, value) in vec.iter().enumerate() {
+                    if i >= acc.len() {
+                        acc.push(*value);
+                    } else {
+                        acc[i] = acc[i] + *value;
+                    }
+                }
+                acc
+            });
+        Plaintext(sum_vec)
     }
 }
 
@@ -397,40 +415,57 @@ pub fn get_gaussian<T: Rng>(std_dev: f64, dimension: usize, q: i128, rng: &mut T
     Encodedtext::new(val, q)
 }
 
-#[test]
-fn test() {
-    let mut rng = thread_rng();
+mod tests{
+    use super::*;
 
-    // // Set the parameters for this instantiation of BV11
-    let std_dev = 3.2; // Standard deviation for generating the error
-    let p = 41; // modulus 1
-    let q: i128 = 7427466391; // modulus 2
-    let degree = 10; // degree = length = N     Degree of polynomials used for encoding and encrypting messages
+    #[test]
+    fn test_plaintext() {
+        let pl_1: Plaintext = Plaintext::new(vec![Fr::from(1), Fr::from(2)]);
+        let pl_2: Plaintext = Plaintext::new(vec![Fr::from(2), Fr::from(3)]);
+        let pl_add = pl_1.clone().add(pl_2.clone());
+        let pl_add_expected = Plaintext::new(vec![Fr::from(1+2), Fr::from(2+3)]);
+        assert_eq!(pl_add, pl_add_expected);
 
-    // // Generate secret, public keys using the given parameters
-    let secret_key = SecretKey::generate(degree, q, std_dev, &mut rng);
-    let public_key = secret_key.public_key_gen(degree, p, q, std_dev, &mut rng);
+        let pl_vec: Vec<Plaintext> = vec![pl_1.clone(), pl_2.clone()];
+        let pl_sum: Plaintext = pl_vec.iter().cloned().sum();
+        assert_eq!(pl_sum, pl_add_expected);
+    }
 
-    // let pt = Plaintext::rand(degree, t, &mut rng);
-    // let et = pt.encode();
+    #[test]
+    fn test() {
+        let mut rng = thread_rng();
 
-    let et = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
-    let et_2 = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
-    let et_3 = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
+        // // Set the parameters for this instantiation of BV11
+        let std_dev = 3.2; // Standard deviation for generating the error
+        let p = 41; // modulus 1
+        let q: i128 = 7427466391; // modulus 2
+        let degree = 10; // degree = length = N     Degree of polynomials used for encoding and encrypting messages
 
-    let r = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
-    let r_2 = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
-    let r_3 = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
+        // // Generate secret, public keys using the given parameters
+        let secret_key = SecretKey::generate(degree, q, std_dev, &mut rng);
+        let public_key = secret_key.public_key_gen(degree, p, q, std_dev, &mut rng);
 
-    let ct = et.encrypt(&public_key, &r);
-    let ct_2 = et_2.encrypt(&public_key, &r_2);
-    let ct_3 = et_3.encrypt(&public_key, &r_3);
+        // let pt = Plaintext::rand(degree, t, &mut rng);
+        // let et = pt.encode();
 
-    let expr_ct = (ct.clone() * ct_2.clone()) + ct_3.clone();
+        let et = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
+        let et_2 = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
+        let et_3 = Encodedtext::rand(degree, q, &mut rng).modulo_p(p);
 
-    let dect = expr_ct.decrypt(&secret_key).modulo_p(p);
+        let r = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
+        let r_2 = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
+        let r_3 = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
 
-    let expected_et = ((et * et_2) + et_3).modulo_p(p);
+        let ct = et.encrypt(&public_key, &r);
+        let ct_2 = et_2.encrypt(&public_key, &r_2);
+        let ct_3 = et_3.encrypt(&public_key, &r_3);
 
-    assert_eq!(expected_et, dect);
+        let expr_ct = (ct.clone() * ct_2.clone()) + ct_3.clone();
+
+        let dect = expr_ct.decrypt(&secret_key).modulo_p(p);
+
+        let expected_et = ((et * et_2) + et_3).modulo_p(p);
+
+        assert_eq!(expected_et, dect);
+    }
 }
