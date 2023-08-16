@@ -419,7 +419,7 @@ struct AngleShare {
     MAC: Vec<Plaintext>,
 }
 
-fn angle(
+fn generate_angle_share(
     m_vec: Vec<Plaintext>,
     e_m: Ciphertext,
     parameters: &Parameters,
@@ -445,6 +445,16 @@ fn angle(
         share: m_vec,
         MAC: gamma_vec,
     }
+}
+
+fn verify_angle_share(
+    angle_share: &AngleShare,
+    alpha: &Plaintext,
+) -> bool {
+    let mac_1: Plaintext = angle_share.MAC.iter().cloned().sum();
+    let original: Plaintext = angle_share.share.iter().cloned().sum();
+    let mac_2: Plaintext = alpha.clone() * (angle_share.public_modifier.clone() + original);
+    return false;
 }
 
 struct BracketShare {
@@ -661,7 +671,7 @@ fn pair(pk: &PublicKey, sk: &SecretKey, parameters: &Parameters) -> (BracketShar
     }
 
     let r_bracket = bracket(r_vec.clone(), sum.clone(), parameters, &pk, &sk);
-    let r_angle = angle(r_vec, sum, parameters, &pk, &sk);
+    let r_angle = generate_angle_share(r_vec, sum, parameters, &pk, &sk);
 
     (r_bracket, r_angle)
 }
@@ -748,8 +758,8 @@ fn triple(
     }
 
     // step 5
-    let a_angle = angle(a_vec, e_a.clone(), parameters, &pk, &sk);
-    let b_angle = angle(b_vec, e_b.clone(), parameters, &pk, &sk);
+    let a_angle = generate_angle_share(a_vec, e_a.clone(), parameters, &pk, &sk);
+    let b_angle = generate_angle_share(b_vec, e_b.clone(), parameters, &pk, &sk);
 
     // step 6
     let e_c = e_a * e_b;
@@ -758,7 +768,7 @@ fn triple(
     let (c_vec, ct) = reshare(e_c, CiphertextOpiton::NewCiphertext, &parameters, &pk, &sk);
 
     // step 8
-    let c_angle = angle(c_vec, ct.unwrap(), parameters, &pk, &sk);
+    let c_angle = generate_angle_share(c_vec, ct.unwrap(), parameters, &pk, &sk);
 
     (a_angle, b_angle, c_angle)
 }
@@ -826,14 +836,12 @@ mod tests {
         );
 
         let m_vec: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(10, &mut rng)).collect();
+        let m_sum = m_vec.iter().cloned().sum::<Plaintext>();
 
-        let mut sum = Plaintext::new(vec![Fr::from(0); 10]);
+        let e_m = m_sum.encode().encrypt(&pk, &r);
+        let result = generate_angle_share(m_vec, e_m, &parameters, &pk, &sk);
 
-        for i in 0..m_vec.len() {
-            sum = sum + m_vec[i].clone();
-        }
-        let e_m = sum.encode().encrypt(&pk, &r);
-        let result = angle(m_vec, e_m, &parameters, &pk, &sk);
+        assert!(verify_angle_share(&result, &Plaintext::new(vec![Fr::from(0); 10])));
     }
 
     #[test]
