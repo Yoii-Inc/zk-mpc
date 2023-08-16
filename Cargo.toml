@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 ark-std = { version = "0.3.0", features = ["std"] }
 ark-bls12-377 = { version = "0.3.0", features = ["r1cs", "curve"] }
+ark-mnt4-753 = "0.3.0"
 ark-ff = "0.3.0"
 rand = "0.8.5"
 rand_distr = "0.4.3"
@@ -19,3 +20,5 @@ ark-relations = "0.3.0"
 ark-r1cs-std = "0.3.0"
 ark-crypto-primitives = { version = "0.3.0", features = ["r1cs"] }
 ark-ed-on-bls12-377 = { version = "0.3.0", features = ["r1cs"] }
+num-traits = "0.2.14"
+ark-poly = "0.3.0"
