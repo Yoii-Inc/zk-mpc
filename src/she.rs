@@ -336,7 +336,6 @@ impl Ciphertext {
     pub fn rand<T: Rng>(
         pk: &PublicKey,
         length: i32,
-        q: i128,
         rng: &mut T,
         params: &SHEParameters,
     ) -> Ciphertext {
@@ -385,17 +384,17 @@ impl Sub for Ciphertext {
     }
 }
 
-// impl Mul<i128> for Ciphertext {
-//     type Output = Self;
+impl Mul<Fq> for Ciphertext {
+    type Output = Self;
 
-//     fn mul(self, other: i128) -> Self {
-//         Self {
-//             c0: self.c0 * other,
-//             c1: self.c1 * other,
-//             c2: self.c2 * other,
-//         }
-//     }
-// }
+    fn mul(self, other: Fq) -> Self {
+        Self {
+            c0: self.c0 * other,
+            c1: self.c1 * other,
+            c2: self.c2 * other,
+        }
+    }
+}
 
 impl Mul<Ciphertext> for Ciphertext {
     type Output = Self;
@@ -555,7 +554,13 @@ fn interpolate(eval_at: &Vec<Fr>, evals: &Vec<Fr>) -> Option<Vec<Fr>> {
         let l_poly = lang[j].mul(sca_inverse[j] * y_j);
         res = (&res).add(&l_poly);
     }
-    Some(res.coeffs)
+
+    let mut res_coeff = res.coeffs;
+
+    if res_coeff.len() < n {
+        res_coeff.extend(vec![Fr::zero(); n - res_coeff.len()]);
+    }
+    Some(res_coeff)
 }
 
 fn is_power_of_two(n: usize) -> bool {

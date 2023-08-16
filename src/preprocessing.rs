@@ -1,7 +1,12 @@
 mod ZKPoPK {
 
+    use crate::she::SHEParameters;
+
     use super::super::she::{Ciphertext, Encodedtext, Plaintext, PublicKey, SecretKey};
-    use ark_bls12_377::Fr;
+    use ark_bls12_377::{Fr, FrParameters};
+    use ark_ff::FpParameters;
+    use ark_mnt4_753::{Fq, FqParameters};
+    use num_traits::{One, Zero};
     use rand::{thread_rng, Rng};
 
     pub struct Parameters {
@@ -11,12 +16,10 @@ mod ZKPoPK {
         sec: i32,
         d: i32,
         rho: i32,
-        p: i128,
-        q: i128, //she
     }
 
     impl Parameters {
-        pub fn new(V: i32, N: i32, tau: i32, sec: i32, d: i32, rho: i32, p: i128, q: i128) -> Self {
+        pub fn new(V: i32, N: i32, tau: i32, sec: i32, d: i32, rho: i32) -> Self {
             Self {
                 V,
                 N,
@@ -24,8 +27,6 @@ mod ZKPoPK {
                 sec,
                 d,
                 rho,
-                p,
-                q,
             }
         }
 
@@ -35,14 +36,6 @@ mod ZKPoPK {
 
         pub fn get_d(&self) -> i32 {
             self.d
-        }
-
-        pub fn get_p(&self) -> i128 {
-            self.p
-        }
-
-        pub fn get_q(&self) -> i128 {
-            self.q
         }
 
         pub fn get_N(&self) -> i32 {
@@ -89,23 +82,32 @@ mod ZKPoPK {
         witness: Witness,
     }
 
-    pub fn prove(parameters: &Parameters, witness: &Witness, instance: &Instance) -> Proof {
+    pub fn prove(
+        parameters: &Parameters,
+        witness: &Witness,
+        instance: &Instance,
+        she_params: &SHEParameters,
+    ) -> Proof {
         // step 1
         let u: Vec<Encodedtext> = generate_u(parameters);
         let s: Vec<Encodedtext> = generate_s(parameters);
 
+        for i in (0..parameters.V as usize) {
+            assert_eq!(u[i].get_degree(), parameters.N as usize);
+            let m_i = &witness.m[i].encode(she_params);
+        }
         let y: Vec<Encodedtext> = witness
             .m
             .iter()
             .zip(u.iter())
-            .map(|(&ref m_i, &ref u_i)| m_i.encode() + u_i.clone())
+            .map(|(m_i, u_i)| m_i.encode(she_params) + u_i.clone())
             .collect();
 
         // step 2
         let a: Vec<Ciphertext> = y
             .iter()
             .zip(s.iter())
-            .map(|(&ref y_i, s_i)| y_i.encrypt(&instance.pk, s_i))
+            .map(|(&ref y_i, s_i)| y_i.encrypt(&instance.pk, s_i, she_params))
             .collect();
 
         // step 3
@@ -115,7 +117,7 @@ mod ZKPoPK {
         let e = hash(&a, &instance.c, parameters);
 
         // step 5
-        let M_e: Vec<Vec<i128>> = generate_M_e(&e, parameters);
+        let M_e: Vec<Vec<u128>> = generate_M_e(&e, parameters);
 
         let z: Vec<Encodedtext> = y
             .iter()
@@ -132,39 +134,50 @@ mod ZKPoPK {
         Proof { a, z, T }
     }
 
+    // TODO: Implement correctly
     fn generate_u(parameters: &Parameters) -> Vec<Encodedtext> {
         //let mut rng = rand::thread_rng();
         //let u: Vec<i32> = (0..V).map(|_| rng.gen_range(0, upper_bound_y-m_i)).collect_vec();
         //u
         (0..parameters.V)
-            .map(|_| Encodedtext::new(vec![0; parameters.N as usize], parameters.q))
+            .map(|_| {
+                Encodedtext::new(
+                    vec![Fq::zero(); parameters.N as usize],
+                    parameters.N as usize,
+                )
+            })
             .collect()
     }
 
+    // TODO: Implement correctly
     fn generate_s(parameters: &Parameters) -> Vec<Encodedtext> {
         //let mut rng = rand::thread_rng();
         //let s: Vec<Vec<i32>> = (0..V).map(|_| (0..N).map(|_| rng.gen_range(0, upper_bound_s)).collect_vec()).collect_vec();
         //s
         (0..parameters.V)
-            .map(|_| Encodedtext::new(vec![0; parameters.d as usize], parameters.q))
+            .map(|_| {
+                Encodedtext::new(
+                    vec![Fq::zero(); parameters.d as usize],
+                    parameters.d as usize,
+                )
+            })
             .collect()
     }
 
-    // outputがsec bitのハッシュ関数
+    // TODO: Implement hash function. output is sec bit.
     fn hash(a: &Vec<Ciphertext>, c: &Vec<Ciphertext>, parameters: &Parameters) -> Vec<bool> {
         //let rng = &mut thread_rng();
         let mut rng: rand::rngs::StdRng = rand::SeedableRng::seed_from_u64(10);
         (0..parameters.sec).map(|_| rng.gen_bool(0.5)).collect()
     }
 
-    fn generate_M_e(e: &Vec<bool>, parameters: &Parameters) -> Vec<Vec<i128>> {
-        let Me: Vec<Vec<i128>> = (0..parameters.V)
+    fn generate_M_e(e: &Vec<bool>, parameters: &Parameters) -> Vec<Vec<u128>> {
+        let Me: Vec<Vec<u128>> = (0..parameters.V)
             .map(|i| {
                 (0..parameters.sec)
                     .map(|k| {
                         if i - k + 1 >= 1 && i - k < parameters.sec {
-                            // e[(i - k + 1) as usize] as i32
-                            e[(i - k) as usize] as i128
+                            e[(i - k) as usize] as u128
                         } else {
                             0
                         }
@@ -175,30 +188,23 @@ mod ZKPoPK {
         Me
     }
 
-    pub fn dummy_prove(parameters: &Parameters) -> Proof {
-        let mut rng = thread_rng();
-        let sk = SecretKey::generate(10, parameters.q, 3.2, &mut rng);
-        let pk = sk.public_key_gen(parameters.N, parameters.p, parameters.q, 3.2, &mut rng);
-        let a = vec![Ciphertext::rand(&pk, 2, parameters.q, &mut rng); 4];
-        let z = vec![Encodedtext::new(vec![0, 0], parameters.q); 2];
-        let T = vec![Encodedtext::new(vec![0, 0], parameters.q); 2];
-
-        Proof { a, z, T }
-    }
-
-    pub fn verify(proof: &Proof, parameters: &Parameters, instance: &Instance) -> Result<(), ()> {
-        // TODO: SHEを整えてから実装する
+    pub fn verify(
+        proof: &Proof,
+        parameters: &Parameters,
+        instance: &Instance,
+        she_params: &SHEParameters,
+    ) -> Result<(), ()> {
         // step 6
         let e = hash(&proof.a, &instance.c, parameters);
         let d: Vec<Ciphertext> = proof
             .z
             .iter()
             .zip(proof.T.iter())
-            .map(|(&ref z_i, &ref t_i)| z_i.encrypt(&instance.pk, &t_i.clone()))
+            .map(|(&ref z_i, &ref t_i)| z_i.encrypt(&instance.pk, &t_i.clone(), she_params))
             .collect();
 
         // step 7
-        let M_e: Vec<Vec<i128>> = generate_M_e(&e, parameters);
+        let M_e: Vec<Vec<u128>> = generate_M_e(&e, parameters);
 
         let rhs: Vec<Ciphertext> = M_e
             .iter()
@@ -208,13 +214,15 @@ mod ZKPoPK {
 
         assert_eq!(d, rhs);
 
-        let norm_z = proof.z.iter().map(|z_i| z_i.norm()).max().unwrap();
+        // TODO: after Implement norm()
+
+        // let norm_z = proof.z.iter().map(|z_i| z_i.norm()).max().unwrap();
 
         //assert!(norm_z < (128 * parameters.N * parameters.tau * parameters.sec.pow(2)) as i128);
 
-        let norm_T = proof.T.iter().map(|t_i| t_i.norm()).max().unwrap();
+        // let norm_T = proof.T.iter().map(|t_i| t_i.norm()).max().unwrap();
 
-        assert!(norm_T < (128 * parameters.d * parameters.rho * parameters.sec.pow(2)) as i128);
+        // assert!(norm_T < (128 * parameters.d * parameters.rho * parameters.sec.pow(2)) as i128);
 
         Ok(())
     }
@@ -231,31 +239,40 @@ mod ZKPoPK {
         sum
     }
 
-    fn dot_product2(row: &Vec<i128>, x: &Vec<Encodedtext>) -> Encodedtext {
+    fn dot_product2(row: &Vec<u128>, x: &Vec<Encodedtext>) -> Encodedtext {
         assert_eq!(row.len(), x.len(), "Vector dimensions must match!");
 
-        let mut sum = Encodedtext::new(vec![0; x[0].get_degree()], x[0].get_q());
+        let mut sum = Encodedtext::new(vec![Fq::zero(); x[0].get_degree()], x[0].get_degree());
 
         for i in 0..row.len() {
-            sum = sum + x[i].clone() * row[i];
+            sum = sum + x[i].clone() * Fq::from(row[i]);
         }
 
         sum
     }
 
-    fn dot_product3(row: &Vec<i128>, c: &Vec<Ciphertext>, parameters: &Parameters) -> Ciphertext {
+    fn dot_product3(row: &Vec<u128>, c: &Vec<Ciphertext>, parameters: &Parameters) -> Ciphertext {
         assert_eq!(row.len(), c.len(), "Vector dimensions must match!");
 
         let rng = &mut thread_rng();
 
         let mut sum = Ciphertext::new(
-            Encodedtext::new(vec![0; parameters.N as usize], parameters.q),
-            Encodedtext::new(vec![0; parameters.N as usize], parameters.q),
-            Encodedtext::new(vec![0; parameters.N as usize], parameters.q),
+            Encodedtext::new(
+                vec![Fq::zero(); parameters.N as usize],
+                parameters.N as usize,
+            ),
+            Encodedtext::new(
+                vec![Fq::zero(); parameters.N as usize],
+                parameters.N as usize,
+            ),
+            Encodedtext::new(
+                vec![Fq::zero(); parameters.N as usize],
+                parameters.N as usize,
+            ),
         );
 
         for i in 0..row.len() {
-            sum = sum + c[i].clone() * row[i];
+            sum = sum + c[i].clone() * Fq::from(row[i]);
         }
 
         sum
@@ -266,54 +283,63 @@ mod ZKPoPK {
         let mut rng = thread_rng();
         // /let length = 10;
         let parameters = Parameters {
-            V: 7,  // 2*sec-1
-            N: 10, // degree
+            V: 7, // 2*sec-1
+            N: 2, // degree
             tau: 2,
             sec: 4,
-            d: 30, // 3*N
+            d: 6, // 3*N
             rho: 2,
-            p: 41,
-            q: 83380292323641237751,
         };
 
-        //let m = vec![Plaintext::new(vec![Fr::from(0); parameters.N as usize]); parameters.V as usize];
-        let x: Vec<Encodedtext> = vec![
-            Encodedtext::rand(parameters.N, parameters.q, &mut rng)
-                .modulo_p(parameters.p);
-            parameters.sec as usize
-        ];
-        let r: Vec<Encodedtext> =
-            vec![
-                Encodedtext::new(vec![0; parameters.d as usize], parameters.q);
-                parameters.sec as usize
-            ];
-
-        let witness = Witness::new(
-            vec![Plaintext::new(vec![Fr::from(0); parameters.N as usize]); parameters.V as usize],
-            &x,
-            &r,
+        let she_params = SHEParameters::new(
+            parameters.N as usize,
+            parameters.N as usize,
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
+            3.2,
         );
 
-        let sk = SecretKey::generate(parameters.N, parameters.q, 3.2, &mut rng);
+        let m =
+            vec![Plaintext::new(vec![Fr::from(0); parameters.N as usize]); parameters.V as usize];
+        let x: Vec<Encodedtext> =
+            vec![Encodedtext::rand(&she_params, &mut rng); parameters.sec as usize];
+        let r: Vec<Encodedtext> = vec![
+            Encodedtext::new(
+                vec![Fq::zero(); parameters.d as usize],
+                parameters.d as usize
+            );
+            parameters.sec as usize
+        ];
 
-        let pk = sk.public_key_gen(parameters.N, parameters.p, parameters.q, 3.2, &mut rng);
+        let witness = Witness::new(m, &x, &r);
+
+        let sk = SecretKey::generate(&she_params, &mut rng);
+
+        let pk = sk.public_key_gen(&she_params, &mut rng);
 
         let c: Vec<Ciphertext> = x
             .iter()
             .zip(r.iter())
-            .map(|(&ref x_i, &ref r_i)| x_i.encrypt(&pk, &r_i))
+            .map(|(x_i, r_i)| x_i.encrypt(&pk, r_i, &she_params))
             .collect();
         let instance = Instance::new(pk.clone(), c);
 
-        let proof = prove(&parameters, &witness, &instance);
+        let proof = prove(&parameters, &witness, &instance, &she_params);
 
-        verify(&proof, &parameters, &instance).unwrap();
+        verify(&proof, &parameters, &instance, &she_params).unwrap();
     }
 }
 
-use super::she::{get_gaussian, Ciphertext, Encodedtext, Plaintext, PublicKey, SecretKey};
-use ark_bls12_377::Fr;
+use std::default;
+
+use super::she::{
+    get_gaussian, Ciphertext, Encodedtext, Plaintext, PublicKey, SHEParameters, SecretKey,
+};
+use ark_bls12_377::{Fr, FrParameters};
+use ark_ff::FpParameters;
+use ark_mnt4_753::{Fq, FqParameters};
 use ark_std::{test_rng, UniformRand};
+use num_traits::{One, Zero};
 use rand::{thread_rng, Rng};
 use ZKPoPK::Parameters;
 
@@ -328,55 +354,66 @@ fn reshare(
     parameters: &Parameters,
     pk: &PublicKey,
     sk: &SecretKey,
+    she_params: &SHEParameters,
 ) -> (Vec<Plaintext>, Option<Ciphertext>) {
     let n = 3;
-    let s = 10;
-    let degree = 10;
-    let std_dev = 3.2;
-    let q = 83380292323641237751;
 
     // step 1
     let mut rng = thread_rng();
 
     //let f: Vec<Plaintext> = (0..n).map(|_| Fr::rand(rng)).collect();
-    let f: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(s, &mut rng)).collect();
+    let f: Vec<Plaintext> = (0..n)
+        .map(|_| Plaintext::rand(she_params, &mut rng))
+        .collect();
 
     // // step 2
     //let e_f_vec: Vec<i32> = f.iter().map(|&f_i| encode(f_i)).collect();
-    let r = get_gaussian(std_dev, degree as usize * 3, q, &mut rng);
-    let e_f_vec: Vec<Ciphertext> = f.iter().map(|f_i| f_i.encode().encrypt(pk, &r)).collect();
+    let r = get_gaussian(she_params, (parameters.get_N() * 3) as usize, &mut rng);
+    let e_f_vec: Vec<Ciphertext> = f
+        .iter()
+        .map(|f_i| f_i.encode(she_params).encrypt(pk, &r, she_params))
+        .collect();
 
     // step 3
-    //let parameters = ZKPoPK::Parameters::new(7, 10, 2, 4, 30, 2, 41, 83380292323641237751);
-
     for i in (0..n) {
         let f_i = &f[i];
         let e_f_i = &e_f_vec[i];
 
         let instance = ZKPoPK::Instance::new(pk.clone(), vec![e_f_i.clone()]);
 
-        let r2: Vec<Encodedtext> =
-            vec![
-                Encodedtext::new(vec![0; parameters.get_d() as usize], parameters.get_q());
-                parameters.get_sec() as usize
-            ];
+        let r2: Vec<Encodedtext> = vec![
+            Encodedtext::new(
+                vec![Fq::zero(); parameters.get_d() as usize],
+                parameters.get_d() as usize
+            );
+            parameters.get_sec() as usize
+        ];
 
         let witness = ZKPoPK::Witness::new(
             vec![f_i.clone()],
-            &vec![f_i.encode()],
+            &vec![f_i.encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof = ZKPoPK::prove(&parameters, &witness, &instance);
+        let proof = ZKPoPK::prove(parameters, &witness, &instance, she_params);
 
-        ZKPoPK::verify(&proof, &parameters, &instance).unwrap();
+        ZKPoPK::verify(&proof, parameters, &instance, she_params).unwrap();
     }
 
     // step4
     let mut sum = Ciphertext::new(
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
     );
 
     for i in 0..e_f_vec.len() {
@@ -387,14 +424,11 @@ fn reshare(
     let e_f = sum;
     let e_mf = e_m + e_f.clone();
 
-    // TODO: SHEのencodeとdecodeができるようになったら消す。
-    let encoded_mf = e_mf.clone().decrypt(sk);
-
     // step 5
-    let mf: Plaintext = e_mf.decrypt(&sk).decode();
+    let mf: Plaintext = e_mf.decrypt(sk).decode(she_params);
 
     // step 6
-    let mut m: Vec<Plaintext> = vec![Plaintext::rand(s, &mut rng); n];
+    let mut m: Vec<Plaintext> = vec![Plaintext::rand(she_params, &mut rng); n];
     m[0] = mf.clone() - f[0].clone();
 
     for i in 1..n {
@@ -402,10 +436,7 @@ fn reshare(
     }
 
     // step 7
-    //let e_m_new = mf.encode().encrypt(pk, &r) - e_f;
-
-    // TODO: SHEのencodeとdecodeができるようになったら消す。
-    let e_m_new = encoded_mf.encrypt(pk, &r) - e_f;
+    let e_m_new = mf.encode(she_params).encrypt(pk, &r, she_params) - e_f;
 
     match enc {
         _NewCiphertext => (m, Some(e_m_new)),
@@ -422,15 +453,15 @@ struct AngleShare {
 fn generate_angle_share(
     m_vec: Vec<Plaintext>,
     e_m: Ciphertext,
+    e_alpha: &Ciphertext,
     parameters: &Parameters,
     pk: &PublicKey,
     sk: &SecretKey,
+    she_params: &SHEParameters,
 ) -> AngleShare {
     let mut rng = thread_rng();
 
-    let e_alpha = Ciphertext::rand(pk, parameters.get_N(), parameters.get_q(), &mut rng); //encode(Fr::from(0));
-
-    let e_malpha = e_m * e_alpha;
+    let e_malpha = e_m * e_alpha.clone();
 
     let (gamma_vec, _) = reshare(
         e_malpha,
@@ -438,6 +469,7 @@ fn generate_angle_share(
         parameters,
         pk,
         sk,
+        she_params,
     );
 
     AngleShare {
@@ -447,13 +479,13 @@ fn generate_angle_share(
     }
 }
 
-fn verify_angle_share(
-    angle_share: &AngleShare,
-    alpha: &Plaintext,
-) -> bool {
+fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintext) -> bool {
     let mac_1: Plaintext = angle_share.MAC.iter().cloned().sum();
     let original: Plaintext = angle_share.share.iter().cloned().sum();
     let mac_2: Plaintext = alpha.clone() * (angle_share.public_modifier.clone() + original);
+    if mac_1 == mac_2 {
+        return true;
+    }
     return false;
 }
 
@@ -468,6 +500,7 @@ fn bracket(
     parameters: &Parameters,
     pk: &PublicKey,
     sk: &SecretKey,
+    she_params: &SHEParameters,
 ) -> BracketShare {
     let n = 3;
 
@@ -475,10 +508,10 @@ fn bracket(
 
     // step 1
     let beta_vec: Vec<SecretKey> = (0..n)
-        .map(|_| SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng))
+        .map(|_| SecretKey::generate(she_params, &mut rng))
         .collect();
     let e_beta_vec: Vec<Ciphertext> = (0..n)
-        .map(|_| Ciphertext::rand(pk, parameters.get_N(), parameters.get_q(), &mut rng))
+        .map(|_| Ciphertext::rand(pk, parameters.get_N(), &mut rng, she_params))
         .collect();
 
     let e_gamma_vec: Vec<Ciphertext> = e_beta_vec
@@ -496,6 +529,7 @@ fn bracket(
                 parameters,
                 pk,
                 sk,
+                she_params,
             );
             gamma_vec
         })
@@ -521,7 +555,7 @@ fn bracket(
 }
 
 // initialize
-fn initialize(parameters: &Parameters) {
+fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
     let n = 3;
 
     let mut rng = thread_rng();
@@ -530,41 +564,39 @@ fn initialize(parameters: &Parameters) {
     // step 1
     //pk = keygendec
 
-    let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
-    let pk = sk.public_key_gen(
-        parameters.get_N(),
-        parameters.get_p(),
-        parameters.get_q(),
-        3.2,
-        &mut rng,
-    );
+    let sk = SecretKey::generate(she_params, &mut rng);
+    let pk = sk.public_key_gen(she_params, &mut rng);
 
-    let r = get_gaussian(
-        3.2,
-        parameters.get_N() as usize * 3,
-        parameters.get_q(),
-        &mut rng,
-    );
+    let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
 
     // step 2
+    // TODO: Implement for 1-length Plaintext instead of Plaintexts.
+    // let beta: Vec<Plaintext> = (0..n)
+    //     .map(|_| Plaintext::rand(length_s, &mut rng))
+    //     .collect();
+
     let beta: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .map(|_| Plaintext::rand(she_params, &mut rng))
         .collect();
 
     // step 3
+    // TODO: Implement for 1-length Plaintext instead of Plaintexts.
+    // let alpha_vec: Vec<Plaintext> = (0..n)
+    //     .map(|_| Plaintext::rand(length_s, &mut rng))
+    //     .collect();
     let alpha_vec: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .map(|_| Plaintext::rand(she_params, &mut rng))
         .collect();
 
     // step 4
-    // TODO 対角化
+    // TODO diagonalization
     let e_alpha_vec: Vec<Ciphertext> = alpha_vec
         .iter()
-        .map(|alpha_i| alpha_i.encode().encrypt(&pk, &r))
+        .map(|alpha_i| alpha_i.encode(she_params).encrypt(&pk, &r, she_params))
         .collect();
     let e_beta_vec: Vec<Ciphertext> = beta
         .iter()
-        .map(|beta_i| beta_i.encode().encrypt(&pk, &r))
+        .map(|beta_i| beta_i.encode(she_params).encrypt(&pk, &r, she_params))
         .collect();
 
     // step 5
@@ -572,73 +604,86 @@ fn initialize(parameters: &Parameters) {
     for i in (0..n) {
         let instance_alpha = ZKPoPK::Instance::new(pk.clone(), vec![e_alpha_vec[i].clone()]);
 
-        // TODO これは何？
-        let r2: Vec<Encodedtext> =
-            vec![
-                Encodedtext::new(vec![0; parameters.get_d() as usize], parameters.get_q());
-                parameters.get_sec() as usize
-            ];
+        // TODO what？
+        let r2: Vec<Encodedtext> = vec![
+            Encodedtext::new(
+                vec![Fq::zero(); parameters.get_d() as usize],
+                parameters.get_d() as usize
+            );
+            parameters.get_sec() as usize
+        ];
 
         let witness_alpha = ZKPoPK::Witness::new(
             vec![alpha_vec[i].clone()],
-            &vec![alpha_vec[i].encode()],
+            &vec![alpha_vec[i].encode(&she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof_alpha = ZKPoPK::prove(&parameters, &witness_alpha, &instance_alpha);
+        let proof_alpha = ZKPoPK::prove(&parameters, &witness_alpha, &instance_alpha, she_params);
 
         let instance_beta = ZKPoPK::Instance::new(pk.clone(), vec![e_beta_vec[i].clone()]);
 
         let witness_beta = ZKPoPK::Witness::new(
             vec![beta[i].clone()],
-            &vec![beta[i].encode()],
+            &vec![beta[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof_beta = ZKPoPK::prove(&parameters, &witness_beta, &instance_beta);
+        let proof_beta = ZKPoPK::prove(&parameters, &witness_beta, &instance_beta, she_params);
 
-        ZKPoPK::verify(&proof_alpha, &parameters, &instance_alpha).unwrap();
-        ZKPoPK::verify(&proof_beta, &parameters, &instance_beta).unwrap();
+        ZKPoPK::verify(&proof_alpha, &parameters, &instance_alpha, she_params).unwrap();
+        ZKPoPK::verify(&proof_beta, &parameters, &instance_beta, she_params).unwrap();
     }
 
     // step 6
     // let e_alpha = e_alpha_vec.iter().sum();
 
     let mut sum = Ciphertext::new(
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
     );
 
     for i in 0..e_alpha_vec.len() {
         sum = sum + e_alpha_vec[i].clone();
     }
 
+    // TODO: Implement diagonalization.
     //let diag_alpha = bracket(diag_alpha_vec, e_alpha, parameters, &pk, &sk);
-    let diag_alpha = bracket(alpha_vec, sum, parameters, &pk, &sk);
+    let diag_alpha = bracket(alpha_vec, sum, parameters, &pk, &sk, she_params);
 }
 
-fn pair(pk: &PublicKey, sk: &SecretKey, parameters: &Parameters) -> (BracketShare, AngleShare) {
+fn pair(
+    e_alpha: &Ciphertext,
+    pk: &PublicKey,
+    sk: &SecretKey,
+    parameters: &Parameters,
+    she_params: &SHEParameters,
+) -> (BracketShare, AngleShare) {
     let n = 3;
-    let length_s = 10;
     let mut rng = thread_rng();
 
-    let r = get_gaussian(
-        3.2,
-        parameters.get_N() as usize * 3,
-        parameters.get_q(),
-        &mut rng,
-    );
+    let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
 
     // step 1
+    // TODO: Implement for 1-length Plaintext instead of Plaintexts.
     let r_vec: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .map(|_| Plaintext::rand(she_params, &mut rng))
         .collect();
 
     // step 2
     let e_r_vec: Vec<Ciphertext> = r_vec
         .iter()
-        .map(|r_vec_i| r_vec_i.encode().encrypt(&pk, &r))
+        .map(|r_vec_i| r_vec_i.encode(she_params).encrypt(&pk, &r, she_params))
         .collect();
 
     // step 3
@@ -650,64 +695,70 @@ fn pair(pk: &PublicKey, sk: &SecretKey, parameters: &Parameters) -> (BracketShar
 
         let witness = ZKPoPK::Witness::new(
             vec![r_i.clone()],
-            &vec![r_i.encode()],
+            &vec![r_i.encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof = ZKPoPK::prove(&parameters, &witness, &instance);
+        let proof = ZKPoPK::prove(&parameters, &witness, &instance, she_params);
 
-        ZKPoPK::verify(&proof, &parameters, &instance).unwrap();
+        ZKPoPK::verify(&proof, &parameters, &instance, she_params).unwrap();
     }
 
     // step 4
     let mut sum = Ciphertext::new(
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
     );
 
     for i in 0..e_r_vec.len() {
         sum = sum + e_r_vec[i].clone();
     }
 
-    let r_bracket = bracket(r_vec.clone(), sum.clone(), parameters, &pk, &sk);
-    let r_angle = generate_angle_share(r_vec, sum, parameters, &pk, &sk);
+    let r_bracket = bracket(r_vec.clone(), sum.clone(), parameters, &pk, &sk, she_params);
+    let r_angle = generate_angle_share(r_vec, sum, e_alpha, parameters, &pk, &sk, she_params);
 
     (r_bracket, r_angle)
 }
 
 fn triple(
+    e_alpha: &Ciphertext,
     pk: &PublicKey,
     sk: &SecretKey,
     parameters: &Parameters,
+    she_params: &SHEParameters,
 ) -> (AngleShare, AngleShare, AngleShare) {
     let n = 3;
     let length_s = 10;
     let mut rng = thread_rng();
 
-    let r = get_gaussian(
-        3.2,
-        parameters.get_N() as usize * 3,
-        parameters.get_q(),
-        &mut rng,
-    );
+    let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
 
     // step 1
     let a_vec: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .map(|_| Plaintext::rand(she_params, &mut rng))
         .collect();
     let b_vec: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(length_s, &mut rng))
+        .map(|_| Plaintext::rand(she_params, &mut rng))
         .collect();
 
     // step 2
     let e_a_vec: Vec<Ciphertext> = a_vec
         .iter()
-        .map(|a_vec_i| a_vec_i.encode().encrypt(&pk, &r))
+        .map(|a_vec_i| a_vec_i.encode(she_params).encrypt(&pk, &r, she_params))
         .collect();
     let e_b_vec: Vec<Ciphertext> = b_vec
         .iter()
-        .map(|b_vec_i| b_vec_i.encode().encrypt(&pk, &r))
+        .map(|b_vec_i| b_vec_i.encode(she_params).encrypt(&pk, &r, she_params))
         .collect();
 
     // step 3
@@ -716,31 +767,40 @@ fn triple(
 
         let witness_a = ZKPoPK::Witness::new(
             vec![a_vec[i].clone()],
-            &vec![a_vec[i].encode()],
+            &vec![a_vec[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof_a = ZKPoPK::prove(&parameters, &witness_a, &instance_a);
+        let proof_a = ZKPoPK::prove(&parameters, &witness_a, &instance_a, she_params);
 
         let instance_b = ZKPoPK::Instance::new(pk.clone(), vec![e_b_vec[i].clone()]);
 
         let witness_b = ZKPoPK::Witness::new(
             vec![b_vec[i].clone()],
-            &vec![b_vec[i].encode()],
+            &vec![b_vec[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof_b = ZKPoPK::prove(&parameters, &witness_b, &instance_b);
+        let proof_b = ZKPoPK::prove(&parameters, &witness_b, &instance_b, she_params);
 
-        ZKPoPK::verify(&proof_a, &parameters, &instance_a).unwrap();
-        ZKPoPK::verify(&proof_b, &parameters, &instance_b).unwrap();
+        ZKPoPK::verify(&proof_a, &parameters, &instance_a, she_params).unwrap();
+        ZKPoPK::verify(&proof_b, &parameters, &instance_b, she_params).unwrap();
     }
 
     // step 4
     let mut e_a = Ciphertext::new(
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
     );
 
     for i in 0..e_a_vec.len() {
@@ -748,9 +808,18 @@ fn triple(
     }
 
     let mut e_b = Ciphertext::new(
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
-        Encodedtext::new(vec![0; parameters.get_N() as usize], parameters.get_q()),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
+        Encodedtext::new(
+            vec![Fq::zero(); parameters.get_N() as usize],
+            parameters.get_N() as usize,
+        ),
     );
 
     for i in 0..e_b_vec.len() {
@@ -758,41 +827,75 @@ fn triple(
     }
 
     // step 5
-    let a_angle = generate_angle_share(a_vec, e_a.clone(), parameters, &pk, &sk);
-    let b_angle = generate_angle_share(b_vec, e_b.clone(), parameters, &pk, &sk);
+    let a_angle = generate_angle_share(
+        a_vec,
+        e_a.clone(),
+        e_alpha,
+        parameters,
+        &pk,
+        &sk,
+        she_params,
+    );
+    let b_angle = generate_angle_share(
+        b_vec,
+        e_b.clone(),
+        e_alpha,
+        parameters,
+        &pk,
+        &sk,
+        she_params,
+    );
 
     // step 6
     let e_c = e_a * e_b;
 
     // step 7
-    let (c_vec, ct) = reshare(e_c, CiphertextOpiton::NewCiphertext, &parameters, &pk, &sk);
+    let (c_vec, ct) = reshare(
+        e_c,
+        CiphertextOpiton::NewCiphertext,
+        &parameters,
+        &pk,
+        &sk,
+        she_params,
+    );
 
     // step 8
-    let c_angle = generate_angle_share(c_vec, ct.unwrap(), parameters, &pk, &sk);
+    let c_angle = generate_angle_share(
+        c_vec,
+        ct.unwrap(),
+        e_alpha,
+        parameters,
+        &pk,
+        &sk,
+        she_params,
+    );
 
     (a_angle, b_angle, c_angle)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::she;
+
     use super::*;
 
     #[test]
     fn test_reshare() {
         let mut rng = rand::thread_rng();
 
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
-
-        let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
-        let pk = sk.public_key_gen(
-            parameters.get_N(),
-            parameters.get_p(),
-            parameters.get_q(),
+        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let she_params = SHEParameters::new(
+            parameters.get_N() as usize,
+            parameters.get_N() as usize,
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
             3.2,
-            &mut rng,
         );
 
-        let e_m = Ciphertext::rand(&pk, parameters.get_N(), parameters.get_q(), &mut rng);
+        let sk = SecretKey::generate(&she_params, &mut rng);
+        let pk = sk.public_key_gen(&she_params, &mut rng);
+
+        let e_m = Ciphertext::rand(&pk, parameters.get_N(), &mut rng, &she_params);
 
         let (m_vec, ct) = reshare(
             e_m.clone(),
@@ -800,14 +903,15 @@ mod tests {
             &parameters,
             &pk,
             &sk,
+            &she_params,
         );
         let ct = ct.unwrap();
 
         //assert_eq!(e_m.decrypt(&sk).decode(), m_vec.iter().sum::<Plaintext>());
 
         assert_eq!(
-            e_m.decrypt(&sk).modulo_p(parameters.get_p()),
-            ct.decrypt(&sk).modulo_p(parameters.get_p())
+            e_m.decrypt(&sk).decode(&she_params),
+            ct.decrypt(&sk).decode(&she_params)
         );
     }
 
@@ -817,31 +921,35 @@ mod tests {
 
         let mut rng = rand::thread_rng();
 
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
-
-        let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
-        let pk = sk.public_key_gen(
-            parameters.get_N(),
-            parameters.get_p(),
-            parameters.get_q(),
+        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let she_params = SHEParameters::new(
+            parameters.get_N() as usize,
+            parameters.get_N() as usize,
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
             3.2,
-            &mut rng,
         );
 
-        let r = get_gaussian(
-            3.2,
-            parameters.get_N() as usize * 3,
-            parameters.get_q(),
-            &mut rng,
-        );
+        let sk = SecretKey::generate(&she_params, &mut rng);
+        let pk = sk.public_key_gen(&she_params, &mut rng);
 
-        let m_vec: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(10, &mut rng)).collect();
+        let r = get_gaussian(&she_params, parameters.get_N() as usize * 3, &mut rng);
+
+        let m_vec: Vec<Plaintext> = (0..n)
+            .map(|_| Plaintext::rand(&she_params, &mut rng))
+            .collect();
         let m_sum = m_vec.iter().cloned().sum::<Plaintext>();
 
-        let e_m = m_sum.encode().encrypt(&pk, &r);
-        let result = generate_angle_share(m_vec, e_m, &parameters, &pk, &sk);
+        let e_m = m_sum.encode(&she_params).encrypt(&pk, &r, &she_params);
 
-        assert!(verify_angle_share(&result, &Plaintext::new(vec![Fr::from(0); 10])));
+        let e_alpha = Ciphertext::rand(&pk, parameters.get_N(), &mut rng, &she_params);
+
+        let result = generate_angle_share(m_vec, e_m, &e_alpha, &parameters, &pk, &sk, &she_params);
+
+        assert!(verify_angle_share(
+            &result,
+            &e_alpha.decrypt(&sk).decode(&she_params)
+        ));
     }
 
     #[test]
@@ -849,74 +957,85 @@ mod tests {
         let n = 3;
         let mut rng = rand::thread_rng();
 
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
-
-        let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
-        let pk = sk.public_key_gen(
-            parameters.get_N(),
-            parameters.get_p(),
-            parameters.get_q(),
+        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let she_params = SHEParameters::new(
+            parameters.get_N() as usize,
+            parameters.get_N() as usize,
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
             3.2,
-            &mut rng,
         );
 
-        let r = get_gaussian(
-            3.2,
-            parameters.get_N() as usize * 3,
-            parameters.get_q(),
-            &mut rng,
-        );
+        let sk = SecretKey::generate(&she_params, &mut rng);
+        let pk = sk.public_key_gen(&she_params, &mut rng);
 
-        let m_vec: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(10, &mut rng)).collect();
+        let r = get_gaussian(&she_params, parameters.get_N() as usize * 3, &mut rng);
 
-        let mut sum = Plaintext::new(vec![Fr::from(0); 10]);
+        let m_vec: Vec<Plaintext> = (0..n)
+            .map(|_| Plaintext::rand(&she_params, &mut rng))
+            .collect();
+
+        let mut sum = Plaintext::new(vec![Fr::from(0); parameters.get_N() as usize]);
 
         for i in 0..m_vec.len() {
             sum = sum + m_vec[i].clone();
         }
-        let e_m = sum.encode().encrypt(&pk, &r);
+        let e_m = sum.encode(&she_params).encrypt(&pk, &r, &she_params);
 
-        let result = bracket(m_vec, e_m, &parameters, &pk, &sk);
+        let result = bracket(m_vec, e_m, &parameters, &pk, &sk, &she_params);
     }
 
     #[test]
     fn test_initialize() {
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
+        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
+        let she_params = SHEParameters::new(
+            parameters.get_N() as usize,
+            parameters.get_N() as usize,
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
+            3.2,
+        );
 
-        initialize(&parameters);
+        initialize(&parameters, &she_params);
     }
 
     #[test]
     fn test_pair() {
         let mut rng = rand::thread_rng();
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
-
-        let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
-        let pk = sk.public_key_gen(
-            parameters.get_N(),
-            parameters.get_p(),
-            parameters.get_q(),
+        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
+        let she_params = SHEParameters::new(
+            parameters.get_N() as usize,
+            parameters.get_N() as usize,
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
             3.2,
-            &mut rng,
         );
 
-        let (r_bracket, r_angle) = pair(&pk, &sk, &parameters);
+        let sk = SecretKey::generate(&she_params, &mut rng);
+        let pk = sk.public_key_gen(&she_params, &mut rng);
+
+        let e_alpha = Ciphertext::rand(&pk, parameters.get_N(), &mut rng, &she_params);
+
+        let (r_bracket, r_angle) = pair(&e_alpha, &pk, &sk, &parameters, &she_params);
     }
 
     #[test]
     fn test_triple() {
         let mut rng = rand::thread_rng();
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2, 41, 83380292323641237751);
-
-        let sk = SecretKey::generate(parameters.get_N(), parameters.get_q(), 3.2, &mut rng);
-        let pk = sk.public_key_gen(
-            parameters.get_N(),
-            parameters.get_p(),
-            parameters.get_q(),
+        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
+        let she_params = SHEParameters::new(
+            parameters.get_N() as usize,
+            parameters.get_N() as usize,
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
             3.2,
-            &mut rng,
         );
 
-        let (a_angle, b_angle, c_angle) = triple(&pk, &sk, &parameters);
+        let sk = SecretKey::generate(&she_params, &mut rng);
+        let pk = sk.public_key_gen(&she_params, &mut rng);
+
+        let e_alpha = Ciphertext::rand(&pk, parameters.get_N(), &mut rng, &she_params);
+
+        let (a_angle, b_angle, c_angle) = triple(&e_alpha, &pk, &sk, &parameters, &she_params);
     }
 }
