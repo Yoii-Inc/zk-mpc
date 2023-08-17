@@ -345,7 +345,7 @@ mod ZKPoPK {
 
 use std::default;
 
-use crate::she::Plaintextish;
+use crate::she::{self, Plaintextish};
 
 use super::she::{
     get_gaussian, Ciphertext, Encodedtext, Plaintext, Plaintexts, PublicKey, SHEParameters,
@@ -499,7 +499,7 @@ fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintexts) -> bool {
 
 struct BracketShare {
     share: Vec<Plaintexts>,
-    MAC: Vec<(SecretKey, Vec<Plaintexts>)>,
+    MAC: Vec<(Plaintexts, Vec<Plaintexts>)>,
 }
 
 fn bracket(
@@ -515,11 +515,18 @@ fn bracket(
     let mut rng = thread_rng();
 
     // step 1
-    let beta_vec: Vec<SecretKey> = (0..n)
-        .map(|_| SecretKey::generate(she_params, &mut rng))
+    // let beta_vec: Vec<SecretKey> = (0..n)
+    //     .map(|_| SecretKey::generate(she_params, &mut rng))
+    //     .collect();
+    let beta_vec: Vec<Plaintexts> = (0..n)
+        .map(|_| Plaintexts::rand(she_params, &mut rng))
         .collect();
-    let e_beta_vec: Vec<Ciphertext> = (0..n)
-        .map(|_| Ciphertext::rand(pk, parameters.get_N(), &mut rng, she_params))
+
+    let r = get_gaussian(she_params, parameters.get_N() * 3, &mut rng);
+
+    let e_beta_vec: Vec<Ciphertext> = beta_vec
+        .iter()
+        .map(|beta_i| beta_i.encode(she_params).encrypt(pk, &r, she_params))
         .collect();
 
     let e_gamma_vec: Vec<Ciphertext> = e_beta_vec
@@ -545,11 +552,11 @@ fn bracket(
 
     // step 3
     // step 4
-    let mac: Vec<(SecretKey, Vec<Plaintexts>)> = (1..n)
+    let mac: Vec<(Plaintexts, Vec<Plaintexts>)> = (0..n)
         .map(|i| {
             (
                 beta_vec[i].clone(),
-                (1..n)
+                (0..n)
                     .map(|j| gamma_vecvec[j][i].clone())
                     .collect::<Vec<Plaintexts>>(),
             )
@@ -562,8 +569,26 @@ fn bracket(
     }
 }
 
+fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -> bool {
+    let n = bracket_share.share.len();
+    let mut flag = true;
+    let original: Plaintexts = bracket_share.share.iter().cloned().sum();
+    for i in 0..n {
+        let mut mac_sum = Plaintexts::new(vec![Fr::zero(); parameters.get_N()]);
+
+        for j in 0..n {
+            mac_sum = mac_sum + bracket_share.MAC[j].1[i].clone();
+        }
+
+        if (mac_sum != original.clone() * bracket_share.MAC[i].0.clone()) {
+            flag = false;
+        }
+    }
+    flag
+}
+
 // initialize
-fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
+fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
     let n = 3;
 
     let mut rng = thread_rng();
@@ -660,6 +685,8 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
         &sk,
         she_params,
     );
+
+    diag_alpha
 }
 
 fn pair(
@@ -955,11 +982,13 @@ mod tests {
         let e_m = sum.encode(&she_params).encrypt(&pk, &r, &she_params);
 
         let result = bracket(m_vec, e_m, &parameters, &pk, &sk, &she_params);
+
+        assert!(verify_bracket_share(&result, &parameters));
     }
 
     #[test]
     fn test_initialize() {
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
+        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),
@@ -968,13 +997,15 @@ mod tests {
             3.2,
         );
 
-        initialize(&parameters, &she_params);
+        let bracket_diag_alpha = initialize(&parameters, &she_params);
+
+        assert!(verify_bracket_share(&bracket_diag_alpha, &parameters));
     }
 
     #[test]
     fn test_pair() {
         let mut rng = rand::thread_rng();
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
+        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),
@@ -989,12 +1020,18 @@ mod tests {
         let e_alpha = Ciphertext::rand(&pk, parameters.get_N(), &mut rng, &she_params);
 
         let (r_bracket, r_angle) = pair(&e_alpha, &pk, &sk, &parameters, &she_params);
+
+        assert!(verify_bracket_share(&r_bracket, &parameters));
+        assert!(verify_angle_share(
+            &r_angle,
+            &e_alpha.decrypt(&sk).decode(&she_params)
+        ));
     }
 
     #[test]
     fn test_triple() {
         let mut rng = rand::thread_rng();
-        let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
+        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),
@@ -1009,5 +1046,24 @@ mod tests {
         let e_alpha = Ciphertext::rand(&pk, parameters.get_N(), &mut rng, &she_params);
 
         let (a_angle, b_angle, c_angle) = triple(&e_alpha, &pk, &sk, &parameters, &she_params);
+
+        assert!(verify_angle_share(
+            &a_angle,
+            &e_alpha.decrypt(&sk).decode(&she_params)
+        ));
+        assert!(verify_angle_share(
+            &b_angle,
+            &e_alpha.decrypt(&sk).decode(&she_params)
+        ));
+        assert!(verify_angle_share(
+            &c_angle,
+            &e_alpha.decrypt(&sk).decode(&she_params)
+        ));
+
+        let a_original = a_angle.share.iter().cloned().sum::<Plaintexts>();
+        let b_original = b_angle.share.iter().cloned().sum::<Plaintexts>();
+        let c_original = c_angle.share.iter().cloned().sum::<Plaintexts>();
+
+        assert_eq!(a_original.clone() * b_original.clone(), c_original.clone());
     }
 }
