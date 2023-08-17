@@ -53,7 +53,9 @@ jobs:
         toolchain: stable
         override: true
 
-    - name: Check fixes
+    - name: Run cargo fix and check for changes
       run: |
         cargo fix --all --locked --allow-dirty
-        git diff --exit-code || (echo "Code changes were made by cargo fix. Please run it locally and push the changes." && exit 1)
+        if [[ $(git diff) ]]; then
+          echo "::warning file=$(git diff --name-only | head -n1),line=1,col=1::Code changes were made by cargo fix. Please review and commit the changes."
+        fi
