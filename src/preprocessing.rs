@@ -2,7 +2,7 @@ mod ZKPoPK {
 
     use crate::she::SHEParameters;
 
-    use super::super::she::{Ciphertext, Encodedtext, Plaintext, PublicKey, SecretKey};
+    use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey, SecretKey};
     use ark_bls12_377::{Fr, FrParameters};
     use ark_ff::FpParameters;
     use ark_mnt4_753::{Fq, FqParameters};
@@ -55,13 +55,13 @@ mod ZKPoPK {
     }
 
     pub struct Witness {
-        m: Vec<Plaintext>,
+        m: Vec<Plaintexts>,
         x: Vec<Encodedtext>,
         r: Vec<Encodedtext>,
     }
 
     impl Witness {
-        pub fn new(m: Vec<Plaintext>, x: &Vec<Encodedtext>, r: &Vec<Encodedtext>) -> Self {
+        pub fn new(m: Vec<Plaintexts>, x: &Vec<Encodedtext>, r: &Vec<Encodedtext>) -> Self {
             Self {
                 m,
                 x: x.clone(),
@@ -300,7 +300,7 @@ mod ZKPoPK {
         );
 
         let m =
-            vec![Plaintext::new(vec![Fr::from(0); parameters.N as usize]); parameters.V as usize];
+            vec![Plaintexts::new(vec![Fr::from(0); parameters.N as usize]); parameters.V as usize];
         let x: Vec<Encodedtext> =
             vec![Encodedtext::rand(&she_params, &mut rng); parameters.sec as usize];
         let r: Vec<Encodedtext> = vec![
@@ -332,8 +332,11 @@ mod ZKPoPK {
 
 use std::default;
 
+use crate::she::Plaintextish;
+
 use super::she::{
-    get_gaussian, Ciphertext, Encodedtext, Plaintext, PublicKey, SHEParameters, SecretKey,
+    get_gaussian, Ciphertext, Encodedtext, Plaintext, Plaintexts, PublicKey, SHEParameters,
+    SecretKey,
 };
 use ark_bls12_377::{Fr, FrParameters};
 use ark_ff::FpParameters;
@@ -355,15 +358,15 @@ fn reshare(
     pk: &PublicKey,
     sk: &SecretKey,
     she_params: &SHEParameters,
-) -> (Vec<Plaintext>, Option<Ciphertext>) {
+) -> (Vec<Plaintexts>, Option<Ciphertext>) {
     let n = 3;
 
     // step 1
     let mut rng = thread_rng();
 
     //let f: Vec<Plaintext> = (0..n).map(|_| Fr::rand(rng)).collect();
-    let f: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(she_params, &mut rng))
+    let f: Vec<Plaintexts> = (0..n)
+        .map(|_| Plaintexts::rand(she_params, &mut rng))
         .collect();
 
     // // step 2
@@ -425,10 +428,10 @@ fn reshare(
     let e_mf = e_m + e_f.clone();
 
     // step 5
-    let mf: Plaintext = e_mf.decrypt(sk).decode(she_params);
+    let mf: Plaintexts = e_mf.decrypt(sk).decode(she_params);
 
     // step 6
-    let mut m: Vec<Plaintext> = vec![Plaintext::rand(she_params, &mut rng); n];
+    let mut m: Vec<Plaintexts> = vec![Plaintexts::rand(she_params, &mut rng); n];
     m[0] = mf.clone() - f[0].clone();
 
     for i in 1..n {
@@ -445,13 +448,13 @@ fn reshare(
 }
 
 struct AngleShare {
-    public_modifier: Plaintext,
-    share: Vec<Plaintext>,
-    MAC: Vec<Plaintext>,
+    public_modifier: Plaintexts,
+    share: Vec<Plaintexts>,
+    MAC: Vec<Plaintexts>,
 }
 
 fn generate_angle_share(
-    m_vec: Vec<Plaintext>,
+    m_vec: Vec<Plaintexts>,
     e_m: Ciphertext,
     e_alpha: &Ciphertext,
     parameters: &Parameters,
@@ -473,16 +476,17 @@ fn generate_angle_share(
     );
 
     AngleShare {
-        public_modifier: Plaintext::new(vec![Fr::from(0); parameters.get_N() as usize]),
+        public_modifier: Plaintexts::new(vec![Fr::from(0); parameters.get_N() as usize]),
         share: m_vec,
         MAC: gamma_vec,
     }
 }
 
-fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintext) -> bool {
-    let mac_1: Plaintext = angle_share.MAC.iter().cloned().sum();
-    let original: Plaintext = angle_share.share.iter().cloned().sum();
-    let mac_2: Plaintext = alpha.clone() * (angle_share.public_modifier.clone() + original);
+// TODO: Implement for Plaintext instead of Plaintexts
+fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintexts) -> bool {
+    let mac_1: Plaintexts = angle_share.MAC.iter().cloned().sum();
+    let original: Plaintexts = angle_share.share.iter().cloned().sum();
+    let mac_2: Plaintexts = alpha.clone() * (angle_share.public_modifier.clone() + original);
     if mac_1 == mac_2 {
         return true;
     }
@@ -490,12 +494,12 @@ fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintext) -> bool {
 }
 
 struct BracketShare {
-    share: Vec<Plaintext>,
-    MAC: Vec<(SecretKey, Vec<Plaintext>)>,
+    share: Vec<Plaintexts>,
+    MAC: Vec<(SecretKey, Vec<Plaintexts>)>,
 }
 
 fn bracket(
-    m_vec: Vec<Plaintext>,
+    m_vec: Vec<Plaintexts>,
     e_m: Ciphertext,
     parameters: &Parameters,
     pk: &PublicKey,
@@ -520,7 +524,7 @@ fn bracket(
         .collect();
 
     // step 2
-    let gamma_vecvec: Vec<Vec<Plaintext>> = e_gamma_vec
+    let gamma_vecvec: Vec<Vec<Plaintexts>> = e_gamma_vec
         .iter()
         .map(|e_gamma_i| {
             let (gamma_vec, _) = reshare(
@@ -537,13 +541,13 @@ fn bracket(
 
     // step 3
     // step 4
-    let mac: Vec<(SecretKey, Vec<Plaintext>)> = (1..n)
+    let mac: Vec<(SecretKey, Vec<Plaintexts>)> = (1..n)
         .map(|i| {
             (
                 beta_vec[i].clone(),
                 (1..n)
                     .map(|j| gamma_vecvec[j][i].clone())
-                    .collect::<Vec<Plaintext>>(),
+                    .collect::<Vec<Plaintexts>>(),
             )
         })
         .collect();
@@ -570,31 +574,27 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
     let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
 
     // step 2
-    // TODO: Implement for 1-length Plaintext instead of Plaintexts.
-    // let beta: Vec<Plaintext> = (0..n)
-    //     .map(|_| Plaintext::rand(length_s, &mut rng))
-    //     .collect();
-
-    let beta: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(she_params, &mut rng))
-        .collect();
+    let beta: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(&mut rng)).collect();
 
     // step 3
-    // TODO: Implement for 1-length Plaintext instead of Plaintexts.
-    // let alpha_vec: Vec<Plaintext> = (0..n)
-    //     .map(|_| Plaintext::rand(length_s, &mut rng))
-    //     .collect();
-    let alpha_vec: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(she_params, &mut rng))
-        .collect();
+    let alpha_vec: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(&mut rng)).collect();
 
     // step 4
-    // TODO diagonalization
-    let e_alpha_vec: Vec<Ciphertext> = alpha_vec
+    let diagonalized_alpha_vec: Vec<Plaintexts> = alpha_vec
+        .iter()
+        .map(|alpha_i| alpha_i.diagonalize(parameters.get_N() as usize))
+        .collect();
+
+    let diagonalized_beta: Vec<Plaintexts> = beta
+        .iter()
+        .map(|beta_i| beta_i.diagonalize(parameters.get_N() as usize))
+        .collect();
+
+    let e_alpha_vec: Vec<Ciphertext> = diagonalized_alpha_vec
         .iter()
         .map(|alpha_i| alpha_i.encode(she_params).encrypt(&pk, &r, she_params))
         .collect();
-    let e_beta_vec: Vec<Ciphertext> = beta
+    let e_beta_vec: Vec<Ciphertext> = diagonalized_beta
         .iter()
         .map(|beta_i| beta_i.encode(she_params).encrypt(&pk, &r, she_params))
         .collect();
@@ -614,8 +614,8 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
         ];
 
         let witness_alpha = ZKPoPK::Witness::new(
-            vec![alpha_vec[i].clone()],
-            &vec![alpha_vec[i].encode(&she_params)],
+            vec![diagonalized_alpha_vec[i].clone()],
+            &vec![diagonalized_alpha_vec[i].encode(&she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
@@ -624,8 +624,8 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
         let instance_beta = ZKPoPK::Instance::new(pk.clone(), vec![e_beta_vec[i].clone()]);
 
         let witness_beta = ZKPoPK::Witness::new(
-            vec![beta[i].clone()],
-            &vec![beta[i].encode(she_params)],
+            vec![diagonalized_beta[i].clone()],
+            &vec![diagonalized_beta[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
@@ -657,9 +657,14 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
         sum = sum + e_alpha_vec[i].clone();
     }
 
-    // TODO: Implement diagonalization.
-    //let diag_alpha = bracket(diag_alpha_vec, e_alpha, parameters, &pk, &sk);
-    let diag_alpha = bracket(alpha_vec, sum, parameters, &pk, &sk, she_params);
+    let diag_alpha = bracket(
+        diagonalized_alpha_vec,
+        sum,
+        parameters,
+        &pk,
+        &sk,
+        she_params,
+    );
 }
 
 fn pair(
@@ -675,9 +680,8 @@ fn pair(
     let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
 
     // step 1
-    // TODO: Implement for 1-length Plaintext instead of Plaintexts.
-    let r_vec: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(she_params, &mut rng))
+    let r_vec: Vec<Plaintexts> = (0..n)
+        .map(|_| Plaintexts::rand(she_params, &mut rng))
         .collect();
 
     // step 2
@@ -744,11 +748,11 @@ fn triple(
     let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
 
     // step 1
-    let a_vec: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(she_params, &mut rng))
+    let a_vec: Vec<Plaintexts> = (0..n)
+        .map(|_| Plaintexts::rand(she_params, &mut rng))
         .collect();
-    let b_vec: Vec<Plaintext> = (0..n)
-        .map(|_| Plaintext::rand(she_params, &mut rng))
+    let b_vec: Vec<Plaintexts> = (0..n)
+        .map(|_| Plaintexts::rand(she_params, &mut rng))
         .collect();
 
     // step 2
@@ -935,10 +939,10 @@ mod tests {
 
         let r = get_gaussian(&she_params, parameters.get_N() as usize * 3, &mut rng);
 
-        let m_vec: Vec<Plaintext> = (0..n)
-            .map(|_| Plaintext::rand(&she_params, &mut rng))
+        let m_vec: Vec<Plaintexts> = (0..n)
+            .map(|_| Plaintexts::rand(&she_params, &mut rng))
             .collect();
-        let m_sum = m_vec.iter().cloned().sum::<Plaintext>();
+        let m_sum = m_vec.iter().cloned().sum::<Plaintexts>();
 
         let e_m = m_sum.encode(&she_params).encrypt(&pk, &r, &she_params);
 
@@ -971,11 +975,11 @@ mod tests {
 
         let r = get_gaussian(&she_params, parameters.get_N() as usize * 3, &mut rng);
 
-        let m_vec: Vec<Plaintext> = (0..n)
-            .map(|_| Plaintext::rand(&she_params, &mut rng))
+        let m_vec: Vec<Plaintexts> = (0..n)
+            .map(|_| Plaintexts::rand(&she_params, &mut rng))
             .collect();
 
-        let mut sum = Plaintext::new(vec![Fr::from(0); parameters.get_N() as usize]);
+        let mut sum = Plaintexts::new(vec![Fr::from(0); parameters.get_N() as usize]);
 
         for i in 0..m_vec.len() {
             sum = sum + m_vec[i].clone();

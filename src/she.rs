@@ -22,8 +22,20 @@ pub struct SHEParameters {
     std_dev: f64,
 }
 
+pub type Plaintext = Fr;
+
+pub trait Plaintextish {
+    fn diagonalize(&self, length: usize) -> Plaintexts;
+}
+
+impl Plaintextish for Plaintext {
+    fn diagonalize(&self, length: usize) -> Plaintexts {
+        Plaintexts::new(vec![self.clone(); length])
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
-pub struct Plaintext {
+pub struct Plaintexts {
     m: Vec<Fr>,
 }
 
@@ -63,14 +75,14 @@ impl SHEParameters {
     }
 }
 
-impl Plaintext {
-    pub fn new(val: Vec<Fr>) -> Plaintext {
-        Plaintext { m: val }
+impl Plaintexts {
+    pub fn new(val: Vec<Fr>) -> Plaintexts {
+        Plaintexts { m: val }
     }
 
-    pub fn rand<T: Rng>(params: &SHEParameters, rng: &mut T) -> Plaintext {
+    pub fn rand<T: Rng>(params: &SHEParameters, rng: &mut T) -> Plaintexts {
         let res = (0..params.s).map(|_| Fr::rand(rng)).collect();
-        Plaintext { m: res }
+        Plaintexts { m: res }
     }
 
     pub fn encode(&self, params: &SHEParameters) -> Encodedtext {
@@ -91,7 +103,7 @@ impl Plaintext {
     }
 }
 
-impl Add for Plaintext {
+impl Add for Plaintexts {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -99,11 +111,11 @@ impl Add for Plaintext {
         for i in 0..self.m.len() {
             res[i] = self.m[i] + other.m[i];
         }
-        Plaintext { m: res }
+        Plaintexts { m: res }
     }
 }
 
-impl Sub for Plaintext {
+impl Sub for Plaintexts {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
@@ -111,11 +123,11 @@ impl Sub for Plaintext {
         for i in 0..self.m.len() {
             res[i] = self.m[i] - other.m[i];
         }
-        Plaintext { m: res }
+        Plaintexts { m: res }
     }
 }
 
-impl Sum for Plaintext {
+impl Sum for Plaintexts {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         let sum_vec = iter
             .map(|plaintext| plaintext.m)
@@ -129,11 +141,11 @@ impl Sum for Plaintext {
                 }
                 acc
             });
-        Plaintext { m: sum_vec }
+        Plaintexts { m: sum_vec }
     }
 }
 
-impl Neg for Plaintext {
+impl Neg for Plaintexts {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -141,16 +153,16 @@ impl Neg for Plaintext {
         for i in (0..result.len()) {
             result[i] = -self.m[i];
         }
-        Plaintext { m: result }
+        Plaintexts { m: result }
     }
 }
 
 // multiplication of plaintext: multiply element with same index
-impl Mul for Plaintext {
+impl Mul for Plaintexts {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        let mut result = Plaintext::new(vec![Fr::from(0); self.m.len()]);
+        let mut result = Plaintexts::new(vec![Fr::from(0); self.m.len()]);
         for i in 0..result.m.len() {
             result.m[i] = self.m[i] * rhs.m[i];
         }
@@ -164,7 +176,7 @@ impl Encodedtext {
     }
 
     pub fn rand<T: Rng>(she_params: &SHEParameters, rng: &mut T) -> Encodedtext {
-        let rand_plain_text = Plaintext::rand(she_params, rng);
+        let rand_plain_text = Plaintexts::rand(she_params, rng);
         rand_plain_text.encode(she_params)
     }
 
@@ -172,7 +184,7 @@ impl Encodedtext {
         self.x.len()
     }
 
-    pub fn decode(&self, params: &SHEParameters) -> Plaintext {
+    pub fn decode(&self, params: &SHEParameters) -> Plaintexts {
         // root: generator of Fp. N_root: N-th root of Fp.
         let root_of_cyclotomic = cyclotomic_moduli(params.N);
 
@@ -197,7 +209,7 @@ impl Encodedtext {
         let res = (0..params.s)
             .map(|i| substitute(&polynomial, &root_of_cyclotomic[i]))
             .collect();
-        Plaintext { m: res }
+        Plaintexts { m: res }
     }
 
     // TODO: 正しく実装する。uintかintか迷う。
@@ -624,14 +636,14 @@ mod tests {
 
     #[test]
     fn test_plaintext() {
-        let pl_1: Plaintext = Plaintext::new(vec![Fr::from(1), Fr::from(2)]);
-        let pl_2: Plaintext = Plaintext::new(vec![Fr::from(2), Fr::from(3)]);
+        let pl_1: Plaintexts = Plaintexts::new(vec![Fr::from(1), Fr::from(2)]);
+        let pl_2: Plaintexts = Plaintexts::new(vec![Fr::from(2), Fr::from(3)]);
         let pl_add = pl_1.clone().add(pl_2.clone());
-        let pl_add_expected = Plaintext::new(vec![Fr::from(1 + 2), Fr::from(2 + 3)]);
+        let pl_add_expected = Plaintexts::new(vec![Fr::from(1 + 2), Fr::from(2 + 3)]);
         assert_eq!(pl_add, pl_add_expected);
 
-        let pl_vec: Vec<Plaintext> = vec![pl_1.clone(), pl_2.clone()];
-        let pl_sum: Plaintext = pl_vec.iter().cloned().sum();
+        let pl_vec: Vec<Plaintexts> = vec![pl_1.clone(), pl_2.clone()];
+        let pl_sum: Plaintexts = pl_vec.iter().cloned().sum();
         assert_eq!(pl_sum, pl_add_expected);
     }
 
@@ -654,9 +666,9 @@ mod tests {
         let secret_key = SecretKey::generate(&she_params, &mut rng);
         let public_key = secret_key.public_key_gen(&she_params, &mut rng);
 
-        let pt = Plaintext::rand(&she_params, &mut rng);
-        let pt_2 = Plaintext::rand(&she_params, &mut rng);
-        let pt_3 = Plaintext::rand(&she_params, &mut rng);
+        let pt = Plaintexts::rand(&she_params, &mut rng);
+        let pt_2 = Plaintexts::rand(&she_params, &mut rng);
+        let pt_3 = Plaintexts::rand(&she_params, &mut rng);
 
         let et = pt.encode(&she_params);
         let et_2 = pt_2.encode(&she_params);
