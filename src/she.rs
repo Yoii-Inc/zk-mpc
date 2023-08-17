@@ -212,10 +212,21 @@ impl Encodedtext {
         Plaintexts { m: res }
     }
 
-    // TODO: 正しく実装する。uintかintか迷う。
-    // pub fn norm(&self) -> i128 {
-    //     self.x.iter().map(|&x_i| x_i.abs()).max().unwrap()
-    // }
+    pub fn norm(&self) -> BigUint {
+        let mut biguint_vec = self
+            .x
+            .iter()
+            .map(|&x_i| std::convert::Into::<BigUint>::into(x_i))
+            .collect::<Vec<_>>();
+
+        for i in (0..biguint_vec.len()) {
+            if biguint_vec[i] > std::convert::Into::<BigUint>::into(FqParameters::MODULUS) / 2_u32 {
+                biguint_vec[i] = std::convert::Into::<BigUint>::into(FqParameters::MODULUS)
+                    - biguint_vec[i].clone();
+            }
+        }
+        biguint_vec.iter().max().unwrap().clone()
+    }
 
     pub fn encrypt(&self, pk: &PublicKey, r: &Encodedtext, params: &SHEParameters) -> Ciphertext {
         let degree = self.x.len();
@@ -347,7 +358,7 @@ impl Ciphertext {
 
     pub fn rand<T: Rng>(
         pk: &PublicKey,
-        length: i32,
+        length: usize,
         rng: &mut T,
         params: &SHEParameters,
     ) -> Ciphertext {

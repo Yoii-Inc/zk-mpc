@@ -6,12 +6,13 @@ mod ZKPoPK {
     use ark_bls12_377::{Fr, FrParameters};
     use ark_ff::FpParameters;
     use ark_mnt4_753::{Fq, FqParameters};
+    use num_bigint::BigUint;
     use num_traits::{One, Zero};
     use rand::{thread_rng, Rng};
 
     pub struct Parameters {
         V: i32,
-        N: i32,
+        N: usize,
         tau: i32,
         sec: i32,
         d: i32,
@@ -19,7 +20,7 @@ mod ZKPoPK {
     }
 
     impl Parameters {
-        pub fn new(V: i32, N: i32, tau: i32, sec: i32, d: i32, rho: i32) -> Self {
+        pub fn new(V: i32, N: usize, tau: i32, sec: i32, d: i32, rho: i32) -> Self {
             Self {
                 V,
                 N,
@@ -38,7 +39,7 @@ mod ZKPoPK {
             self.d
         }
 
-        pub fn get_N(&self) -> i32 {
+        pub fn get_N(&self) -> usize {
             self.N
         }
     }
@@ -214,15 +215,27 @@ mod ZKPoPK {
 
         assert_eq!(d, rhs);
 
-        // TODO: after Implement norm()
+        // TODO: consider appropriate bound
 
-        // let norm_z = proof.z.iter().map(|z_i| z_i.norm()).max().unwrap();
+        let norm_z = proof.z.iter().map(|z_i| z_i.norm()).max().unwrap();
 
-        //assert!(norm_z < (128 * parameters.N * parameters.tau * parameters.sec.pow(2)) as i128);
+        // assert!(
+        //     norm_z
+        //         < (BigUint::from(128_usize)
+        //             * BigUint::from(parameters.N)
+        //             * BigUint::from(parameters.tau as usize)
+        //             * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
+        // );
 
-        // let norm_T = proof.T.iter().map(|t_i| t_i.norm()).max().unwrap();
+        let norm_T = proof.T.iter().map(|t_i| t_i.norm()).max().unwrap();
 
-        // assert!(norm_T < (128 * parameters.d * parameters.rho * parameters.sec.pow(2)) as i128);
+        // assert!(
+        //     norm_T
+        //         < (BigUint::from(128_usize)
+        //             * BigUint::from(parameters.d as usize)
+        //             * BigUint::from(parameters.rho as usize)
+        //             * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
+        // );
 
         Ok(())
     }
@@ -405,18 +418,9 @@ fn reshare(
 
     // step4
     let mut sum = Ciphertext::new(
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
     );
 
     for i in 0..e_f_vec.len() {
@@ -476,7 +480,7 @@ fn generate_angle_share(
     );
 
     AngleShare {
-        public_modifier: Plaintexts::new(vec![Fr::from(0); parameters.get_N() as usize]),
+        public_modifier: Plaintexts::new(vec![Fr::from(0); parameters.get_N()]),
         share: m_vec,
         MAC: gamma_vec,
     }
@@ -571,7 +575,7 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
     let sk = SecretKey::generate(she_params, &mut rng);
     let pk = sk.public_key_gen(she_params, &mut rng);
 
-    let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
+    let r = get_gaussian(she_params, parameters.get_N() * 3, &mut rng);
 
     // step 2
     let beta: Vec<Plaintext> = (0..n).map(|_| Plaintext::rand(&mut rng)).collect();
@@ -582,12 +586,12 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
     // step 4
     let diagonalized_alpha_vec: Vec<Plaintexts> = alpha_vec
         .iter()
-        .map(|alpha_i| alpha_i.diagonalize(parameters.get_N() as usize))
+        .map(|alpha_i| alpha_i.diagonalize(parameters.get_N()))
         .collect();
 
     let diagonalized_beta: Vec<Plaintexts> = beta
         .iter()
-        .map(|beta_i| beta_i.diagonalize(parameters.get_N() as usize))
+        .map(|beta_i| beta_i.diagonalize(parameters.get_N()))
         .collect();
 
     let e_alpha_vec: Vec<Ciphertext> = diagonalized_alpha_vec
@@ -639,18 +643,9 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) {
     // let e_alpha = e_alpha_vec.iter().sum();
 
     let mut sum = Ciphertext::new(
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
     );
 
     for i in 0..e_alpha_vec.len() {
@@ -677,7 +672,7 @@ fn pair(
     let n = 3;
     let mut rng = thread_rng();
 
-    let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
+    let r = get_gaussian(she_params, parameters.get_N() * 3, &mut rng);
 
     // step 1
     let r_vec: Vec<Plaintexts> = (0..n)
@@ -710,18 +705,9 @@ fn pair(
 
     // step 4
     let mut sum = Ciphertext::new(
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
     );
 
     for i in 0..e_r_vec.len() {
@@ -745,7 +731,7 @@ fn triple(
     let length_s = 10;
     let mut rng = thread_rng();
 
-    let r = get_gaussian(she_params, parameters.get_N() as usize * 3, &mut rng);
+    let r = get_gaussian(she_params, parameters.get_N() * 3, &mut rng);
 
     // step 1
     let a_vec: Vec<Plaintexts> = (0..n)
@@ -793,18 +779,9 @@ fn triple(
 
     // step 4
     let mut e_a = Ciphertext::new(
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
     );
 
     for i in 0..e_a_vec.len() {
@@ -812,18 +789,9 @@ fn triple(
     }
 
     let mut e_b = Ciphertext::new(
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
-        Encodedtext::new(
-            vec![Fq::zero(); parameters.get_N() as usize],
-            parameters.get_N() as usize,
-        ),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
+        Encodedtext::new(vec![Fq::zero(); parameters.get_N()], parameters.get_N()),
     );
 
     for i in 0..e_b_vec.len() {
@@ -889,8 +857,8 @@ mod tests {
 
         let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
         let she_params = SHEParameters::new(
-            parameters.get_N() as usize,
-            parameters.get_N() as usize,
+            parameters.get_N(),
+            parameters.get_N(),
             FrParameters::MODULUS.into(),
             FqParameters::MODULUS.into(),
             3.2,
@@ -927,8 +895,8 @@ mod tests {
 
         let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
         let she_params = SHEParameters::new(
-            parameters.get_N() as usize,
-            parameters.get_N() as usize,
+            parameters.get_N(),
+            parameters.get_N(),
             FrParameters::MODULUS.into(),
             FqParameters::MODULUS.into(),
             3.2,
@@ -937,7 +905,7 @@ mod tests {
         let sk = SecretKey::generate(&she_params, &mut rng);
         let pk = sk.public_key_gen(&she_params, &mut rng);
 
-        let r = get_gaussian(&she_params, parameters.get_N() as usize * 3, &mut rng);
+        let r = get_gaussian(&she_params, parameters.get_N() * 3, &mut rng);
 
         let m_vec: Vec<Plaintexts> = (0..n)
             .map(|_| Plaintexts::rand(&she_params, &mut rng))
@@ -963,8 +931,8 @@ mod tests {
 
         let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
         let she_params = SHEParameters::new(
-            parameters.get_N() as usize,
-            parameters.get_N() as usize,
+            parameters.get_N(),
+            parameters.get_N(),
             FrParameters::MODULUS.into(),
             FqParameters::MODULUS.into(),
             3.2,
@@ -973,13 +941,13 @@ mod tests {
         let sk = SecretKey::generate(&she_params, &mut rng);
         let pk = sk.public_key_gen(&she_params, &mut rng);
 
-        let r = get_gaussian(&she_params, parameters.get_N() as usize * 3, &mut rng);
+        let r = get_gaussian(&she_params, parameters.get_N() * 3, &mut rng);
 
         let m_vec: Vec<Plaintexts> = (0..n)
             .map(|_| Plaintexts::rand(&she_params, &mut rng))
             .collect();
 
-        let mut sum = Plaintexts::new(vec![Fr::from(0); parameters.get_N() as usize]);
+        let mut sum = Plaintexts::new(vec![Fr::from(0); parameters.get_N()]);
 
         for i in 0..m_vec.len() {
             sum = sum + m_vec[i].clone();
@@ -993,8 +961,8 @@ mod tests {
     fn test_initialize() {
         let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
         let she_params = SHEParameters::new(
-            parameters.get_N() as usize,
-            parameters.get_N() as usize,
+            parameters.get_N(),
+            parameters.get_N(),
             FrParameters::MODULUS.into(),
             FqParameters::MODULUS.into(),
             3.2,
@@ -1008,8 +976,8 @@ mod tests {
         let mut rng = rand::thread_rng();
         let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
         let she_params = SHEParameters::new(
-            parameters.get_N() as usize,
-            parameters.get_N() as usize,
+            parameters.get_N(),
+            parameters.get_N(),
             FrParameters::MODULUS.into(),
             FqParameters::MODULUS.into(),
             3.2,
@@ -1028,8 +996,8 @@ mod tests {
         let mut rng = rand::thread_rng();
         let parameters = ZKPoPK::Parameters::new(1, 10, 2, 1, 30, 2);
         let she_params = SHEParameters::new(
-            parameters.get_N() as usize,
-            parameters.get_N() as usize,
+            parameters.get_N(),
+            parameters.get_N(),
             FrParameters::MODULUS.into(),
             FqParameters::MODULUS.into(),
             3.2,
