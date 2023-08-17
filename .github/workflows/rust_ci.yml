@@ -55,7 +55,7 @@ jobs:
 
     - name: Run cargo fix and check for changes
       run: |
-        cargo fix --all --locked --allow-dirty
+        cargo fix --all --allow-dirty
         if [[ $(git diff) ]]; then
           echo "::warning file=$(git diff --name-only | head -n1),line=1,col=1::Code changes were made by cargo fix. Please review and commit the changes."
         fi
