@@ -2,12 +2,10 @@ mod ZKPoPK {
 
     use crate::she::SHEParameters;
 
-    use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey, SecretKey};
-    use ark_bls12_377::{Fr, FrParameters};
-    use ark_ff::FpParameters;
-    use ark_mnt4_753::{Fq, FqParameters};
-    use num_bigint::BigUint;
-    use num_traits::{One, Zero};
+    use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey};
+
+    use ark_mnt4_753::Fq;
+    use num_traits::Zero;
     use rand::{thread_rng, Rng};
 
     pub struct Parameters {
@@ -293,6 +291,11 @@ mod ZKPoPK {
 
     #[cfg(test)]
     mod tests {
+        use ark_bls12_377::{FqParameters, Fr, FrParameters};
+        use ark_ff::FpParameters;
+
+        use crate::she::SecretKey;
+
         use super::*;
 
         #[test]
@@ -350,20 +353,17 @@ mod ZKPoPK {
     }
 }
 
-use std::default;
-
-use crate::she::{self, Plaintextish};
+use crate::she::Plaintextish;
 
 use super::she::{
     get_gaussian, Ciphertext, Encodedtext, Plaintext, Plaintexts, PublicKey, SHEParameters,
     SecretKey,
 };
-use ark_bls12_377::{Fr, FrParameters};
-use ark_ff::FpParameters;
-use ark_mnt4_753::{Fq, FqParameters};
-use ark_std::{test_rng, UniformRand};
-use num_traits::{One, Zero};
-use rand::{thread_rng, Rng};
+use ark_bls12_377::Fr;
+use ark_mnt4_753::Fq;
+use ark_std::UniformRand;
+use num_traits::Zero;
+use rand::thread_rng;
 use ZKPoPK::Parameters;
 
 enum CiphertextOpiton {
@@ -881,6 +881,10 @@ fn triple(
 
 #[cfg(test)]
 mod tests {
+    use ark_bls12_377::FrParameters;
+    use ark_ff::FpParameters;
+    use ark_mnt4_753::FqParameters;
+
     use super::*;
 
     #[test]

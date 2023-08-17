@@ -1,17 +1,9 @@
-use ark_ff::{BigInteger, Field, PrimeField};
-use ark_relations::{
-    lc,
-    r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
-};
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 
 use ark_r1cs_std::groups::curves::twisted_edwards::AffineVar;
 use ark_r1cs_std::{fields::fp::FpVar, prelude::*};
 
-use ark_bls12_377::{Bls12_377, Fr};
-use ark_groth16::Groth16;
-use ark_snark::SNARK;
-
-use ark_std::UniformRand;
+use ark_bls12_377::Fr;
 
 use std::cmp::Ordering;
 
@@ -182,6 +174,12 @@ impl ConstraintSynthesizer<Fr> for MySecretInputCircuit {
 
 #[cfg(test)]
 mod tests {
+    use ark_bls12_377::Bls12_377;
+    use ark_ff::{BigInteger, PrimeField};
+    use ark_groth16::Groth16;
+    use ark_snark::SNARK;
+    use ark_std::UniformRand;
+
     use super::*;
 
     #[test]

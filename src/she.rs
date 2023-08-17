@@ -1,14 +1,14 @@
-use ark_bls12_377::{Fr, FrParameters};
-use ark_ff::{BigInteger256, FftField, FftParameters, Field, FpParameters, PrimeField};
+use ark_bls12_377::Fr;
+use ark_ff::{FftField, Field, FpParameters};
 use ark_mnt4_753::{Fq, FqParameters};
 use ark_poly::{
     polynomial::univariate::DensePolynomial, univariate::DenseOrSparsePolynomial, UVPolynomial,
 };
 use ark_std::{log2, UniformRand};
-use num_bigint::{BigInt, BigUint, ToBigInt};
+use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use rand::{thread_rng, Rng};
-use rand_distr::{num_traits::ToPrimitive, Distribution, Normal};
+use rand::Rng;
+use rand_distr::{Distribution, Normal};
 use std::{
     iter::Sum,
     ops::{Add, Mul, Neg, Sub},
@@ -592,6 +592,9 @@ fn is_power_of_two(n: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use ark_bls12_377::FrParameters;
+    use rand::thread_rng;
+
     use super::*;
 
     #[test]
