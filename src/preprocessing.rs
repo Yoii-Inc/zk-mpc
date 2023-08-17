@@ -353,6 +353,8 @@ mod ZKPoPK {
     }
 }
 
+use std::ops::Add;
+
 use crate::she::Plaintextish;
 
 use super::she::{
@@ -458,11 +460,25 @@ fn reshare(
     }
 }
 
+#[derive(Debug,Clone)]
 struct AngleShare {
     public_modifier: Plaintexts,
     share: Vec<Plaintexts>,
     MAC: Vec<Plaintexts>,
 }
+
+impl Add<Plaintexts> for AngleShare {
+    type Output = AngleShare;
+    fn add(self, rhs: Plaintexts) -> Self::Output {
+        let mut ret = self.clone();
+        // TODO: reduce clone
+        ret.public_modifier = ret.public_modifier.clone() - rhs.clone();
+        // add rhs for each item in ret.share
+        ret.share[0] = ret.share[0].clone() + rhs;
+        ret
+    }
+}
+
 
 fn generate_angle_share(
     m_vec: Vec<Plaintexts>,
@@ -958,6 +974,15 @@ mod tests {
             &result,
             &e_alpha.decrypt(&sk).decode(&she_params)
         ));
+
+        // test with non-zero public modifier
+        let const_plain:Plaintexts = Plaintexts::new(vec![Fr::from(5);parameters.get_N()]);
+        let result_added_const: AngleShare = result + const_plain;
+        assert!(verify_angle_share(
+            &result_added_const,
+            &e_alpha.decrypt(&sk).decode(&she_params)
+        ));
+
     }
 
     #[test]
