@@ -291,55 +291,62 @@ mod ZKPoPK {
         sum
     }
 
-    #[test]
-    fn test_proof() {
-        let mut rng = thread_rng();
-        // /let length = 10;
-        let parameters = Parameters {
-            V: 7, // 2*sec-1
-            N: 2, // degree
-            tau: 2,
-            sec: 4,
-            d: 6, // 3*N
-            rho: 2,
-        };
+    #[cfg(test)]
+    mod tests {
+        use super::*;
 
-        let she_params = SHEParameters::new(
-            parameters.N as usize,
-            parameters.N as usize,
-            FrParameters::MODULUS.into(),
-            FqParameters::MODULUS.into(),
-            3.2,
-        );
+        #[test]
+        fn test_proof() {
+            let mut rng = thread_rng();
+            // /let length = 10;
+            let parameters = Parameters {
+                V: 7, // 2*sec-1
+                N: 2, // degree
+                tau: 2,
+                sec: 4,
+                d: 6, // 3*N
+                rho: 2,
+            };
 
-        let m =
-            vec![Plaintexts::new(vec![Fr::from(0); parameters.N as usize]); parameters.V as usize];
-        let x: Vec<Encodedtext> =
-            vec![Encodedtext::rand(&she_params, &mut rng); parameters.sec as usize];
-        let r: Vec<Encodedtext> = vec![
-            Encodedtext::new(
-                vec![Fq::zero(); parameters.d as usize],
-                parameters.d as usize
+            let she_params = SHEParameters::new(
+                parameters.N as usize,
+                parameters.N as usize,
+                FrParameters::MODULUS.into(),
+                FqParameters::MODULUS.into(),
+                3.2,
             );
-            parameters.sec as usize
-        ];
 
-        let witness = Witness::new(m, &x, &r);
+            let m = vec![
+                Plaintexts::new(vec![Fr::from(0); parameters.N as usize]);
+                parameters.V as usize
+            ];
+            let x: Vec<Encodedtext> =
+                vec![Encodedtext::rand(&she_params, &mut rng); parameters.sec as usize];
+            let r: Vec<Encodedtext> = vec![
+                Encodedtext::new(
+                    vec![Fq::zero(); parameters.d as usize],
+                    parameters.d as usize
+                );
+                parameters.sec as usize
+            ];
 
-        let sk = SecretKey::generate(&she_params, &mut rng);
+            let witness = Witness::new(m, &x, &r);
 
-        let pk = sk.public_key_gen(&she_params, &mut rng);
+            let sk = SecretKey::generate(&she_params, &mut rng);
 
-        let c: Vec<Ciphertext> = x
-            .iter()
-            .zip(r.iter())
-            .map(|(x_i, r_i)| x_i.encrypt(&pk, r_i, &she_params))
-            .collect();
-        let instance = Instance::new(pk.clone(), c);
+            let pk = sk.public_key_gen(&she_params, &mut rng);
 
-        let proof = prove(&parameters, &witness, &instance, &she_params);
+            let c: Vec<Ciphertext> = x
+                .iter()
+                .zip(r.iter())
+                .map(|(x_i, r_i)| x_i.encrypt(&pk, r_i, &she_params))
+                .collect();
+            let instance = Instance::new(pk.clone(), c);
 
-        verify(&proof, &parameters, &instance, &she_params).unwrap();
+            let proof = prove(&parameters, &witness, &instance, &she_params);
+
+            verify(&proof, &parameters, &instance, &she_params).unwrap();
+        }
     }
 }
 
@@ -874,8 +881,6 @@ fn triple(
 
 #[cfg(test)]
 mod tests {
-    use crate::she;
-
     use super::*;
 
     #[test]

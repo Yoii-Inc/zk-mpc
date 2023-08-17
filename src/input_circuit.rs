@@ -180,42 +180,47 @@ impl ConstraintSynthesizer<Fr> for MySecretInputCircuit {
     }
 }
 
-#[test]
-fn test_no_circom() {
-    let mut rng = rand::thread_rng();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // generate the setup parameters
-    let x = Fr::from(4);
+    #[test]
+    fn test_no_circom() {
+        let mut rng = rand::thread_rng();
 
-    let lower_bound = Fr::from(3);
-    let upper_bound = Fr::from(7);
+        // generate the setup parameters
+        let x = Fr::from(4);
 
-    // Pedersen commitment
-    let params = PedersenComScheme::setup(&mut rng).unwrap();
-    let randomness = PedersenRandomness::rand(&mut rng);
-    let x_bytes = x.into_repr().to_bytes_le();
-    let h_x = PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
+        let lower_bound = Fr::from(3);
+        let upper_bound = Fr::from(7);
 
-    let circuit = MySecretInputCircuit {
-        x: Some(x),
-        h_x: Some(h_x),
-        lower_bound: Some(lower_bound),
-        upper_bound: Some(upper_bound),
-        randomness: Some(randomness),
-        params: Some(params),
-    };
+        // Pedersen commitment
+        let params = PedersenComScheme::setup(&mut rng).unwrap();
+        let randomness = PedersenRandomness::rand(&mut rng);
+        let x_bytes = x.into_repr().to_bytes_le();
+        let h_x = PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
 
-    let (circuit_pk, circuit_vk) =
-        Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
+        let circuit = MySecretInputCircuit {
+            x: Some(x),
+            h_x: Some(h_x),
+            lower_bound: Some(lower_bound),
+            upper_bound: Some(upper_bound),
+            randomness: Some(randomness),
+            params: Some(params),
+        };
 
-    // calculate the proof by passing witness variable value
-    let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit.clone(), &mut rng).unwrap();
+        let (circuit_pk, circuit_vk) =
+            Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
 
-    // // validate the proof
-    assert!(Groth16::<Bls12_377>::verify(
-        &circuit_vk,
-        &[lower_bound, upper_bound, h_x.x, h_x.y],
-        &proof
-    )
-    .unwrap());
+        // calculate the proof by passing witness variable value
+        let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit.clone(), &mut rng).unwrap();
+
+        // // validate the proof
+        assert!(Groth16::<Bls12_377>::verify(
+            &circuit_vk,
+            &[lower_bound, upper_bound, h_x.x, h_x.y],
+            &proof
+        )
+        .unwrap());
+    }
 }
