@@ -1,58 +1,59 @@
 name: Rust CI
 
-on:
-  push:
-    paths:
-      - '**/*.rs'  # Triggered when rust file is updated.
+on: [push, pull_request]
 
 jobs:
-  check-format:
+  format-check:
+    name: Format Check
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Set up Rust
+    - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
+        profile: minimal
         toolchain: stable
-
-    - name: Install rustfmt
-      run: cargo install rustfmt
+        override: true
 
     - name: Check formatting
-      run: cargo fmt -- --check
+      run: |
+        cargo fmt -- --check
 
-  check-fix:
+  test:
+    name: Tests
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Set up Rust
+    - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
+        profile: minimal
         toolchain: stable
-
-    - name: Install cargo fix-check
-      run: cargo install cargo-fix-check
-
-    - name: Run cargo fix-check
-      run: cargo fix-check --output format=short
-
-  run-tests:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+        override: true
 
     - name: Run tests
-      run: cargo test --all --verbose
+      run: |
+        cargo test --all
+
+  fix-check:
+    name: Fix Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+
+    - name: Check fixes
+      run: |
+        cargo fix --all --locked --allow-dirty
+        git diff --exit-code || (echo "Code changes were made by cargo fix. Please run it locally and push the changes." && exit 1)
