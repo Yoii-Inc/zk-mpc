@@ -460,7 +460,7 @@ fn reshare(
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct AngleShare {
     public_modifier: Plaintexts,
     share: Vec<Plaintexts>,
@@ -478,7 +478,6 @@ impl Add<Plaintexts> for AngleShare {
         ret
     }
 }
-
 
 fn generate_angle_share(
     m_vec: Vec<Plaintexts>,
@@ -976,13 +975,12 @@ mod tests {
         ));
 
         // test with non-zero public modifier
-        let const_plain:Plaintexts = Plaintexts::new(vec![Fr::from(5);parameters.get_N()]);
+        let const_plain: Plaintexts = Plaintexts::new(vec![Fr::from(5); parameters.get_N()]);
         let result_added_const: AngleShare = result + const_plain;
         assert!(verify_angle_share(
             &result_added_const,
             &e_alpha.decrypt(&sk).decode(&she_params)
         ));
-
     }
 
     #[test]
