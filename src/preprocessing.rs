@@ -1,4 +1,4 @@
-mod ZKPoPK {
+pub mod ZKPoPK {
 
     use crate::she::SHEParameters;
 
@@ -461,7 +461,7 @@ fn reshare(
 }
 
 #[derive(Debug, Clone)]
-struct AngleShare {
+pub struct AngleShare {
     public_modifier: Plaintexts,
     share: Vec<Plaintexts>,
     MAC: Vec<Plaintexts>,
@@ -519,7 +519,7 @@ fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintexts) -> bool {
     return false;
 }
 
-struct BracketShare {
+pub struct BracketShare {
     share: Vec<Plaintexts>,
     MAC: Vec<(Plaintexts, Vec<Plaintexts>)>,
 }
@@ -610,7 +610,7 @@ fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -
 }
 
 // initialize
-fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
+pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
     let n = 3;
 
     let mut rng = thread_rng();
@@ -711,7 +711,7 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketSha
     diag_alpha
 }
 
-fn pair(
+pub fn pair(
     e_alpha: &Ciphertext,
     pk: &PublicKey,
     sk: &SecretKey,
@@ -769,7 +769,7 @@ fn pair(
     (r_bracket, r_angle)
 }
 
-fn triple(
+pub fn triple(
     e_alpha: &Ciphertext,
     pk: &PublicKey,
     sk: &SecretKey,
