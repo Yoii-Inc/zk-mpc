@@ -5,6 +5,7 @@ pub mod ZKPoPK {
     use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey};
 
     use ark_mnt4_753::Fq;
+    use num_bigint::{BigInt, BigUint};
     use num_traits::Zero;
     use rand::{thread_rng, Rng};
 
@@ -148,15 +149,20 @@ pub mod ZKPoPK {
             .collect()
     }
 
-    // TODO: Implement correctly
     fn generate_s(parameters: &Parameters) -> Vec<Encodedtext> {
-        //let mut rng = rand::thread_rng();
-        //let s: Vec<Vec<i32>> = (0..V).map(|_| (0..N).map(|_| rng.gen_range(0, upper_bound_s)).collect_vec()).collect_vec();
-        //s
-        (0..parameters.V)
+        let mut rng = rand::thread_rng();
+        let upper_bound_s = 128 * parameters.d * parameters.rho * parameters.sec.pow(2);
+        let s: Vec<Vec<i32>> = (0..parameters.V)
             .map(|_| {
+                (0..parameters.d)
+                    .map(|_| rng.gen_range(-upper_bound_s..upper_bound_s))
+                    .collect::<Vec<i32>>()
+            })
+            .collect();
+        s.iter()
+            .map(|s_i| {
                 Encodedtext::new(
-                    vec![Fq::zero(); parameters.d as usize],
+                    s_i.iter().map(|&s| Fq::from(s)).collect(),
                     parameters.d as usize,
                 )
             })
@@ -227,13 +233,13 @@ pub mod ZKPoPK {
 
         let norm_T = proof.T.iter().map(|t_i| t_i.norm()).max().unwrap();
 
-        // assert!(
-        //     norm_T
-        //         < (BigUint::from(128_usize)
-        //             * BigUint::from(parameters.d as usize)
-        //             * BigUint::from(parameters.rho as usize)
-        //             * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
-        // );
+        assert!(
+            norm_T
+                < (BigUint::from(128_usize)
+                    * BigUint::from(parameters.d as usize)
+                    * BigUint::from(parameters.rho as usize)
+                    * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
+        );
 
         Ok(())
     }
@@ -654,15 +660,6 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
     // ZKPoPK
     for i in (0..n) {
         let instance_alpha = ZKPoPK::Instance::new(pk.clone(), vec![e_alpha_vec[i].clone()]);
-
-        // TODO what？
-        let r2: Vec<Encodedtext> = vec![
-            Encodedtext::new(
-                vec![Fq::zero(); parameters.get_d() as usize],
-                parameters.get_d() as usize
-            );
-            parameters.get_sec() as usize
-        ];
 
         let witness_alpha = ZKPoPK::Witness::new(
             vec![diagonalized_alpha_vec[i].clone()],
