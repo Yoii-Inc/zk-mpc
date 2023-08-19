@@ -351,6 +351,25 @@ impl Mul<Encodedtext> for Encodedtext {
     }
 }
 
+impl Sum for Encodedtext {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let mut iter = iter.peekable();
+        let N = iter.peek().unwrap().get_degree();
+        let sum_vec = iter.fold(Vec::new(), |mut acc, encodedtext| {
+            for (i, value) in encodedtext.x.iter().enumerate() {
+                if i >= acc.len() {
+                    acc.push(*value);
+                } else {
+                    acc[i] = acc[i] + *value;
+                }
+            }
+            acc
+        });
+
+        Encodedtext { x: sum_vec, N }
+    }
+}
+
 impl Ciphertext {
     pub fn new(c0: Encodedtext, c1: Encodedtext, c2: Encodedtext) -> Ciphertext {
         Ciphertext { c0, c1, c2 }
@@ -427,6 +446,22 @@ impl Mul<Ciphertext> for Ciphertext {
         let c1 = self.c0.clone() * other.c1.clone() + self.c1.clone() * other.c0.clone();
         let c2 = self.c1.clone() * other.c1.clone() * Fq::from(-1);
         Self { c0, c1, c2 }
+    }
+}
+
+impl Sum for Ciphertext {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        // let iter2 = iter.cloned();
+        let mut iter2 = iter.peekable();
+        let N = iter2.peek().unwrap().get_degree();
+        iter2.fold(
+            Ciphertext {
+                c0: Encodedtext::new(vec![Fq::zero(); N], N),
+                c1: Encodedtext::new(vec![Fq::zero(); N], N),
+                c2: Encodedtext::new(vec![Fq::zero(); N], N),
+            },
+            |acc, ciphertext| acc + ciphertext,
+        )
     }
 }
 
@@ -658,6 +693,49 @@ mod tests {
         let pl_vec: Vec<Plaintexts> = vec![pl_1.clone(), pl_2.clone()];
         let pl_sum: Plaintexts = pl_vec.iter().cloned().sum();
         assert_eq!(pl_sum, pl_add_expected);
+    }
+
+    #[test]
+    fn test_encoded_text() {
+        let et_1 = Encodedtext::new(vec![Fq::from(1), Fq::from(2)], 2);
+        let et_2 = Encodedtext::new(vec![Fq::from(2), Fq::from(3)], 2);
+        let et_add = et_1.clone() + et_2.clone();
+        let et_add_expected = Encodedtext::new(vec![Fq::from(1 + 2), Fq::from(2 + 3)], 2);
+
+        assert_eq!(et_add, et_add_expected);
+
+        let et_vec: Vec<Encodedtext> = vec![et_1, et_2];
+        let et_sum: Encodedtext = et_vec.iter().cloned().sum();
+        assert_eq!(et_sum, et_add_expected);
+    }
+
+    #[test]
+    fn test_cipher_text() {
+        let mut rng = thread_rng();
+        let she_params = SHEParameters::new(
+            2,
+            2,
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
+            3.2,
+        );
+
+        let secret_key = SecretKey::generate(&she_params, &mut rng);
+        let public_key = secret_key.public_key_gen(&she_params, &mut rng);
+
+        let et_1 = Encodedtext::new(vec![Fq::from(1), Fq::from(2)], 2);
+        let et_2 = Encodedtext::new(vec![Fq::from(2), Fq::from(3)], 2);
+        let r_1 = get_gaussian(&she_params, 2 * 3, &mut rng);
+        let r_2 = get_gaussian(&she_params, 2 * 3, &mut rng);
+
+        let ct_1 = et_1.encrypt(&public_key, &r_1, &she_params);
+        let ct_2 = et_2.encrypt(&public_key, &r_2, &she_params);
+
+        let ct_add = ct_1.clone() + ct_2.clone();
+
+        let ct_vec: Vec<Ciphertext> = vec![ct_1, ct_2];
+        let ct_sum: Ciphertext = ct_vec.iter().cloned().sum();
+        assert_eq!(ct_sum, ct_add);
     }
 
     #[test]
