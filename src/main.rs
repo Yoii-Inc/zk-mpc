@@ -39,7 +39,14 @@ fn main() {
     // preprocessing
     let mut rng = rand::thread_rng();
     // // initialize phase
-    let zkpopk_parameters = preprocessing::ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+    let zkpopk_parameters = preprocessing::ZKPoPK::Parameters::new(
+        1,
+        2,
+        std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+        1,
+        6,
+        2,
+    );
 
     let she_parameters = she::SHEParameters::new(
         zkpopk_parameters.get_N(),

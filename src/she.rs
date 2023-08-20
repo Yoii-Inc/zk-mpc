@@ -1,11 +1,11 @@
 use ark_bls12_377::Fr;
-use ark_ff::{FftField, Field, FpParameters};
+use ark_ff::{FftField, Field, FpParameters, PrimeField};
 use ark_mnt4_753::{Fq, FqParameters};
 use ark_poly::{
     polynomial::univariate::DensePolynomial, univariate::DenseOrSparsePolynomial, UVPolynomial,
 };
 use ark_std::{log2, UniformRand};
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint, ToBigInt};
 use num_traits::{One, Zero};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
@@ -210,6 +210,31 @@ impl Encodedtext {
             .map(|i| substitute(&polynomial, &root_of_cyclotomic[i]))
             .collect();
         Plaintexts { m: res }
+    }
+
+    pub fn each_element(&self) -> Vec<BigInt> {
+        let biguint_vec = self
+            .x
+            .iter()
+            .map(|&x_i| std::convert::Into::<BigUint>::into(x_i))
+            .collect::<Vec<_>>();
+
+        let bigint_vec = biguint_vec
+            .iter()
+            .map(|x_i| {
+                if x_i.clone() > std::convert::Into::<BigUint>::into(FqParameters::MODULUS) / 2_u32
+                {
+                    x_i.to_bigint().unwrap()
+                        - std::convert::Into::<BigUint>::into(FqParameters::MODULUS)
+                            .to_bigint()
+                            .unwrap()
+                } else {
+                    x_i.to_bigint().unwrap()
+                }
+            })
+            .collect::<Vec<_>>();
+
+        bigint_vec
     }
 
     pub fn norm(&self) -> BigUint {
