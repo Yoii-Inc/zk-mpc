@@ -39,7 +39,7 @@ fn main() {
     // preprocessing
     let mut rng = rand::thread_rng();
     // // initialize phase
-    let zkpopk_parameters = preprocessing::ZKPoPK::Parameters::new(
+    let zkpopk_parameters = preprocessing::zkpopk::Parameters::new(
         1,
         2,
         std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
@@ -49,8 +49,8 @@ fn main() {
     );
 
     let she_parameters = she::SHEParameters::new(
-        zkpopk_parameters.get_N(),
-        zkpopk_parameters.get_N(),
+        zkpopk_parameters.get_n(),
+        zkpopk_parameters.get_n(),
         FrParameters::MODULUS.into(),
         FqParameters::MODULUS.into(),
         3.2,
@@ -62,7 +62,7 @@ fn main() {
     let sk = she::SecretKey::generate(&she_parameters, &mut rng);
     let pk = sk.public_key_gen(&she_parameters, &mut rng);
 
-    let e_alpha = she::Ciphertext::rand(&pk, zkpopk_parameters.get_N(), &mut rng, &she_parameters);
+    let e_alpha = she::Ciphertext::rand(&pk, zkpopk_parameters.get_n(), &mut rng, &she_parameters);
 
     let (r_bracket, r_angle) =
         preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
