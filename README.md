@@ -26,6 +26,11 @@ and build:
 cargo build
 ```
 
+run:
+```
+cargo run ./inputs/inputs.json
+```
+
 ## Tests
 
 ```
