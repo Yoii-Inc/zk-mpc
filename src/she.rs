@@ -108,6 +108,7 @@ impl Add for Plaintexts {
 
     fn add(self, other: Self) -> Self {
         let mut res = vec![Fr::from(0); self.m.len()];
+        #[allow(clippy::needless_range_loop)]
         for i in 0..self.m.len() {
             res[i] = self.m[i] + other.m[i];
         }
@@ -120,6 +121,7 @@ impl Sub for Plaintexts {
 
     fn sub(self, other: Self) -> Self {
         let mut res = vec![Fr::from(0); self.m.len()];
+        #[allow(clippy::needless_range_loop)]
         for i in 0..self.m.len() {
             res[i] = self.m[i] - other.m[i];
         }
@@ -150,6 +152,7 @@ impl Neg for Plaintexts {
 
     fn neg(self) -> Self {
         let mut result = vec![Fr::from(0); self.m.len()];
+        #[allow(clippy::needless_range_loop)]
         for i in 0..result.len() {
             result[i] = -self.m[i];
         }
@@ -194,9 +197,9 @@ impl Encodedtext {
             .iter()
             .map(|&x_i| std::convert::Into::<BigUint>::into(x_i))
             .collect::<Vec<_>>();
-        for i in 0..biguint_vec.len() {
-            if biguint_vec[i] > params.q.clone() / 2u128 {
-                biguint_vec[i] -= params.q.clone() % params.p.clone();
+        for bu in biguint_vec.iter_mut() {
+            if *bu > params.q.clone() / 2u128 {
+                *bu -= params.q.clone() % params.p.clone();
             }
         }
 
@@ -204,7 +207,7 @@ impl Encodedtext {
         let polynomial = biguint_vec
             .iter()
             .map(|x_i| Fr::from(x_i.clone()))
-            .collect();
+            .collect::<Vec<_>>();
 
         let res = (0..params.s)
             .map(|i| substitute(&polynomial, &root_of_cyclotomic[i]))
@@ -244,12 +247,11 @@ impl Encodedtext {
             .map(|&x_i| std::convert::Into::<BigUint>::into(x_i))
             .collect::<Vec<_>>();
 
-        for i in 0..biguint_vec.len() {
-            if biguint_vec[i] > std::convert::Into::<BigUint>::into(FqParameters::MODULUS) / 2_u32 {
-                biguint_vec[i] = std::convert::Into::<BigUint>::into(FqParameters::MODULUS)
-                    - biguint_vec[i].clone();
+        biguint_vec.iter_mut().for_each(|bu| {
+            if *bu > std::convert::Into::<BigUint>::into(FqParameters::MODULUS) / 2_u32 {
+                *bu = std::convert::Into::<BigUint>::into(FqParameters::MODULUS) - bu.clone();
             }
-        }
+        });
         biguint_vec.iter().max().unwrap().clone()
     }
 
@@ -288,9 +290,9 @@ impl Add for Encodedtext {
 
     fn add(self, other: Self) -> Self {
         let mut res = vec![Fq::zero(); self.n];
-        for i in 0..res.len() {
+        (0..res.len()).for_each(|i| {
             res[i] = self.x[i] + other.x[i];
-        }
+        });
         Self { x: res, n: self.n }
     }
 }
@@ -303,9 +305,9 @@ impl Sub for Encodedtext {
         if other.x.is_empty() {
             self
         } else {
-            for i in 0..res.len() {
+            (0..res.len()).for_each(|i| {
                 res[i] = self.x[i] - other.x[i];
-            }
+            });
             Self { x: res, n: self.n }
         }
     }
@@ -516,7 +518,7 @@ impl PublicKey {
     }
 }
 
-fn poly_remainder(a: &Vec<Fq>, b: &Vec<Fq>, degree: usize) -> Vec<Fq> {
+fn poly_remainder(a: &[Fq], b: &[Fq], degree: usize) -> Vec<Fq> {
     let mut r = a.to_vec();
 
     while r.len() >= b.len() {
@@ -542,9 +544,9 @@ fn poly_remainder(a: &Vec<Fq>, b: &Vec<Fq>, degree: usize) -> Vec<Fq> {
     r
 }
 
-fn poly_remainder2(a: &Vec<Fq>, b: &Vec<Fq>, expect_length: usize) -> Vec<Fq> {
-    let a_poly = DensePolynomial::from_coefficients_vec(a.clone());
-    let b_poly = DensePolynomial::from_coefficients_vec(b.clone());
+fn poly_remainder2(a: &[Fq], b: &[Fq], expect_length: usize) -> Vec<Fq> {
+    let a_poly = DensePolynomial::from_coefficients_vec(a.to_vec());
+    let b_poly = DensePolynomial::from_coefficients_vec(b.to_vec());
 
     let a_poly2 = DenseOrSparsePolynomial::from(a_poly);
     let b_poly2 = DenseOrSparsePolynomial::from(b_poly);
@@ -572,7 +574,7 @@ pub fn get_gaussian<T: Rng>(
     Encodedtext::new(val, dimension)
 }
 
-fn substitute(polynomial: &Vec<Fr>, variable: &Fr) -> Fr {
+fn substitute(polynomial: &[Fr], variable: &Fr) -> Fr {
     let mut result = Fr::from(0);
     for (i, coefficient) in polynomial.iter().enumerate() {
         result += *coefficient * variable.pow([i as u64]);
@@ -701,8 +703,8 @@ mod tests {
 
         let res = cyclotomic_moduli(she_params.n);
 
-        for i in 0..res.len() {
-            assert_eq!(Fr::one(), res[i].pow([(s * 2) as u64]));
+        for v in res {
+            assert_eq!(Fr::one(), v.pow([(s * 2) as u64]));
         }
         println!("hello");
     }

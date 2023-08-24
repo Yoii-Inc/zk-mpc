@@ -64,11 +64,11 @@ pub mod zkpopk {
     }
 
     impl Witness {
-        pub fn new(m: Vec<Plaintexts>, x: &Vec<Encodedtext>, r: &Vec<Encodedtext>) -> Self {
+        pub fn new(m: Vec<Plaintexts>, x: &[Encodedtext], r: &[Encodedtext]) -> Self {
             Self {
                 m,
-                x: x.clone(),
-                r: r.clone(),
+                x: x.to_vec(),
+                r: r.to_vec(),
             }
         }
     }
@@ -95,6 +95,7 @@ pub mod zkpopk {
         let u: Vec<Encodedtext> = generate_u(parameters, witness, she_params);
         let s: Vec<Encodedtext> = generate_s(parameters);
 
+        #[allow(clippy::needless_range_loop)]
         for i in 0..parameters.v as usize {
             assert_eq!(u[i].get_degree(), { parameters.n });
             let m_i = &witness.m[i].encode(she_params);
@@ -216,13 +217,13 @@ pub mod zkpopk {
     }
 
     // TODO: Implement hash function. output is sec bit.
-    fn hash(a: &Vec<Ciphertext>, c: &Vec<Ciphertext>, parameters: &Parameters) -> Vec<bool> {
+    fn hash(a: &[Ciphertext], c: &[Ciphertext], parameters: &Parameters) -> Vec<bool> {
         //let rng = &mut thread_rng();
         let mut rng: rand::rngs::StdRng = rand::SeedableRng::seed_from_u64(10);
         (0..parameters.sec).map(|_| rng.gen_bool(0.5)).collect()
     }
 
-    fn generate_m_e(e: &Vec<bool>, parameters: &Parameters) -> Vec<Vec<u128>> {
+    fn generate_m_e(e: &[bool], parameters: &Parameters) -> Vec<Vec<u128>> {
         let m_e: Vec<Vec<u128>> = (0..parameters.v)
             .map(|i| {
                 (0..parameters.sec)
@@ -455,7 +456,7 @@ fn reshare(
 
         let witness = zkpopk::Witness::new(
             vec![f_i.clone()],
-            &vec![f_i.encode(she_params)],
+            &[f_i.encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
@@ -471,8 +472,8 @@ fn reshare(
         Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
     );
 
-    for i in 0..e_f_vec.len() {
-        sum = sum + e_f_vec[i].clone();
+    for e_f in e_f_vec {
+        sum = sum + e_f;
     }
 
     //let e_f = e_f_vec.iter().sum();
@@ -693,7 +694,7 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
 
         let witness_alpha = zkpopk::Witness::new(
             vec![diagonalized_alpha_vec[i].clone()],
-            &vec![diagonalized_alpha_vec[i].encode(she_params)],
+            &[diagonalized_alpha_vec[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
@@ -703,7 +704,7 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
 
         let witness_beta = zkpopk::Witness::new(
             vec![diagonalized_beta[i].clone()],
-            &vec![diagonalized_beta[i].encode(she_params)],
+            &[diagonalized_beta[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
@@ -722,8 +723,8 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
         Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
     );
 
-    for i in 0..e_alpha_vec.len() {
-        sum = sum + e_alpha_vec[i].clone();
+    for e in e_alpha_vec {
+        sum = sum + e;
     }
 
     bracket(
@@ -768,7 +769,7 @@ pub fn pair(
 
         let witness = zkpopk::Witness::new(
             vec![r_i.clone()],
-            &vec![r_i.encode(she_params)],
+            &[r_i.encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
@@ -784,8 +785,8 @@ pub fn pair(
         Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
     );
 
-    for i in 0..e_r_vec.len() {
-        sum = sum + e_r_vec[i].clone();
+    for e_r in e_r_vec {
+        sum = sum + e_r;
     }
 
     let r_bracket = bracket(r_vec.clone(), sum.clone(), parameters, pk, sk, she_params);
@@ -831,7 +832,7 @@ pub fn triple(
 
         let witness_a = zkpopk::Witness::new(
             vec![a_vec[i].clone()],
-            &vec![a_vec[i].encode(she_params)],
+            &[a_vec[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
@@ -841,7 +842,7 @@ pub fn triple(
 
         let witness_b = zkpopk::Witness::new(
             vec![b_vec[i].clone()],
-            &vec![b_vec[i].encode(she_params)],
+            &[b_vec[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
@@ -858,8 +859,8 @@ pub fn triple(
         Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
     );
 
-    for i in 0..e_a_vec.len() {
-        e_a = e_a + e_a_vec[i].clone();
+    for e in e_a_vec {
+        e_a = e_a + e;
     }
 
     let mut e_b = Ciphertext::new(
@@ -868,8 +869,8 @@ pub fn triple(
         Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
     );
 
-    for i in 0..e_b_vec.len() {
-        e_b = e_b + e_b_vec[i].clone();
+    for e in e_b_vec {
+        e_b = e_b + e;
     }
 
     // step 5
@@ -1030,8 +1031,8 @@ mod tests {
 
         let mut sum = Plaintexts::new(vec![Fr::from(0); parameters.get_n()]);
 
-        for i in 0..m_vec.len() {
-            sum = sum + m_vec[i].clone();
+        for m in m_vec.iter() {
+            sum = sum + m.clone();
         }
         let e_m = sum.encode(&she_params).encrypt(&pk, &r, &she_params);
 
