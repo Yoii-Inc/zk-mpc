@@ -7,8 +7,7 @@ use ark_crypto_primitives::CommitmentScheme;
 use ark_ff::{BigInteger, FpParameters, PrimeField};
 use ark_groth16::Groth16;
 use ark_mnt4_753::FqParameters;
-use ark_serialize::Read;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read};
 use ark_snark::SNARK;
 use ark_std::UniformRand;
 use hex::ToHex;
@@ -16,8 +15,6 @@ use serde::Deserialize;
 use serde_json::json;
 use std::fmt::Write;
 use std::fs::File;
-use std::io::prelude::*;
-// use std::io::Read;
 use std::io::Write as Otherwrite;
 
 use structopt::StructOpt;
@@ -34,7 +31,7 @@ struct ArgInput {
 }
 
 #[derive(Debug, Deserialize)]
-struct output {
+struct Output {
     hex_commitment: String,
 }
 
@@ -121,7 +118,6 @@ fn main() {
     .unwrap());
 
     // serialize commitment
-
     let mut byte = Vec::new();
 
     h_x.serialize(&mut byte).unwrap();
@@ -150,21 +146,23 @@ fn main() {
     }
 
     // deserialize
-    let mut file = File::open("./outputs/outputs.json").expect("Failed to open file");
+    let mut output_file = File::open("./outputs/outputs.json").expect("Failed to open file");
 
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)
+    let mut output_string = String::new();
+    output_file
+        .read_to_string(&mut output_string)
         .expect("Failed to read file");
 
-    let output: output = serde_json::from_str(&contents).unwrap();
+    let output_data: Output = serde_json::from_str(&output_string).unwrap();
 
-    let remove_prefix_contents = if let Some(stripped) = output.hex_commitment.strip_prefix("0x") {
+    let remove_prefix_string = if let Some(stripped) = output_data.hex_commitment.strip_prefix("0x")
+    {
         stripped.to_string()
     } else {
-        output.hex_commitment.clone()
+        output_data.hex_commitment.clone()
     };
 
-    let reader: &[u8] = &hex::decode(remove_prefix_contents).unwrap();
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
     let deserialized_h_x: input_circuit::PedersenCommitment =
         ark_ec::models::twisted_edwards_extended::GroupAffine::deserialize(reader).unwrap();
