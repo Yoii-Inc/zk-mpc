@@ -7,11 +7,19 @@ use ark_crypto_primitives::CommitmentScheme;
 use ark_ff::{BigInteger, FpParameters, PrimeField};
 use ark_groth16::Groth16;
 use ark_mnt4_753::FqParameters;
+use ark_serialize::Read;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_snark::SNARK;
 use ark_std::UniformRand;
+use hex::ToHex;
 use serde::Deserialize;
+use serde_json::json;
+use std::fmt::Write;
 use std::fs::File;
-use std::io::Read;
+use std::io::prelude::*;
+// use std::io::Read;
+use std::io::Write as Otherwrite;
+
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -23,6 +31,11 @@ struct Opt {
 #[derive(Debug, Deserialize)]
 struct ArgInput {
     x: u128,
+}
+
+#[derive(Debug, Deserialize)]
+struct output {
+    hex_commitment: String,
 }
 
 fn main() {
@@ -106,4 +119,55 @@ fn main() {
         &proof
     )
     .unwrap());
+
+    // serialize commitment
+
+    let mut byte = Vec::new();
+
+    h_x.serialize(&mut byte).unwrap();
+
+    // convert from Vec<u8> to HEX string
+    let hex_string = byte.encode_hex::<String>();
+
+    let mut prefixed_hex_string = String::new();
+    write!(prefixed_hex_string, "0x{}", hex_string).unwrap();
+
+    // create JSON object
+    let json_data = json!({
+        "hex_commitment": prefixed_hex_string
+    });
+
+    let mut file = match File::create("./outputs/outputs.json") {
+        Ok(file) => file,
+        Err(e) => panic!("couldn't create output.json: {}", e),
+    };
+
+    let json_string = serde_json::to_string_pretty(&json_data).unwrap();
+
+    match file.write_all(json_string.as_bytes()) {
+        Ok(_) => println!("The data has been successfully written."),
+        Err(e) => panic!("couldn't write data: {}", e),
+    }
+
+    // deserialize
+    let mut file = File::open("./outputs/outputs.json").expect("Failed to open file");
+
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .expect("Failed to read file");
+
+    let output: output = serde_json::from_str(&contents).unwrap();
+
+    let remove_prefix_contents = if let Some(stripped) = output.hex_commitment.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        output.hex_commitment.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_contents).unwrap();
+
+    let deserialized_h_x: input_circuit::PedersenCommitment =
+        ark_ec::models::twisted_edwards_extended::GroupAffine::deserialize(reader).unwrap();
+
+    assert_eq!(h_x, deserialized_h_x);
 }
