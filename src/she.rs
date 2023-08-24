@@ -1,5 +1,5 @@
 use ark_bls12_377::Fr;
-use ark_ff::{FftField, Field, FpParameters, PrimeField};
+use ark_ff::{FftField, Field, FpParameters};
 use ark_mnt4_753::{Fq, FqParameters};
 use ark_poly::{
     polynomial::univariate::DensePolynomial, univariate::DenseOrSparsePolynomial, UVPolynomial,
@@ -30,7 +30,7 @@ pub trait Plaintextish {
 
 impl Plaintextish for Plaintext {
     fn diagonalize(&self, length: usize) -> Plaintexts {
-        Plaintexts::new(vec![self.clone(); length])
+        Plaintexts::new(vec![*self; length])
     }
 }
 
@@ -136,7 +136,7 @@ impl Sum for Plaintexts {
                     if i >= acc.len() {
                         acc.push(*value);
                     } else {
-                        acc[i] = acc[i] + *value;
+                        acc[i] += *value;
                     }
                 }
                 acc
@@ -150,7 +150,7 @@ impl Neg for Plaintexts {
 
     fn neg(self) -> Self {
         let mut result = vec![Fr::from(0); self.m.len()];
-        for i in (0..result.len()) {
+        for i in 0..result.len() {
             result[i] = -self.m[i];
         }
         Plaintexts { m: result }
@@ -244,7 +244,7 @@ impl Encodedtext {
             .map(|&x_i| std::convert::Into::<BigUint>::into(x_i))
             .collect::<Vec<_>>();
 
-        for i in (0..biguint_vec.len()) {
+        for i in 0..biguint_vec.len() {
             if biguint_vec[i] > std::convert::Into::<BigUint>::into(FqParameters::MODULUS) / 2_u32 {
                 biguint_vec[i] = std::convert::Into::<BigUint>::into(FqParameters::MODULUS)
                     - biguint_vec[i].clone();
@@ -301,7 +301,7 @@ impl Sub for Encodedtext {
     fn sub(self, other: Self) -> Self {
         let mut res = vec![Fq::zero(); self.x.len().max(other.x.len())];
         if other.x.is_empty() {
-            return self;
+            self
         } else {
             for i in 0..res.len() {
                 res[i] = self.x[i] - other.x[i];
@@ -385,7 +385,7 @@ impl Sum for Encodedtext {
                 if i >= acc.len() {
                     acc.push(*value);
                 } else {
-                    acc[i] = acc[i] + *value;
+                    acc[i] += *value;
                 }
             }
             acc
@@ -520,7 +520,7 @@ fn poly_remainder(a: &Vec<Fq>, b: &Vec<Fq>, degree: usize) -> Vec<Fq> {
     let mut r = a.to_vec();
 
     while r.len() >= b.len() {
-        let ratio = r.last().unwrap().clone() / b.last().unwrap();
+        let ratio = *r.last().unwrap() / b.last().unwrap();
         let degree = r.len() - b.len();
 
         let t: Vec<Fq> = b.iter().map(|&x| x * ratio).collect();
@@ -543,8 +543,8 @@ fn poly_remainder(a: &Vec<Fq>, b: &Vec<Fq>, degree: usize) -> Vec<Fq> {
 }
 
 fn poly_remainder2(a: &Vec<Fq>, b: &Vec<Fq>, expect_length: usize) -> Vec<Fq> {
-    let mut a_poly = DensePolynomial::from_coefficients_vec(a.clone());
-    let mut b_poly = DensePolynomial::from_coefficients_vec(b.clone());
+    let a_poly = DensePolynomial::from_coefficients_vec(a.clone());
+    let b_poly = DensePolynomial::from_coefficients_vec(b.clone());
 
     let a_poly2 = DenseOrSparsePolynomial::from(a_poly);
     let b_poly2 = DenseOrSparsePolynomial::from(b_poly);
@@ -575,7 +575,7 @@ pub fn get_gaussian<T: Rng>(
 fn substitute(polynomial: &Vec<Fr>, variable: &Fr) -> Fr {
     let mut result = Fr::from(0);
     for (i, coefficient) in polynomial.iter().enumerate() {
-        result += coefficient.clone() * variable.pow([i as u64]);
+        result += *coefficient * variable.pow([i as u64]);
     }
     result
 }
@@ -688,7 +688,7 @@ mod tests {
 
     #[test]
     fn test_cyclotomic_moduli() {
-        let mut rng = thread_rng();
+        let rng = thread_rng();
 
         // Set the parameters for this instantiation of BV11
         let std_dev = 3.2; // Standard deviation for generating the error

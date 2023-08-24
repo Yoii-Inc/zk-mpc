@@ -1,6 +1,6 @@
 pub mod zkpopk {
 
-    use crate::she::{self, get_gaussian, SHEParameters};
+    use crate::she::{SHEParameters};
 
     use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey};
 
@@ -95,8 +95,8 @@ pub mod zkpopk {
         let u: Vec<Encodedtext> = generate_u(parameters, witness, she_params);
         let s: Vec<Encodedtext> = generate_s(parameters);
 
-        for i in (0..parameters.v as usize) {
-            assert_eq!(u[i].get_degree(), parameters.n as usize);
+        for i in 0..parameters.v as usize {
+            assert_eq!(u[i].get_degree(), { parameters.n });
             let m_i = &witness.m[i].encode(she_params);
         }
         let y: Vec<Encodedtext> = witness
@@ -110,7 +110,7 @@ pub mod zkpopk {
         let a: Vec<Ciphertext> = y
             .iter()
             .zip(s.iter())
-            .map(|(&ref y_i, s_i)| y_i.encrypt(&instance.pk, s_i, she_params))
+            .map(|(y_i, s_i)| y_i.encrypt(&instance.pk, s_i, she_params))
             .collect();
 
         // step 3
@@ -125,13 +125,13 @@ pub mod zkpopk {
         let z: Vec<Encodedtext> = y
             .iter()
             .zip(m_e.iter())
-            .map(|(&ref y_i, &ref row)| y_i.clone() + dot_product2(&row, &witness.x))
+            .map(|(y_i, row)| y_i.clone() + dot_product2(row, &witness.x))
             .collect();
 
         let t: Vec<Encodedtext> = s
             .iter()
             .zip(m_e.iter())
-            .map(|(&ref s_i, &ref row)| s_i.clone() + dot_product2(&row, &witness.r))
+            .map(|(s_i, row)| s_i.clone() + dot_product2(row, &witness.r))
             .collect();
 
         Proof { a, z, t }
@@ -170,7 +170,9 @@ pub mod zkpopk {
             })
             .collect();
 
-        let u = (0..parameters.v as usize)
+        
+
+        (0..parameters.v as usize)
             .map(|i| {
                 let mut vec = Vec::new();
                 for j in 0..parameters.n {
@@ -192,9 +194,7 @@ pub mod zkpopk {
                 }
                 Encodedtext::new(vec, parameters.n)
             })
-            .collect::<Vec<Encodedtext>>();
-
-        u
+            .collect::<Vec<Encodedtext>>()
     }
 
     fn generate_s(parameters: &Parameters) -> Vec<Encodedtext> {
@@ -253,7 +253,7 @@ pub mod zkpopk {
             .z
             .iter()
             .zip(proof.t.iter())
-            .map(|(&ref z_i, &ref t_i)| z_i.encrypt(&instance.pk, &t_i.clone(), she_params))
+            .map(|(z_i, t_i)| z_i.encrypt(&instance.pk, &t_i.clone(), she_params))
             .collect();
 
         // step 7
@@ -262,7 +262,7 @@ pub mod zkpopk {
         let rhs: Vec<Ciphertext> = m_e
             .iter()
             .zip(proof.a.iter())
-            .map(|(&ref row, &ref a_i)| a_i.clone() + dot_product3(&row, &instance.c, parameters))
+            .map(|(row, a_i)| a_i.clone() + dot_product3(row, &instance.c, parameters))
             .collect();
 
         assert_eq!(d, rhs);
@@ -321,16 +321,16 @@ pub mod zkpopk {
 
         let mut sum = Ciphertext::new(
             Encodedtext::new(
-                vec![Fq::zero(); parameters.n as usize],
-                parameters.n as usize,
+                vec![Fq::zero(); parameters.n],
+                parameters.n,
             ),
             Encodedtext::new(
-                vec![Fq::zero(); parameters.n as usize],
-                parameters.n as usize,
+                vec![Fq::zero(); parameters.n],
+                parameters.n,
             ),
             Encodedtext::new(
-                vec![Fq::zero(); parameters.n as usize],
-                parameters.n as usize,
+                vec![Fq::zero(); parameters.n],
+                parameters.n,
             ),
         );
 
@@ -365,15 +365,15 @@ pub mod zkpopk {
             };
 
             let she_params = SHEParameters::new(
-                parameters.n as usize,
-                parameters.n as usize,
+                parameters.n,
+                parameters.n,
                 FrParameters::MODULUS.into(),
                 FqParameters::MODULUS.into(),
                 3.2,
             );
 
             let m = vec![
-                Plaintexts::new(vec![Fr::from(0); parameters.n as usize]);
+                Plaintexts::new(vec![Fr::from(0); parameters.n]);
                 parameters.v as usize
             ];
             let x: Vec<Encodedtext> =
@@ -446,14 +446,14 @@ fn reshare(
 
     // // step 2
     //let e_f_vec: Vec<i32> = f.iter().map(|&f_i| encode(f_i)).collect();
-    let r = get_gaussian(she_params, (parameters.get_n() * 3) as usize, &mut rng);
+    let r = get_gaussian(she_params, parameters.get_n() * 3, &mut rng);
     let e_f_vec: Vec<Ciphertext> = f
         .iter()
         .map(|f_i| f_i.encode(she_params).encrypt(pk, &r, she_params))
         .collect();
 
     // step 3
-    for i in (0..n) {
+    for i in 0..n {
         let f_i = &f[i];
         let e_f_i = &e_f_vec[i];
 
@@ -541,7 +541,7 @@ fn generate_angle_share(
     sk: &SecretKey,
     she_params: &SHEParameters,
 ) -> AngleShare {
-    let mut rng = thread_rng();
+    let rng = thread_rng();
 
     let e_malpha = e_m * e_alpha.clone();
 
@@ -569,7 +569,7 @@ fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintexts) -> bool {
     if mac_1 == mac_2 {
         return true;
     }
-    return false;
+    false
 }
 
 pub struct BracketShare {
@@ -655,7 +655,7 @@ fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -
             mac_sum = mac_sum + bracket_share.mac[j].1[i].clone();
         }
 
-        if (mac_sum != original.clone() * bracket_share.mac[i].0.clone()) {
+        if mac_sum != original.clone() * bracket_share.mac[i].0.clone() {
             flag = false;
         }
     }
@@ -705,16 +705,16 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
 
     // step 5
     // ZKPoPK
-    for i in (0..n) {
+    for i in 0..n {
         let instance_alpha = zkpopk::Instance::new(pk.clone(), vec![e_alpha_vec[i].clone()]);
 
         let witness_alpha = zkpopk::Witness::new(
             vec![diagonalized_alpha_vec[i].clone()],
-            &vec![diagonalized_alpha_vec[i].encode(&she_params)],
+            &vec![diagonalized_alpha_vec[i].encode(she_params)],
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof_alpha = zkpopk::prove(&parameters, &witness_alpha, &instance_alpha, she_params);
+        let proof_alpha = zkpopk::prove(parameters, &witness_alpha, &instance_alpha, she_params);
 
         let instance_beta = zkpopk::Instance::new(pk.clone(), vec![e_beta_vec[i].clone()]);
 
@@ -724,10 +724,10 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof_beta = zkpopk::prove(&parameters, &witness_beta, &instance_beta, she_params);
+        let proof_beta = zkpopk::prove(parameters, &witness_beta, &instance_beta, she_params);
 
-        zkpopk::verify(&proof_alpha, &parameters, &instance_alpha, she_params).unwrap();
-        zkpopk::verify(&proof_beta, &parameters, &instance_beta, she_params).unwrap();
+        zkpopk::verify(&proof_alpha, parameters, &instance_alpha, she_params).unwrap();
+        zkpopk::verify(&proof_beta, parameters, &instance_beta, she_params).unwrap();
     }
 
     // step 6
@@ -743,16 +743,16 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
         sum = sum + e_alpha_vec[i].clone();
     }
 
-    let diag_alpha = bracket(
+    
+
+    bracket(
         diagonalized_alpha_vec,
         sum,
         parameters,
         &pk,
         &sk,
         she_params,
-    );
-
-    diag_alpha
+    )
 }
 
 pub fn pair(
@@ -775,11 +775,11 @@ pub fn pair(
     // step 2
     let e_r_vec: Vec<Ciphertext> = r_vec
         .iter()
-        .map(|r_vec_i| r_vec_i.encode(she_params).encrypt(&pk, &r, she_params))
+        .map(|r_vec_i| r_vec_i.encode(she_params).encrypt(pk, &r, she_params))
         .collect();
 
     // step 3
-    for i in (0..n) {
+    for i in 0..n {
         let r_i = &r_vec[i];
         let e_r_i = &e_r_vec[i];
 
@@ -791,9 +791,9 @@ pub fn pair(
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof = zkpopk::prove(&parameters, &witness, &instance, she_params);
+        let proof = zkpopk::prove(parameters, &witness, &instance, she_params);
 
-        zkpopk::verify(&proof, &parameters, &instance, she_params).unwrap();
+        zkpopk::verify(&proof, parameters, &instance, she_params).unwrap();
     }
 
     // step 4
@@ -807,8 +807,8 @@ pub fn pair(
         sum = sum + e_r_vec[i].clone();
     }
 
-    let r_bracket = bracket(r_vec.clone(), sum.clone(), parameters, &pk, &sk, she_params);
-    let r_angle = generate_angle_share(r_vec, sum, e_alpha, parameters, &pk, &sk, she_params);
+    let r_bracket = bracket(r_vec.clone(), sum.clone(), parameters, pk, sk, she_params);
+    let r_angle = generate_angle_share(r_vec, sum, e_alpha, parameters, pk, sk, she_params);
 
     (r_bracket, r_angle)
 }
@@ -837,15 +837,15 @@ pub fn triple(
     // step 2
     let e_a_vec: Vec<Ciphertext> = a_vec
         .iter()
-        .map(|a_vec_i| a_vec_i.encode(she_params).encrypt(&pk, &r, she_params))
+        .map(|a_vec_i| a_vec_i.encode(she_params).encrypt(pk, &r, she_params))
         .collect();
     let e_b_vec: Vec<Ciphertext> = b_vec
         .iter()
-        .map(|b_vec_i| b_vec_i.encode(she_params).encrypt(&pk, &r, she_params))
+        .map(|b_vec_i| b_vec_i.encode(she_params).encrypt(pk, &r, she_params))
         .collect();
 
     // step 3
-    for i in (0..n) {
+    for i in 0..n {
         let instance_a = zkpopk::Instance::new(pk.clone(), vec![e_a_vec[i].clone()]);
 
         let witness_a = zkpopk::Witness::new(
@@ -854,7 +854,7 @@ pub fn triple(
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof_a = zkpopk::prove(&parameters, &witness_a, &instance_a, she_params);
+        let proof_a = zkpopk::prove(parameters, &witness_a, &instance_a, she_params);
 
         let instance_b = zkpopk::Instance::new(pk.clone(), vec![e_b_vec[i].clone()]);
 
@@ -864,10 +864,10 @@ pub fn triple(
             &vec![r.clone(); parameters.get_sec() as usize],
         );
 
-        let proof_b = zkpopk::prove(&parameters, &witness_b, &instance_b, she_params);
+        let proof_b = zkpopk::prove(parameters, &witness_b, &instance_b, she_params);
 
-        zkpopk::verify(&proof_a, &parameters, &instance_a, she_params).unwrap();
-        zkpopk::verify(&proof_b, &parameters, &instance_b, she_params).unwrap();
+        zkpopk::verify(&proof_a, parameters, &instance_a, she_params).unwrap();
+        zkpopk::verify(&proof_b, parameters, &instance_b, she_params).unwrap();
     }
 
     // step 4
@@ -897,8 +897,8 @@ pub fn triple(
         e_a.clone(),
         e_alpha,
         parameters,
-        &pk,
-        &sk,
+        pk,
+        sk,
         she_params,
     );
     let b_angle = generate_angle_share(
@@ -906,8 +906,8 @@ pub fn triple(
         e_b.clone(),
         e_alpha,
         parameters,
-        &pk,
-        &sk,
+        pk,
+        sk,
         she_params,
     );
 
@@ -918,9 +918,9 @@ pub fn triple(
     let (c_vec, ct) = reshare(
         e_c,
         CiphertextOpiton::NewCiphertext,
-        &parameters,
-        &pk,
-        &sk,
+        parameters,
+        pk,
+        sk,
         she_params,
     );
 
@@ -930,8 +930,8 @@ pub fn triple(
         ct.unwrap(),
         e_alpha,
         parameters,
-        &pk,
-        &sk,
+        pk,
+        sk,
         she_params,
     );
 

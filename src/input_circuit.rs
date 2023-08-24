@@ -169,7 +169,7 @@ impl MySecretInputCircuit {
     fn verify_commitment(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         let x_com_circuit = PedersenComCircuit {
             param: self.params.clone().unwrap(),
-            input: self.x.clone().unwrap(),
+            input: self.x.unwrap(),
             open: self.randomness.clone().unwrap(),
             commit: self.h_x.unwrap(),
         };
