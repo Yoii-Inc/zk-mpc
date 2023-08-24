@@ -1,24 +1,28 @@
-mod ZKPoPK {
+pub mod ZKPoPK {
 
-    use crate::she::SHEParameters;
+    use crate::she::{self, get_gaussian, SHEParameters};
 
     use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey};
 
-    use ark_mnt4_753::Fq;
+    use ark_ff::FpParameters;
+    use ark_mnt4_753::{Fq, FqParameters};
+    use num_bigint::{BigInt, BigUint, ToBigInt, UniformBigInt};
+    use num_integer::Integer;
     use num_traits::Zero;
     use rand::{thread_rng, Rng};
+    use rand_distr::uniform::UniformSampler;
 
     pub struct Parameters {
         V: i32,
         N: usize,
-        tau: i32,
+        tau: BigUint,
         sec: i32,
         d: i32,
         rho: i32,
     }
 
     impl Parameters {
-        pub fn new(V: i32, N: usize, tau: i32, sec: i32, d: i32, rho: i32) -> Self {
+        pub fn new(V: i32, N: usize, tau: BigUint, sec: i32, d: i32, rho: i32) -> Self {
             Self {
                 V,
                 N,
@@ -88,7 +92,7 @@ mod ZKPoPK {
         she_params: &SHEParameters,
     ) -> Proof {
         // step 1
-        let u: Vec<Encodedtext> = generate_u(parameters);
+        let u: Vec<Encodedtext> = generate_u(parameters, witness, she_params);
         let s: Vec<Encodedtext> = generate_s(parameters);
 
         for i in (0..parameters.V as usize) {
@@ -133,30 +137,80 @@ mod ZKPoPK {
         Proof { a, z, T }
     }
 
-    // TODO: Implement correctly
-    fn generate_u(parameters: &Parameters) -> Vec<Encodedtext> {
-        //let mut rng = rand::thread_rng();
-        //let u: Vec<i32> = (0..V).map(|_| rng.gen_range(0, upper_bound_y-m_i)).collect_vec();
-        //u
-        (0..parameters.V)
-            .map(|_| {
-                Encodedtext::new(
-                    vec![Fq::zero(); parameters.N as usize],
-                    parameters.N as usize,
-                )
+    fn generate_u(
+        parameters: &Parameters,
+        witness: &Witness,
+        she_params: &SHEParameters,
+    ) -> Vec<Encodedtext> {
+        let mut rng = rand::thread_rng();
+        let upper_bound_y: BigUint =
+            128 * parameters.N * parameters.tau.clone() * parameters.sec.pow(2) as usize / 2_u32;
+
+        let upper_bound_u: Vec<Vec<BigInt>> = witness
+            .m
+            .iter()
+            .map(|m_i| {
+                m_i.encode(she_params)
+                    .each_element()
+                    .iter()
+                    .map(|m_i_encoded_j| upper_bound_y.to_bigint().unwrap() - m_i_encoded_j)
+                    .collect::<Vec<BigInt>>()
             })
-            .collect()
+            .collect();
+
+        let lower_bound_u: Vec<Vec<BigInt>> = witness
+            .m
+            .iter()
+            .map(|m_i| {
+                m_i.encode(she_params)
+                    .each_element()
+                    .iter()
+                    .map(|m_i_encoded_j| -upper_bound_y.to_bigint().unwrap() - m_i_encoded_j)
+                    .collect::<Vec<BigInt>>()
+            })
+            .collect();
+
+        let u = (0..parameters.V as usize)
+            .map(|i| {
+                let mut vec = Vec::new();
+                for j in 0..parameters.N {
+                    let sampler = UniformBigInt::new(
+                        lower_bound_u[i][j].clone(),
+                        upper_bound_u[i][j].clone(),
+                    );
+                    let value: BigInt = sampler.sample(&mut rng);
+                    if value < BigInt::zero() {
+                        let rem = value.mod_floor(
+                            &std::convert::Into::<BigUint>::into(FqParameters::MODULUS)
+                                .to_bigint()
+                                .unwrap(),
+                        );
+                        vec.push(Fq::from(rem.to_biguint().unwrap()));
+                    } else {
+                        vec.push(Fq::from(value.to_biguint().unwrap()));
+                    }
+                }
+                Encodedtext::new(vec, parameters.N)
+            })
+            .collect::<Vec<Encodedtext>>();
+
+        u
     }
 
-    // TODO: Implement correctly
     fn generate_s(parameters: &Parameters) -> Vec<Encodedtext> {
-        //let mut rng = rand::thread_rng();
-        //let s: Vec<Vec<i32>> = (0..V).map(|_| (0..N).map(|_| rng.gen_range(0, upper_bound_s)).collect_vec()).collect_vec();
-        //s
-        (0..parameters.V)
+        let mut rng = rand::thread_rng();
+        let upper_bound_s = 128 * parameters.d * parameters.rho * parameters.sec.pow(2) / 2;
+        let s: Vec<Vec<i32>> = (0..parameters.V)
             .map(|_| {
+                (0..parameters.d)
+                    .map(|_| rng.gen_range(-upper_bound_s..upper_bound_s))
+                    .collect::<Vec<i32>>()
+            })
+            .collect();
+        s.iter()
+            .map(|s_i| {
                 Encodedtext::new(
-                    vec![Fq::zero(); parameters.d as usize],
+                    s_i.iter().map(|&s| Fq::from(s)).collect(),
                     parameters.d as usize,
                 )
             })
@@ -213,27 +267,25 @@ mod ZKPoPK {
 
         assert_eq!(d, rhs);
 
-        // TODO: consider appropriate bound
-
         let norm_z = proof.z.iter().map(|z_i| z_i.norm()).max().unwrap();
 
-        // assert!(
-        //     norm_z
-        //         < (BigUint::from(128_usize)
-        //             * BigUint::from(parameters.N)
-        //             * BigUint::from(parameters.tau as usize)
-        //             * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
-        // );
+        assert!(
+            norm_z
+                < (BigUint::from(128_usize)
+                    * BigUint::from(parameters.N)
+                    * parameters.tau.clone()
+                    * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
+        );
 
         let norm_T = proof.T.iter().map(|t_i| t_i.norm()).max().unwrap();
 
-        // assert!(
-        //     norm_T
-        //         < (BigUint::from(128_usize)
-        //             * BigUint::from(parameters.d as usize)
-        //             * BigUint::from(parameters.rho as usize)
-        //             * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
-        // );
+        assert!(
+            norm_T
+                < (BigUint::from(128_usize)
+                    * BigUint::from(parameters.d as usize)
+                    * BigUint::from(parameters.rho as usize)
+                    * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
+        );
 
         Ok(())
     }
@@ -293,6 +345,7 @@ mod ZKPoPK {
     mod tests {
         use ark_bls12_377::{FqParameters, Fr, FrParameters};
         use ark_ff::FpParameters;
+        use num_bigint::BigUint;
 
         use crate::she::SecretKey;
 
@@ -305,7 +358,7 @@ mod ZKPoPK {
             let parameters = Parameters {
                 V: 7, // 2*sec-1
                 N: 2, // degree
-                tau: 2,
+                tau: std::convert::Into::<BigUint>::into(FrParameters::MODULUS) / 2_u32,
                 sec: 4,
                 d: 6, // 3*N
                 rho: 2,
@@ -461,7 +514,7 @@ fn reshare(
 }
 
 #[derive(Debug, Clone)]
-struct AngleShare {
+pub struct AngleShare {
     public_modifier: Plaintexts,
     share: Vec<Plaintexts>,
     MAC: Vec<Plaintexts>,
@@ -519,7 +572,7 @@ fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintexts) -> bool {
     return false;
 }
 
-struct BracketShare {
+pub struct BracketShare {
     share: Vec<Plaintexts>,
     MAC: Vec<(Plaintexts, Vec<Plaintexts>)>,
 }
@@ -610,7 +663,7 @@ fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -
 }
 
 // initialize
-fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
+pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
     let n = 3;
 
     let mut rng = thread_rng();
@@ -654,15 +707,6 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketSha
     // ZKPoPK
     for i in (0..n) {
         let instance_alpha = ZKPoPK::Instance::new(pk.clone(), vec![e_alpha_vec[i].clone()]);
-
-        // TODO what？
-        let r2: Vec<Encodedtext> = vec![
-            Encodedtext::new(
-                vec![Fq::zero(); parameters.get_d() as usize],
-                parameters.get_d() as usize
-            );
-            parameters.get_sec() as usize
-        ];
 
         let witness_alpha = ZKPoPK::Witness::new(
             vec![diagonalized_alpha_vec[i].clone()],
@@ -711,7 +755,7 @@ fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketSha
     diag_alpha
 }
 
-fn pair(
+pub fn pair(
     e_alpha: &Ciphertext,
     pk: &PublicKey,
     sk: &SecretKey,
@@ -769,7 +813,7 @@ fn pair(
     (r_bracket, r_angle)
 }
 
-fn triple(
+pub fn triple(
     e_alpha: &Ciphertext,
     pk: &PublicKey,
     sk: &SecretKey,
@@ -906,7 +950,14 @@ mod tests {
     fn test_reshare() {
         let mut rng = rand::thread_rng();
 
-        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let parameters = ZKPoPK::Parameters::new(
+            1,
+            2,
+            std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+            1,
+            6,
+            2,
+        );
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),
@@ -944,7 +995,14 @@ mod tests {
 
         let mut rng = rand::thread_rng();
 
-        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let parameters = ZKPoPK::Parameters::new(
+            1,
+            2,
+            std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+            1,
+            6,
+            2,
+        );
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),
@@ -988,7 +1046,14 @@ mod tests {
         let n = 3;
         let mut rng = rand::thread_rng();
 
-        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let parameters = ZKPoPK::Parameters::new(
+            1,
+            2,
+            std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+            1,
+            6,
+            2,
+        );
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),
@@ -1020,7 +1085,14 @@ mod tests {
 
     #[test]
     fn test_initialize() {
-        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let parameters = ZKPoPK::Parameters::new(
+            1,
+            2,
+            std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+            1,
+            6,
+            2,
+        );
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),
@@ -1037,7 +1109,14 @@ mod tests {
     #[test]
     fn test_pair() {
         let mut rng = rand::thread_rng();
-        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let parameters = ZKPoPK::Parameters::new(
+            1,
+            2,
+            std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+            1,
+            6,
+            2,
+        );
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),
@@ -1063,7 +1142,14 @@ mod tests {
     #[test]
     fn test_triple() {
         let mut rng = rand::thread_rng();
-        let parameters = ZKPoPK::Parameters::new(1, 2, 2, 1, 6, 2);
+        let parameters = ZKPoPK::Parameters::new(
+            1,
+            2,
+            std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+            1,
+            6,
+            2,
+        );
         let she_params = SHEParameters::new(
             parameters.get_N(),
             parameters.get_N(),

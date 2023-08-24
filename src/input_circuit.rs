@@ -129,6 +129,24 @@ pub struct MySecretInputCircuit {
 }
 
 impl MySecretInputCircuit {
+    pub fn new(
+        x: Fr,
+        randomness: PedersenRandomness,
+        params: PedersenParam,
+        h_x: PedersenCommitment,
+        lower_bound: Fr,
+        upper_bound: Fr,
+    ) -> Self {
+        Self {
+            x: Some(x),
+            randomness: Some(randomness),
+            params: Some(params),
+            h_x: Some(h_x),
+            lower_bound: Some(lower_bound),
+            upper_bound: Some(upper_bound),
+        }
+    }
+
     fn verify_constraints(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         let x = FpVar::new_witness(cs.clone(), || {
             self.x.ok_or(SynthesisError::AssignmentMissing)

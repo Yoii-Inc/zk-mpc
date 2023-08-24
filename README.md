@@ -26,6 +26,11 @@ and build:
 cargo build
 ```
 
+run:
+```
+cargo run ./inputs/inputs.json
+```
+
 ## Tests
 
 ```
@@ -34,6 +39,32 @@ cargo test
 
 ## Usage
 ### how to specify secret inputs
+To specify secret inputs, follow these steps:
+
+1. In the `inputs/inputs.json` file, define the desired inputs using a JSON format. For example:
+
+
+    ```json
+    {
+        "arg1": 10,
+        "arg2": -2,
+        "arg3": "value3"
+    }
+    ```
+    You can modify the number and types of arguments based on your requirements.
+
+2. In the main.rs file of your project, use the ArgInput struct to receive the specified arguments. Make sure to update the struct definition to match the number and types of arguments you specified in the inputs.json file. For example:
+
+    ``` rust
+    struct ArgInput {
+        arg1: u128,
+        arg2: i32,
+        arg3: String,
+    }
+    ```
+    Modify the ArgInput struct as needed to accommodate the changes in the number and types of arguments.
+
+By following these steps, you can specify secret inputs in the inputs.json file and receive them in your Rust program using the ArgInput struct.
 
 ### how to specify constraints
 
@@ -41,7 +72,9 @@ cargo test
 ## Technical Details
 ### Generating secret sharing of inputs and ZKP verification
 
-The additive secret sharing method is used in SPDZ, and the secret information $S$ is kept in the form of shares $S_i$ such that $S=\sum_{i=1}^nS_i$.
+The additive secret sharing method is used in SPDZ, and the secret information $S$ is kept in the form of shares $S_i$ such that
+
+$$S=\sum_{i=1}^nS_i$$
 
 With respect to the input values of SPDZ, a participant's share of secret information $X$ is constructed as follows.
 
@@ -62,8 +95,10 @@ Therefore, for each conditional secret input $x$, we use zkp to prove that each 
 For these, the participant who has secret inputs creates a proof so that the following relation is satisfied.
 
 $$
-C(x)=0\\
-Commitment(x, randomeness)=h_x
+\begin{align*}
+C(x)&=0\\
+Commitment(x, randomeness)&=h_x
+\end{align*}
 $$
 
 where the 1st equation is the condition that $x$ must satisfy.
