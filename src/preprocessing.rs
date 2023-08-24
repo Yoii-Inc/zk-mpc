@@ -1,6 +1,6 @@
 pub mod zkpopk {
 
-    use crate::she::{SHEParameters};
+    use crate::she::SHEParameters;
 
     use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey};
 
@@ -170,8 +170,6 @@ pub mod zkpopk {
             })
             .collect();
 
-        
-
         (0..parameters.v as usize)
             .map(|i| {
                 let mut vec = Vec::new();
@@ -320,18 +318,9 @@ pub mod zkpopk {
         let rng = &mut thread_rng();
 
         let mut sum = Ciphertext::new(
-            Encodedtext::new(
-                vec![Fq::zero(); parameters.n],
-                parameters.n,
-            ),
-            Encodedtext::new(
-                vec![Fq::zero(); parameters.n],
-                parameters.n,
-            ),
-            Encodedtext::new(
-                vec![Fq::zero(); parameters.n],
-                parameters.n,
-            ),
+            Encodedtext::new(vec![Fq::zero(); parameters.n], parameters.n),
+            Encodedtext::new(vec![Fq::zero(); parameters.n], parameters.n),
+            Encodedtext::new(vec![Fq::zero(); parameters.n], parameters.n),
         );
 
         for i in 0..row.len() {
@@ -372,10 +361,7 @@ pub mod zkpopk {
                 3.2,
             );
 
-            let m = vec![
-                Plaintexts::new(vec![Fr::from(0); parameters.n]);
-                parameters.v as usize
-            ];
+            let m = vec![Plaintexts::new(vec![Fr::from(0); parameters.n]); parameters.v as usize];
             let x: Vec<Encodedtext> =
                 vec![Encodedtext::rand(&she_params, &mut rng); parameters.sec as usize];
             let r: Vec<Encodedtext> = vec![
@@ -638,10 +624,7 @@ fn bracket(
         })
         .collect();
 
-    BracketShare {
-        share: m_vec,
-        mac,
-    }
+    BracketShare { share: m_vec, mac }
 }
 
 fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -> bool {
@@ -742,8 +725,6 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
     for i in 0..e_alpha_vec.len() {
         sum = sum + e_alpha_vec[i].clone();
     }
-
-    
 
     bracket(
         diagonalized_alpha_vec,
@@ -892,24 +873,8 @@ pub fn triple(
     }
 
     // step 5
-    let a_angle = generate_angle_share(
-        a_vec,
-        e_a.clone(),
-        e_alpha,
-        parameters,
-        pk,
-        sk,
-        she_params,
-    );
-    let b_angle = generate_angle_share(
-        b_vec,
-        e_b.clone(),
-        e_alpha,
-        parameters,
-        pk,
-        sk,
-        she_params,
-    );
+    let a_angle = generate_angle_share(a_vec, e_a.clone(), e_alpha, parameters, pk, sk, she_params);
+    let b_angle = generate_angle_share(b_vec, e_b.clone(), e_alpha, parameters, pk, sk, she_params);
 
     // step 6
     let e_c = e_a * e_b;
@@ -925,15 +890,7 @@ pub fn triple(
     );
 
     // step 8
-    let c_angle = generate_angle_share(
-        c_vec,
-        ct.unwrap(),
-        e_alpha,
-        parameters,
-        pk,
-        sk,
-        she_params,
-    );
+    let c_angle = generate_angle_share(c_vec, ct.unwrap(), e_alpha, parameters, pk, sk, she_params);
 
     (a_angle, b_angle, c_angle)
 }
