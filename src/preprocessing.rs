@@ -307,7 +307,7 @@ pub mod zkpopk {
         let mut sum = Encodedtext::new(vec![Fq::zero(); x[0].get_degree()], x[0].get_degree());
 
         for i in 0..row.len() {
-            sum = sum + x[i].clone() * Fq::from(row[i]);
+            sum += x[i].clone() * Fq::from(row[i]);
         }
 
         sum
@@ -325,7 +325,7 @@ pub mod zkpopk {
         );
 
         for i in 0..row.len() {
-            sum = sum + c[i].clone() * Fq::from(row[i]);
+            sum += c[i].clone() * Fq::from(row[i]);
         }
 
         sum
@@ -466,18 +466,7 @@ fn reshare(
     }
 
     // step4
-    let mut sum = Ciphertext::new(
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-    );
-
-    for e_f in e_f_vec {
-        sum = sum + e_f;
-    }
-
-    //let e_f = e_f_vec.iter().sum();
-    let e_f = sum;
+    let e_f = e_f_vec.into_iter().sum::<Ciphertext>();
     let e_mf = e_m + e_f.clone();
 
     // step 5
@@ -633,11 +622,12 @@ fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -
     let mut flag = true;
     let original: Plaintexts = bracket_share.share.iter().cloned().sum();
     for i in 0..n {
-        let mut mac_sum = Plaintexts::new(vec![Fr::zero(); parameters.get_n()]);
-
-        for j in 0..n {
-            mac_sum = mac_sum + bracket_share.mac[j].1[i].clone();
-        }
+        // TODO: Is this okay?
+        let mac_sum = bracket_share
+            .mac
+            .iter()
+            .map(|mac| mac.1[i].clone())
+            .sum::<Plaintexts>();
 
         if mac_sum != original.clone() * bracket_share.mac[i].0.clone() {
             flag = false;
@@ -715,21 +705,11 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
     }
 
     // step 6
-    // let e_alpha = e_alpha_vec.iter().sum();
-
-    let mut sum = Ciphertext::new(
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-    );
-
-    for e in e_alpha_vec {
-        sum = sum + e;
-    }
+    let e_alpha = e_alpha_vec.clone().into_iter().sum::<Ciphertext>();
 
     bracket(
         diagonalized_alpha_vec,
-        sum,
+        e_alpha,
         parameters,
         &pk,
         &sk,
@@ -779,18 +759,17 @@ pub fn pair(
     }
 
     // step 4
-    let mut sum = Ciphertext::new(
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
+    let e_r_sum = e_r_vec.into_iter().sum::<Ciphertext>();
+
+    let r_bracket = bracket(
+        r_vec.clone(),
+        e_r_sum.clone(),
+        parameters,
+        pk,
+        sk,
+        she_params,
     );
-
-    for e_r in e_r_vec {
-        sum = sum + e_r;
-    }
-
-    let r_bracket = bracket(r_vec.clone(), sum.clone(), parameters, pk, sk, she_params);
-    let r_angle = generate_angle_share(r_vec, sum, e_alpha, parameters, pk, sk, she_params);
+    let r_angle = generate_angle_share(r_vec, e_r_sum, e_alpha, parameters, pk, sk, she_params);
 
     (r_bracket, r_angle)
 }
@@ -853,25 +832,9 @@ pub fn triple(
     }
 
     // step 4
-    let mut e_a = Ciphertext::new(
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-    );
+    let e_a = e_a_vec.into_iter().sum::<Ciphertext>();
 
-    for e in e_a_vec {
-        e_a = e_a + e;
-    }
-
-    let mut e_b = Ciphertext::new(
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-        Encodedtext::new(vec![Fq::zero(); parameters.get_n()], parameters.get_n()),
-    );
-
-    for e in e_b_vec {
-        e_b = e_b + e;
-    }
+    let e_b = e_b_vec.into_iter().sum::<Ciphertext>();
 
     // step 5
     let a_angle = generate_angle_share(a_vec, e_a.clone(), e_alpha, parameters, pk, sk, she_params);
@@ -1029,11 +992,8 @@ mod tests {
             .map(|_| Plaintexts::rand(&she_params, &mut rng))
             .collect();
 
-        let mut sum = Plaintexts::new(vec![Fr::from(0); parameters.get_n()]);
+        let sum = m_vec.iter().cloned().sum::<Plaintexts>();
 
-        for m in m_vec.iter() {
-            sum = sum + m.clone();
-        }
         let e_m = sum.encode(&she_params).encrypt(&pk, &r, &she_params);
 
         let result = bracket(m_vec, e_m, &parameters, &pk, &sk, &she_params);

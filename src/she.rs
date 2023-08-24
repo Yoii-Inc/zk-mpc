@@ -11,7 +11,7 @@ use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use std::{
     iter::Sum,
-    ops::{Add, Mul, Neg, Sub},
+    ops::{Add, AddAssign, Mul, Neg, Sub},
 };
 
 pub struct SHEParameters {
@@ -106,7 +106,9 @@ impl Plaintexts {
 impl Add for Plaintexts {
     type Output = Self;
 
+    /// lenght should be same
     fn add(self, other: Self) -> Self {
+        assert!(self.m.len() == other.m.len());
         let mut res = vec![Fr::from(0); self.m.len()];
         #[allow(clippy::needless_range_loop)]
         for i in 0..self.m.len() {
@@ -116,10 +118,22 @@ impl Add for Plaintexts {
     }
 }
 
+impl AddAssign for Plaintexts {
+    /// lenght should be same
+    fn add_assign(&mut self, other: Self) {
+        assert!(self.m.len() == other.m.len());
+        for (a, b) in self.m.iter_mut().zip(other.m.iter()) {
+            *a += *b;
+        }
+    }
+}
+
 impl Sub for Plaintexts {
     type Output = Self;
 
+    /// lenght should be same
     fn sub(self, other: Self) -> Self {
+        assert!(self.m.len() == other.m.len());
         let mut res = vec![Fr::from(0); self.m.len()];
         #[allow(clippy::needless_range_loop)]
         for i in 0..self.m.len() {
@@ -289,11 +303,29 @@ impl Add for Encodedtext {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        let mut res = vec![Fq::zero(); self.n];
+        let mut res = vec![Fq::zero(); self.x.len().max(other.x.len())];
         (0..res.len()).for_each(|i| {
             res[i] = self.x[i] + other.x[i];
         });
         Self { x: res, n: self.n }
+    }
+}
+
+impl AddAssign for Encodedtext {
+    fn add_assign(&mut self, rhs: Self) {
+        let mut rhs_x = rhs.x.clone();
+        // if rhs is longer than self, fill the rest of self with zero
+        if self.x.len() < rhs_x.len() {
+            self.x.extend(vec![Fq::zero(); rhs_x.len() - self.x.len()]);
+        }
+        // if self is longer than rhs, fill the rest of rhs with zero
+        if self.x.len() > rhs_x.len() {
+            rhs_x.extend(vec![Fq::zero(); self.x.len() - rhs_x.len()]);
+        }
+
+        for (a, b) in self.x.iter_mut().zip(rhs_x.iter()) {
+            *a += *b;
+        }
     }
 }
 
@@ -366,7 +398,7 @@ impl Mul<Encodedtext> for Encodedtext {
 
         // modulo Phi_m(X), m=N+1
 
-        let mut modulo_poly = vec![Fq::zero(); self.n + 1];
+        let mut modulo_poly: Vec<ark_ff::Fp768<FqParameters>> = vec![Fq::zero(); self.n.add(1)];
         modulo_poly[0] = Fq::one();
         modulo_poly[self.n] = Fq::one();
 
@@ -438,6 +470,14 @@ impl Add for Ciphertext {
             c1: self.c1 + other.c1,
             c2: self.c2 + other.c2,
         }
+    }
+}
+
+impl AddAssign for Ciphertext {
+    fn add_assign(&mut self, rhs: Self) {
+        self.c0 += rhs.c0;
+        self.c1 += rhs.c1;
+        self.c2 += rhs.c2;
     }
 }
 
