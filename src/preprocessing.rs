@@ -622,7 +622,6 @@ fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -
     let mut flag = true;
     let original: Plaintexts = bracket_share.share.iter().cloned().sum();
     for i in 0..n {
-        // TODO: Is this okay?
         let mac_sum = bracket_share
             .mac
             .iter()
