@@ -63,7 +63,7 @@ impl<T: Clone + AddAssign> AddAssign for Texts<T> {
 impl<T: Clone + Zero + AddAssign> std::iter::Sum for Texts<T> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         let mut iter = iter.peekable();
-        
+
         // Get the maximum length from the iterator or use 0 if empty
         let max_length = iter.peek().map(|x| x.len()).unwrap_or(0);
 
@@ -138,7 +138,6 @@ mod test {
         let b = a.clone();
         assert_eq!(a, b);
         assert_eq!(a.len(), b.len());
-
     }
 
     #[test]
@@ -163,7 +162,9 @@ mod test {
         let b = Texts::from(&[4, 5, 6]);
         let c = Texts::from(&[7, 8, 9]);
         let d1 = a.clone() + b.clone() + c.clone();
-        let d2 = vec![a.clone(), b.clone(), c.clone()].into_iter().sum::<Texts<i32>>();
+        let d2 = vec![a.clone(), b.clone(), c.clone()]
+            .into_iter()
+            .sum::<Texts<i32>>();
         assert_eq!(d1, Texts::from(&[12, 15, 18]));
         assert_eq!(d2, Texts::from(&[12, 15, 18]));
     }
