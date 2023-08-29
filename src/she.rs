@@ -14,6 +14,8 @@ use std::{
     ops::{Add, AddAssign, Mul, Neg, Sub},
 };
 
+use crate::texts::Texts;
+
 pub struct SHEParameters {
     s: usize,
     n: usize,
@@ -30,14 +32,11 @@ pub trait Plaintextish {
 
 impl Plaintextish for Plaintext {
     fn diagonalize(&self, length: usize) -> Plaintexts {
-        Plaintexts::new(vec![*self; length])
+        Plaintexts::from(&vec![*self; length])
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct Plaintexts {
-    m: Vec<Fr>,
-}
+pub type Plaintexts = Texts<Plaintext>;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Encodedtext {
@@ -76,17 +75,13 @@ impl SHEParameters {
 }
 
 impl Plaintexts {
-    pub fn new(val: Vec<Fr>) -> Plaintexts {
-        Plaintexts { m: val }
-    }
-
     pub fn rand<T: Rng>(params: &SHEParameters, rng: &mut T) -> Plaintexts {
-        let res = (0..params.s).map(|_| Fr::rand(rng)).collect();
-        Plaintexts { m: res }
+        let res = (0..params.s).map(|_| Plaintext::rand(rng)).collect();
+        Plaintexts { vals: res }
     }
 
     pub fn encode(&self, params: &SHEParameters) -> Encodedtext {
-        let remainders = self.m.clone();
+        let remainders = self.vals.clone();
         let moduli = cyclotomic_moduli(params.s);
 
         let result_vec = interpolate(&moduli, &remainders).unwrap();
@@ -100,90 +95,6 @@ impl Plaintexts {
             x: result_vec_on_fq,
             n: params.n,
         }
-    }
-}
-
-impl Add for Plaintexts {
-    type Output = Self;
-
-    /// lenght should be same
-    fn add(self, other: Self) -> Self {
-        assert!(self.m.len() == other.m.len());
-        let mut res = vec![Fr::from(0); self.m.len()];
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..self.m.len() {
-            res[i] = self.m[i] + other.m[i];
-        }
-        Plaintexts { m: res }
-    }
-}
-
-impl AddAssign for Plaintexts {
-    /// lenght should be same
-    fn add_assign(&mut self, other: Self) {
-        assert!(self.m.len() == other.m.len());
-        for (a, b) in self.m.iter_mut().zip(other.m.iter()) {
-            *a += *b;
-        }
-    }
-}
-
-impl Sub for Plaintexts {
-    type Output = Self;
-
-    /// lenght should be same
-    fn sub(self, other: Self) -> Self {
-        assert!(self.m.len() == other.m.len());
-        let mut res = vec![Fr::from(0); self.m.len()];
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..self.m.len() {
-            res[i] = self.m[i] - other.m[i];
-        }
-        Plaintexts { m: res }
-    }
-}
-
-impl Sum for Plaintexts {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        let sum_vec = iter
-            .map(|plaintext| plaintext.m)
-            .fold(Vec::new(), |mut acc, vec| {
-                for (i, value) in vec.iter().enumerate() {
-                    if i >= acc.len() {
-                        acc.push(*value);
-                    } else {
-                        acc[i] += *value;
-                    }
-                }
-                acc
-            });
-        Plaintexts { m: sum_vec }
-    }
-}
-
-impl Neg for Plaintexts {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        let mut result = vec![Fr::from(0); self.m.len()];
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..result.len() {
-            result[i] = -self.m[i];
-        }
-        Plaintexts { m: result }
-    }
-}
-
-// multiplication of plaintext: multiply element with same index
-impl Mul for Plaintexts {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        let mut result = Plaintexts::new(vec![Fr::from(0); self.m.len()]);
-        for i in 0..result.m.len() {
-            result.m[i] = self.m[i] * rhs.m[i];
-        }
-        result
     }
 }
 
@@ -226,7 +137,7 @@ impl Encodedtext {
         let res = (0..params.s)
             .map(|i| substitute(&polynomial, &root_of_cyclotomic[i]))
             .collect();
-        Plaintexts { m: res }
+        Plaintexts { vals: res }
     }
 
     pub fn each_element(&self) -> Vec<BigInt> {
@@ -751,10 +662,10 @@ mod tests {
 
     #[test]
     fn test_plaintext() {
-        let pl_1: Plaintexts = Plaintexts::new(vec![Fr::from(1), Fr::from(2)]);
-        let pl_2: Plaintexts = Plaintexts::new(vec![Fr::from(2), Fr::from(3)]);
+        let pl_1: Plaintexts = Plaintexts::from_vec(vec![Fr::from(1), Fr::from(2)]);
+        let pl_2: Plaintexts = Plaintexts::from_vec(vec![Fr::from(2), Fr::from(3)]);
         let pl_add = pl_1.clone().add(pl_2.clone());
-        let pl_add_expected = Plaintexts::new(vec![Fr::from(1 + 2), Fr::from(2 + 3)]);
+        let pl_add_expected = Plaintexts::from(&[Fr::from(1 + 2), Fr::from(2 + 3)]);
         assert_eq!(pl_add, pl_add_expected);
 
         let pl_vec: Vec<Plaintexts> = vec![pl_1.clone(), pl_2.clone()];

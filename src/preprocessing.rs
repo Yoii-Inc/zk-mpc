@@ -362,7 +362,8 @@ pub mod zkpopk {
                 3.2,
             );
 
-            let m = vec![Plaintexts::new(vec![Fr::from(0); parameters.n]); parameters.v as usize];
+            let m =
+                vec![Plaintexts::from_vec(vec![Fr::from(0); parameters.n]); parameters.v as usize];
             let x: Vec<Encodedtext> =
                 vec![Encodedtext::rand(&she_params, &mut rng); parameters.sec as usize];
             let r: Vec<Encodedtext> = vec![
@@ -531,7 +532,7 @@ fn generate_angle_share(
     );
 
     AngleShare {
-        public_modifier: Plaintexts::new(vec![Fr::from(0); parameters.get_n()]),
+        public_modifier: Plaintexts::from_vec(vec![Fr::from(0); parameters.get_n()]),
         share: m_vec,
         mac: gamma_vec,
     }
@@ -953,7 +954,7 @@ mod tests {
         ));
 
         // test with non-zero public modifier
-        let const_plain: Plaintexts = Plaintexts::new(vec![Fr::from(5); parameters.get_n()]);
+        let const_plain: Plaintexts = Plaintexts::from_vec(vec![Fr::from(5); parameters.get_n()]);
         let result_added_const: AngleShare = result + const_plain;
         assert!(verify_angle_share(
             &result_added_const,

@@ -3,6 +3,7 @@
 mod input_circuit;
 mod preprocessing;
 mod she;
+mod texts;
 
 use ark_bls12_377::{Bls12_377, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;
