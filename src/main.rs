@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+mod circuit;
+mod groth16;
 mod input_circuit;
 mod preprocessing;
 mod she;
@@ -131,9 +133,7 @@ fn main() {
     write!(prefixed_hex_string, "0x{}", hex_string).unwrap();
 
     // create JSON object
-    let json_data = json!({
-        "hex_commitment": prefixed_hex_string
-    });
+    let json_data = json!({ "hex_commitment": prefixed_hex_string });
 
     let mut file = match File::create("./outputs/outputs.json") {
         Ok(file) => file,
