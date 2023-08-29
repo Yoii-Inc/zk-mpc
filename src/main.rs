@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+mod algebra;
 mod circuit;
 mod groth16;
 mod input_circuit;

@@ -7,8 +7,8 @@ use ark_relations::{
 // circuit
 #[derive(Clone)]
 pub struct MyCircuit<F: Field> {
-    a: Option<F>,
-    b: Option<F>,
+    pub a: Option<F>,
+    pub b: Option<F>,
 }
 
 impl<ConstraintF: Field> ConstraintSynthesizer<ConstraintF> for MyCircuit<ConstraintF> {
