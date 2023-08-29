@@ -490,14 +490,14 @@ fn reshare(
 }
 
 #[derive(Debug, Clone)]
-pub struct AngleShare {
+pub struct AngleShares {
     public_modifier: Plaintexts,
     share: Vec<Plaintexts>,
     mac: Vec<Plaintexts>,
 }
 
-impl Add<Plaintexts> for AngleShare {
-    type Output = AngleShare;
+impl Add<Plaintexts> for AngleShares {
+    type Output = AngleShares;
     fn add(self, rhs: Plaintexts) -> Self::Output {
         let mut ret = self.clone();
         // TODO: reduce clone
@@ -516,7 +516,7 @@ fn generate_angle_share(
     pk: &PublicKey,
     sk: &SecretKey,
     she_params: &SHEParameters,
-) -> AngleShare {
+) -> AngleShares {
     let rng = thread_rng();
 
     let e_malpha = e_m * e_alpha.clone();
@@ -530,7 +530,7 @@ fn generate_angle_share(
         she_params,
     );
 
-    AngleShare {
+    AngleShares {
         public_modifier: Plaintexts::new(vec![Fr::from(0); parameters.get_n()]),
         share: m_vec,
         mac: gamma_vec,
@@ -538,7 +538,7 @@ fn generate_angle_share(
 }
 
 // TODO: Implement for Plaintext instead of Plaintexts
-fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintexts) -> bool {
+fn verify_angle_share(angle_share: &AngleShares, alpha: &Plaintexts) -> bool {
     let mac_1: Plaintexts = angle_share.mac.iter().cloned().sum();
     let original: Plaintexts = angle_share.share.iter().cloned().sum();
     let mac_2: Plaintexts = alpha.clone() * (angle_share.public_modifier.clone() + original);
@@ -548,7 +548,7 @@ fn verify_angle_share(angle_share: &AngleShare, alpha: &Plaintexts) -> bool {
     false
 }
 
-pub struct BracketShare {
+pub struct BracketShares {
     share: Vec<Plaintexts>,
     mac: Vec<(Plaintexts, Vec<Plaintexts>)>,
 }
@@ -560,7 +560,7 @@ fn bracket(
     pk: &PublicKey,
     sk: &SecretKey,
     she_params: &SHEParameters,
-) -> BracketShare {
+) -> BracketShares {
     let n = 3;
 
     let mut rng = thread_rng();
@@ -614,10 +614,10 @@ fn bracket(
         })
         .collect();
 
-    BracketShare { share: m_vec, mac }
+    BracketShares { share: m_vec, mac }
 }
 
-fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -> bool {
+fn verify_bracket_share(bracket_share: &BracketShares, parameters: &Parameters) -> bool {
     let n = bracket_share.share.len();
     let mut flag = true;
     let original: Plaintexts = bracket_share.share.iter().cloned().sum();
@@ -636,7 +636,7 @@ fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -
 }
 
 // initialize
-pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
+pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShares {
     let n = 3;
 
     let mut rng = thread_rng();
@@ -722,7 +722,7 @@ pub fn pair(
     sk: &SecretKey,
     parameters: &Parameters,
     she_params: &SHEParameters,
-) -> (BracketShare, AngleShare) {
+) -> (BracketShares, AngleShares) {
     let n = 3;
     let mut rng = thread_rng();
 
@@ -779,7 +779,7 @@ pub fn triple(
     sk: &SecretKey,
     parameters: &Parameters,
     she_params: &SHEParameters,
-) -> (AngleShare, AngleShare, AngleShare) {
+) -> (AngleShares, AngleShares, AngleShares) {
     let n = 3;
     let length_s = 10;
     let mut rng = thread_rng();
@@ -954,7 +954,7 @@ mod tests {
 
         // test with non-zero public modifier
         let const_plain: Plaintexts = Plaintexts::new(vec![Fr::from(5); parameters.get_n()]);
-        let result_added_const: AngleShare = result + const_plain;
+        let result_added_const: AngleShares = result + const_plain;
         assert!(verify_angle_share(
             &result_added_const,
             &e_alpha.decrypt(&sk).decode(&she_params)
