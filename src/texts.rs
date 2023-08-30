@@ -64,6 +64,7 @@ impl<T: Clone + Zero + AddAssign> std::iter::Sum for Texts<T> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         let mut iter = iter.peekable();
 
+        // TODO: check if this is correct
         // Get the maximum length from the iterator or use 0 if empty
         let max_length = iter.peek().map(|x| x.len()).unwrap_or(0);
 
