@@ -100,21 +100,6 @@ impl<T: Clone + Zero + SubAssign> SubAssign for Texts<T> {
 }
 
 // impl Mul
-impl<T: Clone + Zero + Mul<T, Output = T>> Mul for Texts<T> {
-    type Output = Self;
-
-    /// lenght should be same
-    fn mul(self, other: Self) -> Self {
-        assert!(self.len() == other.len());
-        let mut res = vec![T::zero(); self.vals.len()];
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..self.vals.len() {
-            res[i] = self.vals[i].clone() * other.vals[i].clone();
-        }
-        Texts { vals: res }
-    }
-}
-
 impl<T: Clone + Zero + Sub<Output = T>> Sub for Texts<T> {
     type Output = Self;
 
@@ -193,11 +178,4 @@ mod test {
         assert_eq!(a, Texts::from(&[-3, -3, -3]));
     }
 
-    #[test]
-    fn test_texts_mul() {
-        let a = Texts::from(&[1, 2, 3]);
-        let b = Texts::from(&[4, 5, 6]);
-        let c = a * b;
-        assert_eq!(c, Texts::from(&[4, 10, 18]));
-    }
 }

@@ -2,7 +2,7 @@ pub mod zkpopk {
 
     use crate::she::SHEParameters;
 
-    use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey};
+    use super::super::she::{Ciphertext, Encodedtexts, Plaintexts, PublicKey};
 
     use ark_ff::FpParameters;
     use ark_mnt4_753::{Fq, FqParameters};
@@ -59,12 +59,12 @@ pub mod zkpopk {
 
     pub struct Witness {
         m: Vec<Plaintexts>,
-        x: Vec<Encodedtext>,
-        r: Vec<Encodedtext>,
+        x: Vec<Encodedtexts>,
+        r: Vec<Encodedtexts>,
     }
 
     impl Witness {
-        pub fn new(m: Vec<Plaintexts>, x: &[Encodedtext], r: &[Encodedtext]) -> Self {
+        pub fn new(m: Vec<Plaintexts>, x: &[Encodedtexts], r: &[Encodedtexts]) -> Self {
             Self {
                 m,
                 x: x.to_vec(),
@@ -74,9 +74,9 @@ pub mod zkpopk {
     }
 
     pub struct Proof {
-        a: Vec<Ciphertext>,  //G^V
-        z: Vec<Encodedtext>, //\mathbb{Z}^{N\times V}
-        t: Vec<Encodedtext>, //\mathbb{Z}^{V\times d}
+        a: Vec<Ciphertext>,   //G^V
+        z: Vec<Encodedtexts>, //\mathbb{Z}^{N\times V}
+        t: Vec<Encodedtexts>, //\mathbb{Z}^{V\times d}
     }
 
     struct ZKPoPK {
@@ -92,15 +92,15 @@ pub mod zkpopk {
         she_params: &SHEParameters,
     ) -> Proof {
         // step 1
-        let u: Vec<Encodedtext> = generate_u(parameters, witness, she_params);
-        let s: Vec<Encodedtext> = generate_s(parameters);
+        let u: Vec<Encodedtexts> = generate_u(parameters, witness, she_params);
+        let s: Vec<Encodedtexts> = generate_s(parameters);
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..parameters.v as usize {
             assert_eq!(u[i].get_degree(), { parameters.n });
             let m_i = &witness.m[i].encode(she_params);
         }
-        let y: Vec<Encodedtext> = witness
+        let y: Vec<Encodedtexts> = witness
             .m
             .iter()
             .zip(u.iter())
@@ -123,13 +123,13 @@ pub mod zkpopk {
         // step 5
         let m_e: Vec<Vec<u128>> = generate_m_e(&e, parameters);
 
-        let z: Vec<Encodedtext> = y
+        let z: Vec<Encodedtexts> = y
             .iter()
             .zip(m_e.iter())
             .map(|(y_i, row)| y_i.clone() + dot_product2(row, &witness.x))
             .collect();
 
-        let t: Vec<Encodedtext> = s
+        let t: Vec<Encodedtexts> = s
             .iter()
             .zip(m_e.iter())
             .map(|(s_i, row)| s_i.clone() + dot_product2(row, &witness.r))
@@ -142,7 +142,7 @@ pub mod zkpopk {
         parameters: &Parameters,
         witness: &Witness,
         she_params: &SHEParameters,
-    ) -> Vec<Encodedtext> {
+    ) -> Vec<Encodedtexts> {
         let mut rng = rand::thread_rng();
         let upper_bound_y: BigUint =
             128 * parameters.n * parameters.tau.clone() * parameters.sec.pow(2) as usize / 2_u32;
@@ -191,12 +191,12 @@ pub mod zkpopk {
                         vec.push(Fq::from(value.to_biguint().unwrap()));
                     }
                 }
-                Encodedtext::new(vec, parameters.n)
+                Encodedtexts::from_vec(vec)
             })
-            .collect::<Vec<Encodedtext>>()
+            .collect::<Vec<Encodedtexts>>()
     }
 
-    fn generate_s(parameters: &Parameters) -> Vec<Encodedtext> {
+    fn generate_s(parameters: &Parameters) -> Vec<Encodedtexts> {
         let mut rng = rand::thread_rng();
         let upper_bound_s = 128 * parameters.d * parameters.rho * parameters.sec.pow(2) / 2;
         let s: Vec<Vec<i32>> = (0..parameters.v)
@@ -207,12 +207,7 @@ pub mod zkpopk {
             })
             .collect();
         s.iter()
-            .map(|s_i| {
-                Encodedtext::new(
-                    s_i.iter().map(|&s| Fq::from(s)).collect(),
-                    parameters.d as usize,
-                )
-            })
+            .map(|s_i| Encodedtexts::from_vec(s_i.iter().map(|&s| Fq::from(s)).collect()))
             .collect()
     }
 
@@ -301,10 +296,10 @@ pub mod zkpopk {
         sum
     }
 
-    fn dot_product2(row: &Vec<u128>, x: &Vec<Encodedtext>) -> Encodedtext {
+    fn dot_product2(row: &Vec<u128>, x: &Vec<Encodedtexts>) -> Encodedtexts {
         assert_eq!(row.len(), x.len(), "Vector dimensions must match!");
 
-        let mut sum = Encodedtext::new(vec![Fq::zero(); x[0].get_degree()], x[0].get_degree());
+        let mut sum = Encodedtexts::from_vec(vec![Fq::zero(); x[0].get_degree()]);
 
         for i in 0..row.len() {
             sum += x[i].clone() * Fq::from(row[i]);
@@ -319,9 +314,9 @@ pub mod zkpopk {
         let rng = &mut thread_rng();
 
         let mut sum = Ciphertext::new(
-            Encodedtext::new(vec![Fq::zero(); parameters.n], parameters.n),
-            Encodedtext::new(vec![Fq::zero(); parameters.n], parameters.n),
-            Encodedtext::new(vec![Fq::zero(); parameters.n], parameters.n),
+            Encodedtexts::from_vec(vec![Fq::zero(); parameters.n]),
+            Encodedtexts::from_vec(vec![Fq::zero(); parameters.n]),
+            Encodedtexts::from_vec(vec![Fq::zero(); parameters.n]),
         );
 
         for i in 0..row.len() {
@@ -364,15 +359,13 @@ pub mod zkpopk {
 
             let m =
                 vec![Plaintexts::from_vec(vec![Fr::from(0); parameters.n]); parameters.v as usize];
-            let x: Vec<Encodedtext> =
-                vec![Encodedtext::rand(&she_params, &mut rng); parameters.sec as usize];
-            let r: Vec<Encodedtext> = vec![
-                Encodedtext::new(
-                    vec![Fq::zero(); parameters.d as usize],
-                    parameters.d as usize
-                );
-                parameters.sec as usize
-            ];
+            let x: Vec<Encodedtexts> =
+                vec![Encodedtexts::rand(&she_params, &mut rng); parameters.sec as usize];
+            let r: Vec<Encodedtexts> =
+                vec![
+                    Encodedtexts::from_vec(vec![Fq::zero(); parameters.d as usize]);
+                    parameters.sec as usize
+                ];
 
             let witness = Witness::new(m, &x, &r);
 
@@ -399,7 +392,7 @@ use std::ops::Add;
 use crate::she::Plaintextish;
 
 use super::she::{
-    get_gaussian, Ciphertext, Encodedtext, Plaintext, Plaintexts, PublicKey, SHEParameters,
+    get_gaussian, Ciphertext, Encodedtexts, Plaintext, Plaintexts, PublicKey, SHEParameters,
     SecretKey,
 };
 use ark_bls12_377::Fr;
@@ -447,14 +440,11 @@ fn reshare(
 
         let instance = zkpopk::Instance::new(pk.clone(), vec![e_f_i.clone()]);
 
-        let r2: Vec<Encodedtext> = vec![
-            Encodedtext::new(
-                vec![Fq::zero(); parameters.get_d() as usize],
-                parameters.get_d() as usize
-            );
-            parameters.get_sec() as usize
-        ];
-
+        let r2: Vec<Encodedtexts> =
+            vec![
+                Encodedtexts::from_vec(vec![Fq::zero(); parameters.get_d() as usize]);
+                parameters.get_sec() as usize
+            ];
         let witness = zkpopk::Witness::new(
             vec![f_i.clone()],
             &[f_i.encode(she_params)],
