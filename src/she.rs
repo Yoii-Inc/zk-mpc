@@ -11,7 +11,7 @@ use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use std::{
     iter::Sum,
-    ops::{Add, AddAssign, Mul, Neg, Sub},
+    ops::{Add, AddAssign, Mul, Sub},
 };
 
 use crate::texts::Texts;

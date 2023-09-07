@@ -1,5 +1,5 @@
 use num_traits::Zero;
-use std::ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Texts<T: Clone> {
