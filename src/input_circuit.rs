@@ -198,10 +198,15 @@ mod tests {
     use ark_snark::SNARK;
     use ark_std::UniformRand;
 
+    use ark_marlin::*;
+    use ark_poly::univariate::DensePolynomial;
+    use ark_poly_commit::marlin_pc::MarlinKZG10;
+    use blake2::Blake2s;
+
     use super::*;
 
     #[test]
-    fn test_no_circom() {
+    fn test_groth16() {
         let mut rng = rand::thread_rng();
 
         // generate the setup parameters
@@ -236,6 +241,63 @@ mod tests {
             &circuit_vk,
             &[lower_bound, upper_bound, h_x.x, h_x.y],
             &proof
+        )
+        .unwrap());
+    }
+
+    type Fr = ark_bls12_377::Fr;
+    type E = ark_bls12_377::Bls12_377;
+
+    type MarlinLocal = Marlin<Fr, MarlinKZG10<E, DensePolynomial<Fr>>, Blake2s>;
+
+    #[test]
+    fn test_marlin() {
+        let mut rng = rand::thread_rng();
+
+        let universal_srs = MarlinLocal::universal_setup(50000, 250, 300, &mut rng).unwrap();
+
+        // generate the setup parameters
+        let x = Fr::from(4);
+
+        let lower_bound = Fr::from(3);
+        let upper_bound = Fr::from(7);
+
+        // Pedersen commitment
+        let params = PedersenComScheme::setup(&mut rng).unwrap();
+        let randomness = PedersenRandomness::rand(&mut rng);
+        let x_bytes = x.into_repr().to_bytes_le();
+        let h_x = PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
+
+        let circuit = MySecretInputCircuit {
+            x: Some(x),
+            h_x: Some(h_x),
+            lower_bound: Some(lower_bound),
+            upper_bound: Some(upper_bound),
+            randomness: Some(randomness),
+            params: Some(params),
+        };
+
+        let (index_pk, index_vk) = MarlinLocal::index(&universal_srs, circuit.clone()).unwrap();
+        println!("Called index");
+
+        // calculate the proof by passing witness variable value
+        let proof = MarlinLocal::prove(&index_pk, circuit.clone(), &mut rng).unwrap();
+        println!("Called prover");
+
+        assert!(MarlinLocal::verify(
+            &index_vk,
+            &[lower_bound, upper_bound, h_x.x, h_x.y],
+            &proof,
+            &mut rng
+        )
+        .unwrap());
+
+        // expected to fail
+        assert!(!MarlinLocal::verify(
+            &index_vk,
+            &[lower_bound, upper_bound, h_x.y, h_x.x],
+            &proof,
+            &mut rng
         )
         .unwrap());
     }

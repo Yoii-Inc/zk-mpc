@@ -26,9 +26,13 @@ and build:
 cargo build
 ```
 
-run:
+run(by groth16):
 ```
-cargo run ./inputs/inputs.json
+cargo run groth16 ./inputs/inputs.json
+```
+or run(by marlin):
+```
+cargo run marlin ./inputs/inputs.json
 ```
 
 ## Tests
