@@ -63,13 +63,12 @@ impl<T: Clone + AddAssign> AddAssign for Texts<T> {
 impl<T: Clone + Zero + AddAssign> std::iter::Sum for Texts<T> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         let mut iter = iter.peekable();
-
-        // TODO: check if this is correct
-        // Get the maximum length from the iterator or use 0 if empty
-        let max_length = iter.peek().map(|x| x.len()).unwrap_or(0);
+        // assert all iter has same lenght
+        let first_len = iter.peek().map(|x| x.len()).unwrap_or(0);
+        assert!(iter.all(|x| x.len() == first_len));
 
         // Initialize with default value
-        let mut res = Texts::from_vec(vec![T::zero(); max_length]);
+        let mut res = Texts::from_vec(vec![T::zero(); first_len]);
 
         for i in iter {
             res += i;
