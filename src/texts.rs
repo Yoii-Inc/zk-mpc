@@ -2,11 +2,17 @@ use num_traits::Zero;
 use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
-pub struct Texts<T: Clone> {
+pub struct Texts<T: Clone + Zero> {
     pub vals: Vec<T>,
 }
 
-impl<T: Clone> Texts<T> {
+impl<T: Clone + Zero> Texts<T> {
+    pub fn zero(n: usize) -> Self {
+        Texts {
+            vals: vec![T::zero(); n],
+        }
+    }
+
     pub fn new() -> Self {
         Texts { vals: Vec::new() }
     }
@@ -50,7 +56,7 @@ impl<T: Clone + Zero> Add for Texts<T> {
     }
 }
 
-impl<T: Clone + AddAssign> AddAssign for Texts<T> {
+impl<T: Clone + AddAssign + Zero> AddAssign for Texts<T> {
     fn add_assign(&mut self, other: Self) {
         assert!(self.len() == other.len());
         #[allow(clippy::needless_range_loop)]
@@ -78,7 +84,7 @@ impl<T: Clone + Zero + AddAssign> std::iter::Sum for Texts<T> {
     }
 }
 
-impl<T: Clone + Neg<Output = T> + Sized> Neg for Texts<T> {
+impl<T: Clone + Neg<Output = T> + Sized + Zero> Neg for Texts<T> {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -116,7 +122,7 @@ impl<T: Clone + Zero + Sub<Output = T>> Sub for Texts<T> {
 
 #[cfg(test)]
 mod test {
-    use crate::texts::Texts;
+    use crate::she::texts::Texts;
     #[test]
     fn test_texts_clone() {
         let a: Texts<i32> = Texts::from(&[1, 2, 3]);

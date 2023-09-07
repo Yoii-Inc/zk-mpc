@@ -209,7 +209,7 @@ impl Encodedtext {
             vals: vec![Fq::zero(); degree],
         };
 
-        Ciphertext::new(c0, c1, c2)
+        Ciphertext::from(c0, c1, c2)
     }
 }
 
@@ -270,18 +270,21 @@ impl Mul<Encodedtext> for Encodedtext {
 }
 
 impl Ciphertext {
-    pub fn new(c0: Encodedtext, c1: Encodedtext, c2: Encodedtext) -> Ciphertext {
+    pub fn zero(n: usize) -> Ciphertext {
+        Ciphertext {
+            c0: Encodedtext::zero(n),
+            c1: Encodedtext::zero(n),
+            c2: Encodedtext::zero(n),
+        }
+    }
+
+    pub fn from(c0: Encodedtext, c1: Encodedtext, c2: Encodedtext) -> Ciphertext {
         assert!(c0.len() == c1.len());
         assert!(c1.len() == c2.len());
         Ciphertext { c0, c1, c2 }
     }
 
-    pub fn rand<T: Rng>(
-        pk: &PublicKey,
-        length: usize,
-        rng: &mut T,
-        params: &SHEParameters,
-    ) -> Ciphertext {
+    pub fn rand<T: Rng>(pk: &PublicKey, rng: &mut T, params: &SHEParameters) -> Ciphertext {
         let et = Encodedtext::rand(params, rng);
         let r = get_gaussian(params, params.n * 3, rng);
         et.encrypt(pk, &r, params)

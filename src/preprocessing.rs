@@ -74,7 +74,7 @@ pub mod zkpopk {
     }
 
     pub struct Proof {
-        a: Vec<Ciphertext>,   //G^V
+        a: Vec<Ciphertext>,  //G^V
         z: Vec<Encodedtext>, //\mathbb{Z}^{N\times V}
         t: Vec<Encodedtext>, //\mathbb{Z}^{V\times d}
     }
@@ -313,7 +313,7 @@ pub mod zkpopk {
 
         let rng = &mut thread_rng();
 
-        let mut sum = Ciphertext::new(
+        let mut sum = Ciphertext::from(
             Encodedtext::from_vec(vec![Fq::zero(); parameters.n]),
             Encodedtext::from_vec(vec![Fq::zero(); parameters.n]),
             Encodedtext::from_vec(vec![Fq::zero(); parameters.n]),
@@ -880,7 +880,7 @@ mod tests {
         let sk = SecretKey::generate(&she_params, &mut rng);
         let pk = sk.public_key_gen(&she_params, &mut rng);
 
-        let e_m = Ciphertext::rand(&pk, parameters.get_n(), &mut rng, &she_params);
+        let e_m = Ciphertext::rand(&pk, &mut rng, &she_params);
 
         let (m_vec, ct) = reshare(
             e_m.clone(),
@@ -934,7 +934,7 @@ mod tests {
 
         let e_m = m_sum.encode(&she_params).encrypt(&pk, &r, &she_params);
 
-        let e_alpha = Ciphertext::rand(&pk, parameters.get_n(), &mut rng, &she_params);
+        let e_alpha = Ciphertext::rand(&pk, &mut rng, &she_params);
 
         let result = generate_angle_share(m_vec, e_m, &e_alpha, &parameters, &pk, &sk, &she_params);
 
@@ -1036,7 +1036,7 @@ mod tests {
         let sk = SecretKey::generate(&she_params, &mut rng);
         let pk = sk.public_key_gen(&she_params, &mut rng);
 
-        let e_alpha = Ciphertext::rand(&pk, parameters.get_n(), &mut rng, &she_params);
+        let e_alpha = Ciphertext::rand(&pk, &mut rng, &she_params);
 
         let (r_bracket, r_angle) = pair(&e_alpha, &pk, &sk, &parameters, &she_params);
 
@@ -1069,7 +1069,7 @@ mod tests {
         let sk = SecretKey::generate(&she_params, &mut rng);
         let pk = sk.public_key_gen(&she_params, &mut rng);
 
-        let e_alpha = Ciphertext::rand(&pk, parameters.get_n(), &mut rng, &she_params);
+        let e_alpha = Ciphertext::rand(&pk, &mut rng, &she_params);
 
         let (a_angle, b_angle, c_angle) = triple(&e_alpha, &pk, &sk, &parameters, &she_params);
 
