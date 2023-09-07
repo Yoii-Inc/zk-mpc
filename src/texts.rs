@@ -69,14 +69,18 @@ impl<T: Clone + AddAssign + Zero> AddAssign for Texts<T> {
 impl<T: Clone + Zero + AddAssign> std::iter::Sum for Texts<T> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         let mut iter = iter.peekable();
-        // assert all iter has same lenght
-        let first_len = iter.peek().map(|x| x.len()).unwrap_or(0);
-        assert!(iter.all(|x| x.len() == first_len));
+        
+        // Get the first value from the iterator.
+        let first_len = match iter.peek() {
+            Some(x) => x.len(),
+            None => return Texts::new(),
+        };
 
         // Initialize with default value
         let mut res = Texts::from_vec(vec![T::zero(); first_len]);
 
         for i in iter {
+            // every element should have same length
             res += i;
         }
 
@@ -122,7 +126,7 @@ impl<T: Clone + Zero + Sub<Output = T>> Sub for Texts<T> {
 
 #[cfg(test)]
 mod test {
-    use crate::she::texts::Texts;
+    use crate::texts::Texts;
     #[test]
     fn test_texts_clone() {
         let a: Texts<i32> = Texts::from(&[1, 2, 3]);
