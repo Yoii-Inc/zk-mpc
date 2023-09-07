@@ -11,10 +11,14 @@ use ark_bls12_377::{Bls12_377, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;
 use ark_ff::{BigInteger, FpParameters, PrimeField};
 use ark_groth16::Groth16;
+use ark_marlin::*;
 use ark_mnt4_753::FqParameters;
+use ark_poly::univariate::DensePolynomial;
+use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read};
 use ark_snark::SNARK;
 use ark_std::UniformRand;
+use blake2::Blake2s;
 use hex::ToHex;
 use serde::Deserialize;
 use serde_json::json;
@@ -27,6 +31,7 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
 struct Opt {
+    zksnark: String,
     input_file_path: String,
 }
 
@@ -40,8 +45,14 @@ struct Output {
     hex_commitment: String,
 }
 
+pub type MarlinLocal = Marlin<Fr, MarlinKZG10<Bls12_377, DensePolynomial<Fr>>, Blake2s>;
+
 fn main() {
     let opt = Opt::from_args();
+
+    if opt.zksnark != "groth16" && opt.zksnark != "marlin" {
+        panic!("Only groth16 or marlin are supported");
+    }
 
     let mut file = File::open(opt.input_file_path).expect("Failed to open file");
     let mut contents = String::new();
@@ -108,19 +119,39 @@ fn main() {
         upper_bound,
     );
 
-    let (circuit_pk, circuit_vk) =
-        Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
+    if opt.zksnark == "groth16" {
+        let (circuit_pk, circuit_vk) =
+            Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
 
-    // // calculate the proof by passing witness variable value
-    let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit, &mut rng).unwrap();
+        // // calculate the proof by passing witness variable value
+        let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit, &mut rng).unwrap();
 
-    // // validate the proof
-    assert!(Groth16::<Bls12_377>::verify(
-        &circuit_vk,
-        &[lower_bound, upper_bound, h_x.x, h_x.y],
-        &proof
-    )
-    .unwrap());
+        // // validate the proof
+        assert!(Groth16::<Bls12_377>::verify(
+            &circuit_vk,
+            &[lower_bound, upper_bound, h_x.x, h_x.y],
+            &proof
+        )
+        .unwrap());
+    } else if opt.zksnark == "marlin" {
+        let universal_srs =
+            MarlinLocal::universal_setup(50000, 250, 300, &mut rng).expect("Failed to setup");
+
+        let (index_pk, index_vk) = MarlinLocal::index(&universal_srs, circuit.clone()).unwrap();
+        println!("Called index");
+
+        // calculate the proof by passing witness variable value
+        let proof = MarlinLocal::prove(&index_pk, circuit.clone(), &mut rng).unwrap();
+        println!("Called prover");
+
+        assert!(MarlinLocal::verify(
+            &index_vk,
+            &[lower_bound, upper_bound, h_x.x, h_x.y],
+            &proof,
+            &mut rng
+        )
+        .unwrap());
+    }
 
     // serialize commitment
     let mut byte = Vec::new();
