@@ -177,5 +177,4 @@ mod test {
         a -= b;
         assert_eq!(a, Texts::from(&[-3, -3, -3]));
     }
-
 }
