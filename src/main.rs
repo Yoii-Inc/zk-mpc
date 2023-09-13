@@ -6,6 +6,7 @@ mod groth16;
 mod input_circuit;
 mod marlin;
 mod preprocessing;
+mod share;
 mod she;
 
 use ark_bls12_377::{Bls12_377, Fr, FrParameters};
