@@ -1,5 +1,6 @@
 use std::ops::{Add, Mul};
 
+use ark_ff::Field;
 use ark_std::UniformRand;
 use num_traits::Zero;
 use rand::Rng;
@@ -17,9 +18,11 @@ pub struct BracketShare {
     mac: Vec<(Plaintext, Vec<Plaintext>)>,
 }
 
-pub enum MpcField {
-    Angle(AngleShare),
-    Bracket(BracketShare),
+pub enum MpcField<F: Field, S: FieldShare<F>> {
+    // Angle(AngleShare),
+    // Bracket(BracketShare),
+    Public(F),
+    Shared(S),
 }
 
 impl AngleShare {
