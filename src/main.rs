@@ -6,6 +6,7 @@ mod groth16;
 mod input_circuit;
 mod marlin;
 mod preprocessing;
+mod reveal;
 mod share;
 mod she;
 
