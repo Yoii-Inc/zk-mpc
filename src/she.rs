@@ -11,11 +11,15 @@ use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use std::{
     iter::Sum,
-    ops::{Add, AddAssign, Mul, Neg, Sub},
+    ops::{Add, AddAssign, Mul, Sub},
 };
 
+use crate::texts::Texts;
+
 pub struct SHEParameters {
+    // length of Plaintext
     s: usize,
+    // degree of polynomial (length of Encodedtext) should be same with lenght of Plaintext
     n: usize,
     p: BigUint,
     q: BigUint,
@@ -30,20 +34,13 @@ pub trait Plaintextish {
 
 impl Plaintextish for Plaintext {
     fn diagonalize(&self, length: usize) -> Plaintexts {
-        Plaintexts::new(vec![*self; length])
+        Plaintexts::from(&vec![*self; length])
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct Plaintexts {
-    m: Vec<Fr>,
-}
+pub type Plaintexts = Texts<Plaintext>;
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct Encodedtext {
-    x: Vec<Fq>, // \mathbb{Z}^N or Aq = Zq[X]/F(X) = Zq[X]/Phi_m(X)
-    n: usize,   // expected length of x
-}
+pub type Encodedtext = Texts<Fq>;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Ciphertext {
@@ -76,17 +73,13 @@ impl SHEParameters {
 }
 
 impl Plaintexts {
-    pub fn new(val: Vec<Fr>) -> Plaintexts {
-        Plaintexts { m: val }
-    }
-
     pub fn rand<T: Rng>(params: &SHEParameters, rng: &mut T) -> Plaintexts {
-        let res = (0..params.s).map(|_| Fr::rand(rng)).collect();
-        Plaintexts { m: res }
+        let res = (0..params.s).map(|_| Plaintext::rand(rng)).collect();
+        Plaintexts { vals: res }
     }
 
     pub fn encode(&self, params: &SHEParameters) -> Encodedtext {
-        let remainders = self.m.clone();
+        let remainders = self.vals.clone();
         let moduli = cyclotomic_moduli(params.s);
 
         let result_vec = interpolate(&moduli, &remainders).unwrap();
@@ -97,108 +90,33 @@ impl Plaintexts {
             .collect::<Vec<Fq>>();
 
         Encodedtext {
-            x: result_vec_on_fq,
-            n: params.n,
+            vals: result_vec_on_fq,
         }
     }
 }
 
-impl Add for Plaintexts {
+impl Mul<Plaintexts> for Plaintexts {
     type Output = Self;
 
-    /// lenght should be same
-    fn add(self, other: Self) -> Self {
-        assert!(self.m.len() == other.m.len());
-        let mut res = vec![Fr::from(0); self.m.len()];
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..self.m.len() {
-            res[i] = self.m[i] + other.m[i];
-        }
-        Plaintexts { m: res }
-    }
-}
-
-impl AddAssign for Plaintexts {
-    /// lenght should be same
-    fn add_assign(&mut self, other: Self) {
-        assert!(self.m.len() == other.m.len());
-        for (a, b) in self.m.iter_mut().zip(other.m.iter()) {
-            *a += *b;
-        }
-    }
-}
-
-impl Sub for Plaintexts {
-    type Output = Self;
-
-    /// lenght should be same
-    fn sub(self, other: Self) -> Self {
-        assert!(self.m.len() == other.m.len());
-        let mut res = vec![Fr::from(0); self.m.len()];
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..self.m.len() {
-            res[i] = self.m[i] - other.m[i];
-        }
-        Plaintexts { m: res }
-    }
-}
-
-impl Sum for Plaintexts {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        let sum_vec = iter
-            .map(|plaintext| plaintext.m)
-            .fold(Vec::new(), |mut acc, vec| {
-                for (i, value) in vec.iter().enumerate() {
-                    if i >= acc.len() {
-                        acc.push(*value);
-                    } else {
-                        acc[i] += *value;
-                    }
-                }
-                acc
-            });
-        Plaintexts { m: sum_vec }
-    }
-}
-
-impl Neg for Plaintexts {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        let mut result = vec![Fr::from(0); self.m.len()];
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..result.len() {
-            result[i] = -self.m[i];
-        }
-        Plaintexts { m: result }
-    }
-}
-
-// multiplication of plaintext: multiply element with same index
-impl Mul for Plaintexts {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        let mut result = Plaintexts::new(vec![Fr::from(0); self.m.len()]);
-        for i in 0..result.m.len() {
-            result.m[i] = self.m[i] * rhs.m[i];
-        }
-        result
+    fn mul(self, other: Plaintexts) -> Self {
+        let out_val = self
+            .vals
+            .iter()
+            .zip(other.vals.iter())
+            .map(|(&x, &y)| x * y)
+            .collect();
+        Self { vals: out_val }
     }
 }
 
 impl Encodedtext {
-    pub fn new(x: Vec<Fq>, n: usize) -> Encodedtext {
-        Encodedtext { x, n }
-    }
-
     pub fn rand<T: Rng>(she_params: &SHEParameters, rng: &mut T) -> Encodedtext {
         let rand_plain_text = Plaintexts::rand(she_params, rng);
         rand_plain_text.encode(she_params)
     }
 
     pub fn get_degree(&self) -> usize {
-        self.x.len()
+        self.vals.len()
     }
 
     pub fn decode(&self, params: &SHEParameters) -> Plaintexts {
@@ -207,7 +125,7 @@ impl Encodedtext {
 
         // once into BigUint, -p/2~p/2
         let mut biguint_vec = self
-            .x
+            .vals
             .iter()
             .map(|&x_i| std::convert::Into::<BigUint>::into(x_i))
             .collect::<Vec<_>>();
@@ -226,12 +144,12 @@ impl Encodedtext {
         let res = (0..params.s)
             .map(|i| substitute(&polynomial, &root_of_cyclotomic[i]))
             .collect();
-        Plaintexts { m: res }
+        Plaintexts { vals: res }
     }
 
     pub fn each_element(&self) -> Vec<BigInt> {
         let biguint_vec = self
-            .x
+            .vals
             .iter()
             .map(|&x_i| std::convert::Into::<BigUint>::into(x_i))
             .collect::<Vec<_>>();
@@ -256,7 +174,7 @@ impl Encodedtext {
 
     pub fn norm(&self) -> BigUint {
         let mut biguint_vec = self
-            .x
+            .vals
             .iter()
             .map(|&x_i| std::convert::Into::<BigUint>::into(x_i))
             .collect::<Vec<_>>();
@@ -270,78 +188,28 @@ impl Encodedtext {
     }
 
     pub fn encrypt(&self, pk: &PublicKey, r: &Encodedtext, params: &SHEParameters) -> Ciphertext {
-        let degree = self.x.len();
+        let degree = self.vals.len();
         let mut uvw = Vec::new();
-        for chunk in r.x.chunks(degree) {
+        for chunk in r.vals.chunks(degree) {
             uvw.push(chunk.to_vec());
         }
         let u = Encodedtext {
-            x: uvw[0].clone(),
-            n: params.n,
+            vals: uvw[0].clone(),
         };
         let v = Encodedtext {
-            x: uvw[1].clone(),
-            n: params.n,
+            vals: uvw[1].clone(),
         };
         let w = Encodedtext {
-            x: uvw[2].clone(),
-            n: params.n,
+            vals: uvw[2].clone(),
         };
 
         let c0 = pk.b.clone() * v.clone() + w * params.p.clone() + self.clone();
         let c1 = pk.a.clone() * v + u * params.p.clone();
         let c2 = Encodedtext {
-            x: vec![Fq::zero(); degree],
-            n: params.n,
+            vals: vec![Fq::zero(); degree],
         };
 
-        Ciphertext::new(c0, c1, c2)
-    }
-}
-
-impl Add for Encodedtext {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self {
-        let mut res = vec![Fq::zero(); self.x.len().max(other.x.len())];
-        (0..res.len()).for_each(|i| {
-            res[i] = self.x[i] + other.x[i];
-        });
-        Self { x: res, n: self.n }
-    }
-}
-
-impl AddAssign for Encodedtext {
-    fn add_assign(&mut self, rhs: Self) {
-        let mut rhs_x = rhs.x.clone();
-        // if rhs is longer than self, fill the rest of self with zero
-        if self.x.len() < rhs_x.len() {
-            self.x.extend(vec![Fq::zero(); rhs_x.len() - self.x.len()]);
-        }
-        // if self is longer than rhs, fill the rest of rhs with zero
-        if self.x.len() > rhs_x.len() {
-            rhs_x.extend(vec![Fq::zero(); self.x.len() - rhs_x.len()]);
-        }
-
-        for (a, b) in self.x.iter_mut().zip(rhs_x.iter()) {
-            *a += *b;
-        }
-    }
-}
-
-impl Sub for Encodedtext {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self {
-        let mut res = vec![Fq::zero(); self.x.len().max(other.x.len())];
-        if other.x.is_empty() {
-            self
-        } else {
-            (0..res.len()).for_each(|i| {
-                res[i] = self.x[i] - other.x[i];
-            });
-            Self { x: res, n: self.n }
-        }
+        Ciphertext::from(c0, c1, c2)
     }
 }
 
@@ -363,14 +231,11 @@ impl Mul<BigUint> for Encodedtext {
 
     fn mul(self, other: BigUint) -> Self {
         let out_val = self
-            .x
+            .vals
             .iter()
             .map(|&x| x * Fq::from(other.clone()))
             .collect();
-        Self {
-            x: out_val,
-            n: self.n,
-        }
+        Self { vals: out_val }
     }
 }
 
@@ -378,11 +243,8 @@ impl Mul<Fq> for Encodedtext {
     type Output = Self;
 
     fn mul(self, other: Fq) -> Self {
-        let out_val = self.x.iter().map(|&x| x * other).collect();
-        Self {
-            x: out_val,
-            n: self.n,
-        }
+        let out_val = self.vals.iter().map(|&x| x * other).collect();
+        Self { vals: out_val }
     }
 }
 
@@ -390,56 +252,39 @@ impl Mul<Encodedtext> for Encodedtext {
     type Output = Self;
 
     fn mul(self, other: Encodedtext) -> Self {
-        let self_poly = DensePolynomial::from_coefficients_vec(self.x.clone());
-        let other_poly = DensePolynomial::from_coefficients_vec(other.x.clone());
+        let self_poly = DensePolynomial::from_coefficients_vec(self.vals.clone());
+        let other_poly = DensePolynomial::from_coefficients_vec(other.vals.clone());
         let out_poly = (&self_poly).mul(&other_poly);
 
         let out_raw_val = out_poly.coeffs;
 
         // modulo Phi_m(X), m=N+1
 
-        let mut modulo_poly: Vec<ark_ff::Fp768<FqParameters>> = vec![Fq::zero(); self.n.add(1)];
+        let mut modulo_poly: Vec<ark_ff::Fp768<FqParameters>> = vec![Fq::zero(); self.len().add(1)];
         modulo_poly[0] = Fq::one();
-        modulo_poly[self.n] = Fq::one();
+        modulo_poly[self.len()] = Fq::one();
 
-        let out_val = poly_remainder2(&out_raw_val, &modulo_poly, self.n);
-        Self {
-            x: out_val,
-            n: self.n,
-        }
-    }
-}
-
-impl Sum for Encodedtext {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        let mut iter = iter.peekable();
-        let n = iter.peek().unwrap().get_degree();
-        let sum_vec = iter.fold(Vec::new(), |mut acc, encodedtext| {
-            for (i, value) in encodedtext.x.iter().enumerate() {
-                if i >= acc.len() {
-                    acc.push(*value);
-                } else {
-                    acc[i] += *value;
-                }
-            }
-            acc
-        });
-
-        Encodedtext { x: sum_vec, n }
+        let out_val = poly_remainder2(&out_raw_val, &modulo_poly, self.len());
+        Self { vals: out_val }
     }
 }
 
 impl Ciphertext {
-    pub fn new(c0: Encodedtext, c1: Encodedtext, c2: Encodedtext) -> Ciphertext {
+    pub fn zero(n: usize) -> Ciphertext {
+        Ciphertext {
+            c0: Encodedtext::zero(n),
+            c1: Encodedtext::zero(n),
+            c2: Encodedtext::zero(n),
+        }
+    }
+
+    pub fn from(c0: Encodedtext, c1: Encodedtext, c2: Encodedtext) -> Ciphertext {
+        assert!(c0.len() == c1.len());
+        assert!(c1.len() == c2.len());
         Ciphertext { c0, c1, c2 }
     }
 
-    pub fn rand<T: Rng>(
-        pk: &PublicKey,
-        length: usize,
-        rng: &mut T,
-        params: &SHEParameters,
-    ) -> Ciphertext {
+    pub fn rand<T: Rng>(pk: &PublicKey, rng: &mut T, params: &SHEParameters) -> Ciphertext {
         let et = Encodedtext::rand(params, rng);
         let r = get_gaussian(params, params.n * 3, rng);
         et.encrypt(pk, &r, params)
@@ -450,7 +295,7 @@ impl Ciphertext {
     // }
 
     pub fn get_degree(&self) -> usize {
-        self.c0.x.len()
+        self.c0.len()
     }
 
     pub fn decrypt(&self, sk: &SecretKey) -> Encodedtext {
@@ -523,9 +368,9 @@ impl Sum for Ciphertext {
         let n: usize = iter2.peek().unwrap().get_degree();
         iter2.fold(
             Ciphertext {
-                c0: Encodedtext::new(vec![Fq::zero(); n], n),
-                c1: Encodedtext::new(vec![Fq::zero(); n], n),
-                c2: Encodedtext::new(vec![Fq::zero(); n], n),
+                c0: Encodedtext::from_vec(vec![Fq::zero(); n]),
+                c1: Encodedtext::from_vec(vec![Fq::zero(); n]),
+                c2: Encodedtext::from_vec(vec![Fq::zero(); n]),
             },
             |acc, ciphertext| acc + ciphertext,
         )
@@ -611,7 +456,7 @@ pub fn get_gaussian<T: Rng>(
     let val: Vec<Fq> = (0..dimension)
         .map(|_| Fq::from(gaussian.sample(rng).abs() as u128))
         .collect();
-    Encodedtext::new(val, dimension)
+    Encodedtext::from_vec(val)
 }
 
 fn substitute(polynomial: &[Fr], variable: &Fr) -> Fr {
@@ -751,10 +596,10 @@ mod tests {
 
     #[test]
     fn test_plaintext() {
-        let pl_1: Plaintexts = Plaintexts::new(vec![Fr::from(1), Fr::from(2)]);
-        let pl_2: Plaintexts = Plaintexts::new(vec![Fr::from(2), Fr::from(3)]);
+        let pl_1: Plaintexts = Plaintexts::from_vec(vec![Fr::from(1), Fr::from(2)]);
+        let pl_2: Plaintexts = Plaintexts::from_vec(vec![Fr::from(2), Fr::from(3)]);
         let pl_add = pl_1.clone().add(pl_2.clone());
-        let pl_add_expected = Plaintexts::new(vec![Fr::from(1 + 2), Fr::from(2 + 3)]);
+        let pl_add_expected = Plaintexts::from(&[Fr::from(1 + 2), Fr::from(2 + 3)]);
         assert_eq!(pl_add, pl_add_expected);
 
         let pl_vec: Vec<Plaintexts> = vec![pl_1.clone(), pl_2.clone()];
@@ -764,10 +609,10 @@ mod tests {
 
     #[test]
     fn test_encoded_text() {
-        let et_1 = Encodedtext::new(vec![Fq::from(1), Fq::from(2)], 2);
-        let et_2 = Encodedtext::new(vec![Fq::from(2), Fq::from(3)], 2);
+        let et_1 = Encodedtext::from_vec(vec![Fq::from(1), Fq::from(2)]);
+        let et_2 = Encodedtext::from_vec(vec![Fq::from(2), Fq::from(3)]);
         let et_add = et_1.clone() + et_2.clone();
-        let et_add_expected = Encodedtext::new(vec![Fq::from(1 + 2), Fq::from(2 + 3)], 2);
+        let et_add_expected = Encodedtext::from_vec(vec![Fq::from(1 + 2), Fq::from(2 + 3)]);
 
         assert_eq!(et_add, et_add_expected);
 
@@ -790,8 +635,8 @@ mod tests {
         let secret_key = SecretKey::generate(&she_params, &mut rng);
         let public_key = secret_key.public_key_gen(&she_params, &mut rng);
 
-        let et_1 = Encodedtext::new(vec![Fq::from(1), Fq::from(2)], 2);
-        let et_2 = Encodedtext::new(vec![Fq::from(2), Fq::from(3)], 2);
+        let et_1 = Encodedtext::from_vec(vec![Fq::from(1), Fq::from(2)]);
+        let et_2 = Encodedtext::from_vec(vec![Fq::from(2), Fq::from(3)]);
         let r_1 = get_gaussian(&she_params, 2 * 3, &mut rng);
         let r_2 = get_gaussian(&she_params, 2 * 3, &mut rng);
 

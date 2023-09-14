@@ -3,6 +3,7 @@
 mod input_circuit;
 mod preprocessing;
 mod she;
+mod texts;
 
 use ark_bls12_377::{Bls12_377, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;
@@ -85,7 +86,7 @@ fn main() {
     let sk = she::SecretKey::generate(&she_parameters, &mut rng);
     let pk = sk.public_key_gen(&she_parameters, &mut rng);
 
-    let e_alpha = she::Ciphertext::rand(&pk, zkpopk_parameters.get_n(), &mut rng, &she_parameters);
+    let e_alpha = she::Ciphertext::rand(&pk, &mut rng, &she_parameters);
 
     let (r_bracket, r_angle) =
         preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
