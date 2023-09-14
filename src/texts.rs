@@ -69,7 +69,7 @@ impl<T: Clone + AddAssign + Zero> AddAssign for Texts<T> {
 impl<T: Clone + Zero + AddAssign> std::iter::Sum for Texts<T> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         let mut iter = iter.peekable();
-        
+
         // Get the first value from the iterator.
         let first_len = match iter.peek() {
             Some(x) => x.len(),
