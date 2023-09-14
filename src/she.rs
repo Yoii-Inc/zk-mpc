@@ -3,7 +3,6 @@ pub mod encodedtext;
 pub mod plaintext;
 pub mod texts;
 pub use ark_bls12_377::{Fr, FrParameters};
-use ark_ff::FftParameters;
 pub use ciphertext::Ciphertext;
 pub use encodedtext::Encodedtext;
 pub use texts::Texts;
