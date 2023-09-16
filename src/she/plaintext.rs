@@ -1,13 +1,13 @@
-use std::ops::{Add, Mul};
+use std::ops::Mul;
 
-use ark_ff::Field;
-use ark_poly::{univariate::DensePolynomial, UVPolynomial};
 use ark_std::UniformRand;
 use num_bigint::BigUint;
-use num_traits::{One, Zero};
 use rand::Rng;
 
-use super::{cyclotomic_moduli, Encodedtext, Fq, Fr, SHEParameters, Texts};
+use super::{
+    polynomial::{cyclotomic_moduli, interpolate},
+    Encodedtext, Fq, Fr, SHEParameters, Texts,
+};
 
 pub type Plaintext = Fr;
 pub type Plaintexts = Texts<Plaintext>;
@@ -59,62 +59,8 @@ impl Mul<Plaintexts> for Plaintexts {
     }
 }
 
-fn interpolate(eval_at: &Vec<Fr>, evals: &Vec<Fr>) -> Option<Vec<Fr>> {
-    let n = eval_at.len();
-    let m = evals.len();
-
-    if n != m {
-        return None;
-    }
-
-    // Computing the inverse for the interpolation
-    let mut sca_inverse = Vec::new();
-    for (j, x_j) in eval_at.iter().enumerate() {
-        let mut sca = Fr::one();
-        for (k, x_k) in eval_at.iter().enumerate() {
-            if j == k {
-                continue;
-            }
-            sca *= *x_j - x_k;
-        }
-        sca = sca.inverse().unwrap();
-        sca_inverse.push(sca);
-    }
-
-    // Computing the lagrange polynomial for the interpolation
-    let mut lang = Vec::new();
-    for (j, _x_j) in eval_at.iter().enumerate() {
-        let mut l_poly = DensePolynomial::from_coefficients_vec(vec![Fr::one()]);
-        for (k, x_k) in eval_at.iter().enumerate() {
-            if j == k {
-                continue;
-            }
-            let tmp_poly = DensePolynomial::from_coefficients_vec(vec![-(*x_k), Fr::one()]);
-            l_poly = l_poly.mul(&tmp_poly);
-        }
-        lang.push(l_poly);
-    }
-
-    let mut res = DensePolynomial::from_coefficients_vec(vec![Fr::zero()]);
-    for (j, (_x_j, y_j)) in eval_at.iter().zip(evals.iter()).enumerate() {
-        let l_poly = lang[j].mul(sca_inverse[j] * y_j);
-        res = (&res).add(&l_poly);
-    }
-
-    let mut res_coeff = res.coeffs;
-
-    if res_coeff.len() < n {
-        res_coeff.extend(vec![Fr::zero(); n - res_coeff.len()]);
-    }
-    Some(res_coeff)
-}
-
 #[cfg(test)]
 mod tests {
-    use rand::thread_rng;
-
-    use crate::she::substitute;
-
     use super::*;
 
     #[test]
@@ -128,25 +74,5 @@ mod tests {
         let pl_vec: Vec<Plaintexts> = vec![pl_1.clone(), pl_2.clone()];
         let pl_sum: Plaintexts = pl_vec.iter().cloned().sum();
         assert_eq!(pl_sum, pl_add_expected);
-    }
-
-    #[test]
-    fn test_interpolate() {
-        let mut rng = thread_rng();
-
-        let mut eval_at = Vec::new();
-        let mut evals = Vec::new();
-        for _ in 0..10 {
-            eval_at.push(Fr::rand(&mut rng));
-            evals.push(Fr::rand(&mut rng));
-        }
-
-        let res = interpolate(&eval_at, &evals).unwrap();
-
-        for i in 0..10 {
-            assert_eq!(evals[i], substitute(&res, &eval_at[i]));
-        }
-
-        println!("hello");
     }
 }
