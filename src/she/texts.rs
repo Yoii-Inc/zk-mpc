@@ -126,7 +126,8 @@ impl<T: Clone + Zero + Sub<Output = T>> Sub for Texts<T> {
 
 #[cfg(test)]
 mod test {
-    use crate::texts::Texts;
+    use super::*;
+
     #[test]
     fn test_texts_clone() {
         let a: Texts<i32> = Texts::from(&[1, 2, 3]);

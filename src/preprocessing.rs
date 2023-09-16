@@ -1,8 +1,6 @@
 pub mod zkpopk {
 
-    use crate::she::SHEParameters;
-
-    use super::super::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey};
+    use crate::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey, SHEParameters};
 
     use ark_ff::FpParameters;
     use ark_mnt4_753::{Fq, FqParameters};
@@ -111,7 +109,9 @@ pub mod zkpopk {
         let a: Vec<Ciphertext> = y
             .iter()
             .zip(s.iter())
-            .map(|(y_i, s_i)| y_i.encrypt(&instance.pk, s_i, she_params))
+            .map(|(y_i, s_i)| {
+                Ciphertext::encrypt_from(&y_i, &instance.pk, &s_i.clone(), she_params)
+            })
             .collect();
 
         // step 3
@@ -247,7 +247,9 @@ pub mod zkpopk {
             .z
             .iter()
             .zip(proof.t.iter())
-            .map(|(z_i, t_i)| z_i.encrypt(&instance.pk, &t_i.clone(), she_params))
+            .map(|(z_i, t_i)| {
+                Ciphertext::encrypt_from(&z_i, &instance.pk, &t_i.clone(), she_params)
+            })
             .collect();
 
         // step 7
@@ -376,7 +378,7 @@ pub mod zkpopk {
             let c: Vec<Ciphertext> = x
                 .iter()
                 .zip(r.iter())
-                .map(|(x_i, r_i)| x_i.encrypt(&pk, r_i, &she_params))
+                .map(|(x_i, r_i)| Ciphertext::encrypt_from(&x_i, &pk, &r_i.clone(), &she_params))
                 .collect();
             let instance = Instance::new(pk.clone(), c);
 
@@ -430,7 +432,7 @@ fn reshare(
     let r = get_gaussian(she_params, parameters.get_n() * 3, &mut rng);
     let e_f_vec: Vec<Ciphertext> = f
         .iter()
-        .map(|f_i| f_i.encode(she_params).encrypt(pk, &r, she_params))
+        .map(|f_i| Ciphertext::encrypt_from(&f_i.encode(she_params), pk, &r, she_params))
         .collect();
 
     // step 3
@@ -472,7 +474,7 @@ fn reshare(
     }
 
     // step 7
-    let e_m_new = mf.encode(she_params).encrypt(pk, &r, she_params) - e_f;
+    let e_m_new = Ciphertext::encrypt_from(&mf.encode(she_params), pk, &r, she_params) - e_f;
 
     match enc {
         _new_ciphertext => (m, Some(e_m_new)),
@@ -568,7 +570,7 @@ fn bracket(
 
     let e_beta_vec: Vec<Ciphertext> = beta_vec
         .iter()
-        .map(|beta_i| beta_i.encode(she_params).encrypt(pk, &r, she_params))
+        .map(|beta_i| Ciphertext::encrypt_from(&beta_i.encode(she_params), pk, &r, she_params))
         .collect();
 
     let e_gamma_vec: Vec<Ciphertext> = e_beta_vec
@@ -660,11 +662,11 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
 
     let e_alpha_vec: Vec<Ciphertext> = diagonalized_alpha_vec
         .iter()
-        .map(|alpha_i| alpha_i.encode(she_params).encrypt(&pk, &r, she_params))
+        .map(|alpha_i| Ciphertext::encrypt_from(&alpha_i.encode(she_params), &pk, &r, she_params))
         .collect();
     let e_beta_vec: Vec<Ciphertext> = diagonalized_beta
         .iter()
-        .map(|beta_i| beta_i.encode(she_params).encrypt(&pk, &r, she_params))
+        .map(|beta_i| Ciphertext::encrypt_from(&beta_i.encode(she_params), &pk, &r, she_params))
         .collect();
 
     // step 5
@@ -727,7 +729,7 @@ pub fn pair(
     // step 2
     let e_r_vec: Vec<Ciphertext> = r_vec
         .iter()
-        .map(|r_vec_i| r_vec_i.encode(she_params).encrypt(pk, &r, she_params))
+        .map(|r_vec_i| Ciphertext::encrypt_from(&r_vec_i.encode(she_params), pk, &r, she_params))
         .collect();
 
     // step 3
@@ -788,11 +790,11 @@ pub fn triple(
     // step 2
     let e_a_vec: Vec<Ciphertext> = a_vec
         .iter()
-        .map(|a_vec_i| a_vec_i.encode(she_params).encrypt(pk, &r, she_params))
+        .map(|a_vec_i| Ciphertext::encrypt_from(&a_vec_i.encode(she_params), pk, &r, she_params))
         .collect();
     let e_b_vec: Vec<Ciphertext> = b_vec
         .iter()
-        .map(|b_vec_i| b_vec_i.encode(she_params).encrypt(pk, &r, she_params))
+        .map(|b_vec_i| Ciphertext::encrypt_from(&b_vec_i.encode(she_params), pk, &r, she_params))
         .collect();
 
     // step 3
@@ -932,7 +934,7 @@ mod tests {
             .collect();
         let m_sum = m_vec.iter().cloned().sum::<Plaintexts>();
 
-        let e_m = m_sum.encode(&she_params).encrypt(&pk, &r, &she_params);
+        let e_m = Ciphertext::encrypt_from(&m_sum.encode(&she_params), &pk, &r, &she_params);
 
         let e_alpha = Ciphertext::rand(&pk, &mut rng, &she_params);
 
@@ -984,7 +986,7 @@ mod tests {
 
         let sum = m_vec.iter().cloned().sum::<Plaintexts>();
 
-        let e_m = sum.encode(&she_params).encrypt(&pk, &r, &she_params);
+        let e_m = Ciphertext::encrypt_from(&sum.encode(&she_params), &pk, &r, &she_params);
 
         let result = bracket(m_vec, e_m, &parameters, &pk, &sk, &she_params);
 
