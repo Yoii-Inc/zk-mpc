@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul};
 
-use ark_ff::{FftField, FftParameters};
+use ark_ff::{FftField, FftParameters, Field};
 use ark_poly::{
     univariate::{DenseOrSparsePolynomial, DensePolynomial},
     UVPolynomial,
@@ -57,7 +57,7 @@ pub fn interpolate<F: FftField>(eval_at: &Vec<F>, evals: &Vec<F>) -> Option<Vec<
     Some(res_coeff)
 }
 
-pub fn substitute<F: FftField>(polynomial: &[F], variable: &F) -> F {
+pub fn substitute<F: Field>(polynomial: &[F], variable: &F) -> F {
     let mut result = F::zero();
     for (i, coefficient) in polynomial.iter().enumerate() {
         result += *coefficient * variable.pow([i as u64]);
@@ -83,7 +83,7 @@ pub fn cyclotomic_moduli<F: FftField>(length: usize) -> Vec<F> {
     moduli
 }
 
-fn poly_remainder<F: FftField>(a: &[F], b: &[F], degree: usize) -> Vec<F> {
+fn poly_remainder<F: Field>(a: &[F], b: &[F], degree: usize) -> Vec<F> {
     let mut r = a.to_vec();
 
     while r.len() >= b.len() {
@@ -109,7 +109,7 @@ fn poly_remainder<F: FftField>(a: &[F], b: &[F], degree: usize) -> Vec<F> {
     r
 }
 
-pub fn poly_remainder2<F: FftField>(a: &[F], b: &[F], expect_length: usize) -> Vec<F> {
+pub fn poly_remainder2<F: Field>(a: &[F], b: &[F], expect_length: usize) -> Vec<F> {
     let a_poly = DensePolynomial::from_coefficients_vec(a.to_vec());
     let b_poly = DensePolynomial::from_coefficients_vec(b.to_vec());
 
