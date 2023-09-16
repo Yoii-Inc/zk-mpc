@@ -1,7 +1,6 @@
 use std::ops::{Add, Mul};
 
-use super::Fr;
-use ark_ff::{FftField, Field};
+use ark_ff::{FftField, FftParameters};
 use ark_poly::{
     univariate::{DenseOrSparsePolynomial, DensePolynomial},
     UVPolynomial,
@@ -66,14 +65,16 @@ pub fn substitute<F: FftField>(polynomial: &[F], variable: &F) -> F {
     result
 }
 
-pub fn cyclotomic_moduli(length: usize) -> Vec<Fr> {
+pub fn cyclotomic_moduli<F: FftField>(length: usize) -> Vec<F> {
     // moduli: lengthは本来N-1だが、sで切り捨て
     // N-1個の根は、円分多項式Phi_N(X) on Fpの根である
 
     // N=sである。N * 2=mである。mは2の冪である。m=2^kであるとき(ただし、1<=k<47)、moduliは、TWO_ADIC_ROOT_OF_UNITY^{2^(47-k)}のi乗である。
 
     let k = log2(length * 2);
-    let m_root_of_unity = Fr::two_adic_root_of_unity().pow([2_u64.pow(47 - k)]);
+    let s = F::FftParams::TWO_ADICITY;
+    assert!(k < s);
+    let m_root_of_unity = F::two_adic_root_of_unity().pow([2_u64.pow(s - k)]);
     let mut moduli = Vec::new();
     for i in 0..length {
         moduli.push(m_root_of_unity.pow([(2 * i + 1) as u64]));
@@ -128,7 +129,7 @@ pub fn poly_remainder2<F: FftField>(a: &[F], b: &[F], expect_length: usize) -> V
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::FpParameters;
+    use ark_ff::{Field, FpParameters};
     use ark_std::UniformRand;
     use num_bigint::BigUint;
     use num_traits::One;
@@ -136,6 +137,7 @@ mod tests {
 
     use crate::she::SHEParameters;
 
+    use super::super::Fr;
     use super::*;
 
     #[test]
@@ -171,7 +173,7 @@ mod tests {
 
         let she_params = SHEParameters::new(s, degree, p.clone(), q.clone(), std_dev);
 
-        let res = cyclotomic_moduli(she_params.n);
+        let res = cyclotomic_moduli::<Fr>(she_params.n);
 
         for v in res {
             assert_eq!(Fr::one(), v.pow([(s * 2) as u64]));
