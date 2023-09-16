@@ -135,10 +135,8 @@ mod tests {
     use num_traits::One;
     use rand::thread_rng;
 
-    use crate::she::SHEParameters;
-
-    use super::super::Fr;
     use super::*;
+    use crate::she::{FqParameters, Fr, FrParameters, SHEParameters};
 
     #[test]
     fn test_interpolate() {
@@ -159,8 +157,6 @@ mod tests {
 
         println!("hello");
     }
-
-    use super::super::{FqParameters, FrParameters};
 
     #[test]
     fn test_cyclotomic_moduli() {
