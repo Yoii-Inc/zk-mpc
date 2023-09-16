@@ -523,7 +523,7 @@ fn generate_angle_share(
         she_params,
     );
 
-    AngleShare {
+    AngleShares {
         public_modifier: Plaintexts::from_vec(vec![Fr::from(0); parameters.get_n()]),
         share: m_vec,
         mac: gamma_vec,
@@ -947,7 +947,7 @@ mod tests {
 
         // test with non-zero public modifier
         let const_plain: Plaintexts = Plaintexts::from_vec(vec![Fr::from(5); parameters.get_n()]);
-        let result_added_const: AngleShare = result + const_plain;
+        let result_added_const: AngleShares = result + const_plain;
         assert!(verify_angle_share(
             &result_added_const,
             &e_alpha.decrypt(&sk).decode(&she_params)
