@@ -1,16 +1,17 @@
 use std::marker::PhantomData;
 
-use ark_ec::PairingEngine;
+use ark_ec::{PairingEngine, ProjectiveCurve};
 use ark_ff::Field;
-
-use crate::algebra::MpcField;
 
 use super::super::share::field::ExtFieldShare;
 use super::super::share::pairing::PairingShare;
-use super::group::MpcGroup;
+use super::field::MpcField;
+use super::group::{MpcGroup, MpcGroupAffine};
+
+use derivative::Derivative;
 
 pub struct MpcG1Affine<E: PairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroup<E::G1Affine, PS::G1AffineShare>,
+    pub val: MpcGroupAffine<E::G1Affine, PS::G1AffineShare>,
 }
 
 pub struct MpcG1Projective<E: PairingEngine, PS: PairingShare<E>> {
@@ -23,7 +24,7 @@ pub struct MpcG1Prep<E: PairingEngine, PS: PairingShare<E>> {
 }
 
 pub struct MpcG2Affine<E: PairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroup<E::G2Affine, PS::G2AffineShare>,
+    pub val: MpcGroupAffine<E::G2Affine, PS::G2AffineShare>,
 }
 
 pub struct MpcG2Projective<E: PairingEngine, PS: PairingShare<E>> {
@@ -39,11 +40,13 @@ pub struct MpcExtField<F: Field, FS: ExtFieldShare<F>> {
     pub val: MpcField<F, FS::Ext>,
 }
 
+#[derive(Derivative)]
+#[derivative(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MpcPairingEngine<E: PairingEngine, PS: PairingShare<E>> {
     _phantom: PhantomData<(E, PS)>,
 }
 
-impl<E: PairingEngine, PS: PairingShare> PairingEngine for MpcPairingEngine<E, PS> {
+impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E, PS> {
     type Fr = MpcField<E::Fr, PS::FrShare>;
     type G1Projective = MpcG1Projective<E, PS>;
     type G1Affine = MpcG1Affine<E, PS>;

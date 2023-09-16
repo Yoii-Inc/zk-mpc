@@ -28,6 +28,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ark-serialize = "0.3.0"
 hex = "0.4.3"
-ark-marlin = "0.3.0"
+ark-marlin = { path = "../marlin", version = "0.3.0", default-features = false, features = [ "std" ] }
 ark-poly-commit = "0.3.0"
 blake2 = "0.9"
+derivative = { version = "2.0", features = ["use_core"]}
+zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
