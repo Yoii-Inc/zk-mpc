@@ -191,7 +191,7 @@ impl<E: PairingEngine> MultilinearPC<E> {
         proof: &Proof<E>,
     ) -> bool {
         let left = E::pairing(
-            commitment.g_product.into_projective() - &vk.g.mul(value),
+            commitment.g_product.into_projective() - &vk.g.scalar_mul(value),
             vk.h,
         );
 

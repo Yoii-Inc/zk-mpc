@@ -559,9 +559,9 @@ where
                 None,
             )?;
         // Compute both sides of the pairing equation
-        let mut inner = combined_comm.into().into_projective() - &vk.g.mul(combined_value);
+        let mut inner = combined_comm.into().into_projective() - &vk.g.scalar_mul(combined_value);
         if let Some(random_v) = proof.random_v {
-            inner -= &vk.gamma_g.mul(random_v);
+            inner -= &vk.gamma_g.scalar_mul(random_v);
         }
         let lhs = E::pairing(inner, vk.h);
 
@@ -570,7 +570,7 @@ where
             .enumerate()
             .map(|(j, w_j)| {
                 let beta_minus_z: E::G2Affine =
-                    (vk.beta_h[j].into_projective() - &vk.h.mul(point[j])).into();
+                    (vk.beta_h[j].into_projective() - &vk.h.scalar_mul(point[j])).into();
                 ((*w_j).into(), beta_minus_z.into())
             })
             .collect();
@@ -620,7 +620,7 @@ where
             let w = &proof.w;
             let mut temp: E::G1Projective = ark_std::cfg_iter!(w)
                 .enumerate()
-                .map(|(j, w_j)| w_j.mul(z[j]))
+                .map(|(j, w_j)| w_j.scalar_mul(z[j]))
                 .sum();
             temp.add_assign_mixed(&c.0);
             let c = temp;
@@ -631,7 +631,7 @@ where
             total_c += &c.mul(&randomizer.into_repr());
             ark_std::cfg_iter_mut!(total_w)
                 .enumerate()
-                .for_each(|(i, w_i)| *w_i += &w[i].mul(randomizer));
+                .for_each(|(i, w_i)| *w_i += &w[i].scalar_mul(randomizer));
             // We don't need to sample randomizers from the full field,
             // only from 128-bit strings.
             randomizer = u128::rand(rng).into();

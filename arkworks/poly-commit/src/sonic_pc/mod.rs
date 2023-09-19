@@ -57,7 +57,7 @@ impl<E: PairingEngine, P: UVPolynomial<E::Fr>> SonicKZG10<E, P> {
             let degree_bound = labeled_comm.degree_bound();
 
             // Applying opening challenge and randomness (used in batch_checking)
-            let mut comm_with_challenge: E::G1Projective = comm.0.mul(curr_challenge);
+            let mut comm_with_challenge: E::G1Projective = comm.0.scalar_mul(curr_challenge);
 
             if let Some(randomizer) = randomizer {
                 comm_with_challenge = comm_with_challenge.mul(&randomizer.into_repr());
@@ -73,13 +73,13 @@ impl<E: PairingEngine, P: UVPolynomial<E::Fr>> SonicKZG10<E, P> {
 
         // Push expected results into list of elems. Power will be the negative of the expected power
         let mut witness: E::G1Projective = proof.w.into_projective();
-        let mut adjusted_witness = vk.g.mul(combined_values) - &proof.w.mul(point);
+        let mut adjusted_witness = vk.g.scalar_mul(combined_values) - &proof.w.scalar_mul(point);
         if let Some(random_v) = proof.random_v {
-            adjusted_witness += &vk.gamma_g.mul(random_v);
+            adjusted_witness += &vk.gamma_g.scalar_mul(random_v);
         }
 
         if let Some(randomizer) = randomizer {
-            witness = proof.w.mul(randomizer);
+            witness = proof.w.scalar_mul(randomizer);
             adjusted_witness = adjusted_witness.mul(&randomizer.into_repr());
         }
 
@@ -553,7 +553,7 @@ where
                 hiding_bound = core::cmp::max(hiding_bound, cur_poly.hiding_bound());
                 poly += (*coeff, cur_poly.polynomial());
                 randomness += (*coeff, cur_rand);
-                comm += &curr_comm.commitment().0.mul(*coeff);
+                comm += &curr_comm.commitment().0.scalar_mul(*coeff);
             }
 
             let lc_poly =
@@ -641,7 +641,7 @@ where
                     } else if cur_comm.degree_bound().is_some() {
                         return Err(Self::Error::EquationHasDegreeBounds(lc_label));
                     }
-                    combined_comm += &cur_comm.commitment().0.mul(*coeff);
+                    combined_comm += &cur_comm.commitment().0.scalar_mul(*coeff);
                 }
             }
 

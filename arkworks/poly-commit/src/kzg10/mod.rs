@@ -120,7 +120,7 @@ where
         end_timer!(neg_powers_of_h_time);
 
         let h = h.into_affine();
-        let beta_h = h.mul(beta).into_affine();
+        let beta_h = h.scalar_mul(beta).into_affine();
         let prepared_h = h.into();
         let prepared_beta_h = beta_h.into();
 
@@ -300,13 +300,13 @@ where
         proof: &Proof<E>,
     ) -> Result<bool, Error> {
         let check_time = start_timer!(|| "Checking evaluation");
-        let mut inner = comm.0.into_projective() - &vk.g.mul(value);
+        let mut inner = comm.0.into_projective() - &vk.g.scalar_mul(value);
         if let Some(random_v) = proof.random_v {
-            inner -= &vk.gamma_g.mul(random_v);
+            inner -= &vk.gamma_g.scalar_mul(random_v);
         }
         let lhs = E::pairing(inner, vk.h);
 
-        let inner = vk.beta_h.into_projective() - &vk.h.mul(point);
+        let inner = vk.beta_h.into_projective() - &vk.h.scalar_mul(point);
         let rhs = E::pairing(proof.w, inner);
 
         end_timer!(check_time, || format!("Result: {}", lhs == rhs));
@@ -337,7 +337,7 @@ where
         let mut gamma_g_multiplier = E::Fr::zero();
         for (((c, z), v), proof) in commitments.iter().zip(points).zip(values).zip(proofs) {
             let w = proof.w;
-            let mut temp = w.mul(*z);
+            let mut temp = w.scalar_mul(*z);
             temp.add_assign_mixed(&c.0);
             let c = temp;
             g_multiplier += &(randomizer * v);
@@ -350,8 +350,8 @@ where
             // only from 128-bit strings.
             randomizer = u128::rand(rng).into();
         }
-        total_c -= &vk.g.mul(g_multiplier);
-        total_c -= &vk.gamma_g.mul(gamma_g_multiplier);
+        total_c -= &vk.g.scalar_mul(g_multiplier);
+        total_c -= &vk.gamma_g.scalar_mul(gamma_g_multiplier);
         end_timer!(combination_time);
 
         let to_affine_time = start_timer!(|| "Converting results to affine for pairing");

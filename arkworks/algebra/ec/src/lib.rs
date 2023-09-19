@@ -216,6 +216,10 @@ pub trait ProjectiveCurve:
         self = res;
         self
     }
+
+    fn scalar_mul(&self, other: &Self::ScalarField) -> Self {
+        self.mul(other)
+    }
 }
 
 /// Affine representation of an elliptic curve point guaranteed to be
@@ -285,6 +289,10 @@ pub trait AffineCurve:
     /// `Self::ScalarField`.
     #[must_use]
     fn mul_by_cofactor_inv(&self) -> Self;
+
+    fn scalar_mul<S: Into<Self::ScalarField>>(&self, other: S) -> Self::Projective {
+        self.mul(other.into().into_repr())
+    }
 }
 
 impl<C: ProjectiveCurve> Group for C {

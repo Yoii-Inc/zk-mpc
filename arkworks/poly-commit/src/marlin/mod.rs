@@ -39,11 +39,11 @@ impl<E: PairingEngine> Marlin<E> {
             if coeff.is_one() {
                 combined_comm.add_assign_mixed(&comm.comm.0);
             } else {
-                combined_comm += &comm.comm.0.mul(coeff);
+                combined_comm += &comm.comm.0.scalar_mul(coeff);
             }
 
             if let Some(shifted_comm) = &comm.shifted_comm {
-                let cur = shifted_comm.0.mul(coeff);
+                let cur = shifted_comm.0.scalar_mul(coeff);
                 combined_shifted_comm = Some(combined_shifted_comm.map_or(cur, |c| c + cur));
             }
         }
@@ -106,7 +106,7 @@ impl<E: PairingEngine> Marlin<E> {
             let challenge_i = opening_challenges(opening_challenge_counter);
             opening_challenge_counter += 1;
 
-            combined_comm += &commitment.comm.0.mul(challenge_i);
+            combined_comm += &commitment.comm.0.scalar_mul(challenge_i);
             combined_value += &(value * &challenge_i);
 
             if let Some(degree_bound) = degree_bound {
@@ -125,7 +125,7 @@ impl<E: PairingEngine> Marlin<E> {
                     .get_shift_power(degree_bound)
                     .ok_or(Error::UnsupportedDegreeBound(degree_bound))?;
 
-                let mut adjusted_comm = shifted_comm - &shift_power.mul(value);
+                let mut adjusted_comm = shifted_comm - &shift_power.scalar_mul(value);
 
                 adjusted_comm *= challenge_i_1;
                 combined_comm += &adjusted_comm;

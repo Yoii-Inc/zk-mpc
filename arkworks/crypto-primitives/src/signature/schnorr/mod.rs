@@ -75,7 +75,7 @@ where
         let keygen_time = start_timer!(|| "SchnorrSig::KeyGen");
 
         let secret_key = C::ScalarField::rand(rng);
-        let public_key = parameters.generator.mul(secret_key).into();
+        let public_key = parameters.generator.mul(secret_key.into_repr()).into();
 
         end_timer!(keygen_time);
         Ok((public_key, SecretKey(secret_key)))
@@ -94,7 +94,10 @@ where
             let random_scalar: C::ScalarField = C::ScalarField::rand(rng);
             // Commit to the random scalar via r := k · G.
             // This is the prover's first msg in the Sigma protocol.
-            let prover_commitment = parameters.generator.mul(random_scalar).into_affine();
+            let prover_commitment = parameters
+                .generator
+                .mul(random_scalar.into_repr())
+                .into_affine();
 
             // Hash everything to get verifier challenge.
             let mut hash_input = Vec::new();
@@ -133,8 +136,8 @@ where
             prover_response,
             verifier_challenge,
         } = signature;
-        let mut claimed_prover_commitment = parameters.generator.mul(*prover_response);
-        let public_key_times_verifier_challenge = pk.mul(*verifier_challenge);
+        let mut claimed_prover_commitment = parameters.generator.mul(prover_response.into_repr());
+        let public_key_times_verifier_challenge = pk.mul(verifier_challenge.into_repr());
         claimed_prover_commitment += &public_key_times_verifier_challenge;
         let claimed_prover_commitment = claimed_prover_commitment.into_affine();
 
