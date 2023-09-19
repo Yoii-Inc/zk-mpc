@@ -170,7 +170,8 @@ where
                 hiding_degree
             ));
 
-            randomness = Randomness::rand(hiding_degree, false, None, &mut rng);
+            randomness =
+                <Randomness<E::Fr, P> as PCRandomness>::rand(hiding_degree, false, None, &mut rng);
             Self::check_hiding_bound(
                 randomness.blinding_polynomial.degree(),
                 powers.powers_of_gamma_g.len(),

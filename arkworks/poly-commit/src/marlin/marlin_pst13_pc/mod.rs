@@ -392,7 +392,12 @@ where
                     "Sampling a random polynomial of degree {}",
                     hiding_degree
                 ));
-                rand = Randomness::rand(hiding_degree, false, Some(ck.num_vars), rng);
+                rand = <Randomness<E, P> as PCRandomness>::rand(
+                    hiding_degree,
+                    false,
+                    Some(ck.num_vars),
+                    rng,
+                );
                 Self::check_hiding_bound(hiding_degree, ck.supported_degree + 1)?;
                 end_timer!(sample_random_poly_time);
             }
@@ -736,7 +741,7 @@ mod tests {
         num_vars: Option<usize>,
         rng: &mut StdRng,
     ) -> SparsePoly<E::Fr, SparseTerm> {
-        SparsePoly::<E::Fr, SparseTerm>::rand(degree, num_vars.unwrap(), rng)
+        <SparsePoly<E::Fr, SparseTerm> as MVPolynomial>::rand(degree, num_vars.unwrap(), rng)
     }
 
     fn rand_point<E: PairingEngine>(num_vars: Option<usize>, rng: &mut StdRng) -> Vec<E::Fr> {
