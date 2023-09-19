@@ -25,6 +25,7 @@ pub trait FieldShare<F: Field>:
 {
 }
 
-pub trait ExtFieldShare<F: Field> {
+pub trait ExtFieldShare<F: Field>: Clone + Copy + Debug + 'static {
+    type Base: FieldShare<F::BasePrimeField>;
     type Ext: FieldShare<F>;
 }

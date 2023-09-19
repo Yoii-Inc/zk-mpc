@@ -1,4 +1,5 @@
-use num_bigint::{BigInt, BigUint};
+use derivative::Derivative;
+use num_bigint::BigUint;
 use std::fmt::{self, Debug, Display};
 use std::io::{self, Read, Write};
 use std::iter::{Product, Sum};
@@ -6,7 +7,7 @@ use std::ops::*;
 use std::str::FromStr;
 use zeroize::Zeroize;
 
-use ark_ff::{prelude::*, FftField};
+use ark_ff::{biginteger::*, prelude::*, FftField};
 use ark_ff::{FromBytes, ToBytes};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
@@ -311,8 +312,6 @@ impl<F: PrimeField, S: FieldShare<F>> Into<BigUint> for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> From<BigInt> for MpcField<F, S> {}
-
 impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     type BasePrimeField = Self;
 
@@ -383,6 +382,20 @@ impl<F: PrimeField, S: FieldShare<F>> PrimeField for MpcField<F, S> {
     }
 
     fn into_repr(&self) -> <Self as PrimeField>::BigInt {
+        todo!()
+    }
+}
+
+impl<F: PrimeField, S: FieldShare<F>> SquareRootField for MpcField<F, S> {
+    fn legendre(&self) -> ark_ff::LegendreSymbol {
+        todo!()
+    }
+
+    fn sqrt(&self) -> Option<Self> {
+        todo!()
+    }
+
+    fn sqrt_in_place(&mut self) -> Option<&mut Self> {
         todo!()
     }
 }
