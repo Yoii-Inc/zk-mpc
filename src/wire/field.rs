@@ -1,4 +1,4 @@
-use num_bigint::{BigInt, BigUint};
+use num_bigint::BigUint;
 use std::fmt::{self, Debug, Display};
 use std::io::{self, Read, Write};
 use std::iter::{Product, Sum};
@@ -311,8 +311,6 @@ impl<F: PrimeField, S: FieldShare<F>> Into<BigUint> for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> From<BigInt> for MpcField<F, S> {}
-
 impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     type BasePrimeField = Self;
 
@@ -373,7 +371,9 @@ impl<F: PrimeField, S: FieldShare<F>> FftField for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> PrimeField for MpcField<F, S> {
+impl<F: PrimeField, S: FieldShare<F>> PrimeField for MpcField<F, S>
+where Self: From<<F as PrimeField>::BigInt>,
+Self: Into<<F as PrimeField>::BigInt> {
     type Params = F::Params;
 
     type BigInt = F::BigInt;
