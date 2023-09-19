@@ -6,30 +6,39 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ark-std = { version = "0.3.0", features = ["std"] }
-ark-bls12-377 = { version = "0.3.0", features = ["r1cs", "curve"] }
-ark-mnt4-753 = "0.3.0"
+ark-ec = { path = "arkworks/algebra/ec", version = "0.3.0" }
+ark-ff = { path = "arkworks/algebra/ff", version = "0.3.0" }
+ark-poly = { path = "arkworks/algebra/poly", version = "0.3.0" }
+ark-serialize = { path = "arkworks/algebra/serialize", version = "0.3.0" }
+
+ark-crypto-primitives = { path = "arkworks/crypto-primitives", version = "0.3.0", features = ["r1cs"] }
+
+ark-bls12-377 = { path = "arkworks/curves/bls12_377", version = "0.3.0", features = ["r1cs", "curve"] }
+ark-ed-on-bls12-377 = { path = "arkworks/curves/ed_on_bls12_377", version = "0.3.0", features = ["r1cs"] }
+ark-mnt4-753 = { path = "arkworks/curves/mnt4_753", version = "0.3.0" }
+
+ark-groth16 = { path = "arkworks/groth16", version = "0.3.0" }
+
+ark-marlin = { path = "arkworks/marlin", version = "0.3.0" }
+
+ark-poly-commit = { path = "arkworks/poly-commit", version = "0.3.0" }
+
+ark-r1cs-std = { path = "arkworks/r1cs-std", version = "0.3.0" }
+
+ark-relations = { path = "arkworks/snark/relations", version = "0.3.0" }
+ark-snark = { path = "arkworks/snark/snark", version = "0.3.0" }
+
+ark-std = { path = "arkworks/std", version = "0.3.0", features = ["std"] }
+
 rand = "0.8.5"
 rand_distr = "0.4.3"
 num-bigint = { version = "0.4.3", features = ["rand"] }
 num-integer = "0.1"
-ark-groth16 = "0.3.0"
-ark-snark = "0.3.0"
-ark-ec = "0.3.0"
-ark-relations = "0.3.0"
-ark-r1cs-std = "0.3.0"
-ark-crypto-primitives = { version = "0.3.0", features = ["r1cs"] }
-ark-ed-on-bls12-377 = { version = "0.3.0", features = ["r1cs"] }
 num-traits = "0.2.14"
-ark-poly = "0.3.0"
 structopt = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 hex = "0.4.3"
-ark-marlin = "0.3.0"
-ark-poly-commit = "0.3.0"
 blake2 = "0.9"
 derivative = { version = "2.0", features = ["use_core"]}
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
-ark-ff = { git = "https://github.com/Yoii-Inc/arkwroks-rs-algebra", branch = "feat/PrimeField-trait", version = "0.3.0" }
-ark-serialize = { git = "https://github.com/Yoii-Inc/arkwroks-rs-algebra", branch = "feat/PrimeField-trait", version = "0.3.0" }
