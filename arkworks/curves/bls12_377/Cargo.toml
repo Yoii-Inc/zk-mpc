@@ -20,7 +20,7 @@ ark-std = { path = "../../std", version="^0.3.0", default-features = false }
 
 [dev-dependencies]
 ark-relations = { path = "../../snark/relations", version="^0.3.0", default-features = false }
-ark-serialize = { version="^0.3.0", default-features = false }
+ark-serialize = { path = "../../algebra/serialize", version="^0.3.0", default-features = false }
 ark-algebra-test-templates = { version="^0.3.0", default-features = false }
 ark-curve-constraint-tests = { path = "../curve-constraint-tests", default-features = false }
 
