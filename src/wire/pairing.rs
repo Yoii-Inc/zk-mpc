@@ -1,52 +1,100 @@
+use std::fmt;
+use std::fmt::Display;
+use std::hash::Hash;
+use std::io::{self, Read, Write};
+use std::iter::{Product, Sum};
 use std::marker::PhantomData;
+use std::ops::*;
 
-use ark_ec::{PairingEngine, ProjectiveCurve};
+use zeroize::Zeroize;
+
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ff::bytes::{FromBytes, ToBytes};
+use ark_ff::prelude::*;
 use ark_ff::Field;
+use ark_serialize::{
+    CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
+    CanonicalSerializeWithFlags, Flags, SerializationError,
+};
+
+use crate::share::pairing::ExtendedPairingEngine;
 
 use super::super::share::field::ExtFieldShare;
 use super::super::share::pairing::PairingShare;
 use super::field::MpcField;
-use super::group::{MpcGroup, MpcGroupAffine};
+use super::group::MpcGroup;
 
 use derivative::Derivative;
 
-pub struct MpcG1Affine<E: PairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroupAffine<E::G1Affine, PS::G1AffineShare>,
+#[derive(Debug, Derivative)]
+#[derivative(
+    Clone(bound = ""),
+    Copy(bound = ""),
+    PartialEq(bound = "E::G1Affine: PartialEq"),
+    Eq(bound = "E::G1Affine: Eq"),
+    Hash(bound = "E::G1Affine: Hash")
+)]
+pub struct MpcG1Affine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
+    pub val: MpcGroup<E::GroupedG1Affine, PS::G1AffineShare>,
 }
 
-pub struct MpcG1Projective<E: PairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroup<E::G1Projective, PS::G1ProjectiveShare>,
+#[derive(Debug, Derivative, Clone, Copy, PartialEq, Eq)]
+#[derivative(Hash(bound = "E::G1Affine: Hash"))]
+pub struct MpcG1Projective<E: ExtendedPairingEngine, PS: PairingShare<E>> {
+    pub val: MpcGroup<E::GroupedG1Projective, PS::G1ProjectiveShare>,
 }
 
-pub struct MpcG1Prep<E: PairingEngine, PS: PairingShare<E>> {
+#[derive(Debug, Clone, Derivative)]
+#[derivative(Default(bound = "E::G1Prepared: Default"))]
+pub struct MpcG1Prep<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     pub val: E::G1Prepared,
     _phantom: PhantomData<(E, PS)>,
 }
 
-pub struct MpcG2Affine<E: PairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroupAffine<E::G2Affine, PS::G2AffineShare>,
+#[derive(Debug, Derivative)]
+#[derivative(
+    Clone(bound = ""),
+    Copy(bound = ""),
+    PartialEq(bound = "E::G1Affine: PartialEq"),
+    Eq(bound = "E::G1Affine: Eq"),
+    Hash(bound = "E::G1Affine: Hash")
+)]
+pub struct MpcG2Affine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
+    pub val: MpcGroup<E::GroupedG2Affine, PS::G2AffineShare>,
 }
 
-pub struct MpcG2Projective<E: PairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroup<E::G2Projective, PS::G2ProjectiveShare>,
+#[derive(Debug, Derivative, Clone, Copy, PartialEq, Eq)]
+#[derivative(Hash(bound = "E::G1Affine: Hash"))]
+pub struct MpcG2Projective<E: ExtendedPairingEngine, PS: PairingShare<E>> {
+    pub val: MpcGroup<E::GroupedG2Projective, PS::G2ProjectiveShare>,
 }
 
-pub struct MpcG2Prep<E: PairingEngine, PS: PairingShare<E>> {
+#[derive(Debug, Clone, Derivative)]
+#[derivative(Default(bound = "E::G1Prepared: Default"))]
+pub struct MpcG2Prep<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     pub val: E::G2Prepared,
     _phantom: PhantomData<(E, PS)>,
 }
 
+#[derive(Clone, Copy, Debug, Derivative)]
+#[derivative(
+    PartialEq(bound = "F: PartialEq"),
+    Eq(bound = "F: Eq"),
+    Hash(bound = "F:Hash"),
+    PartialOrd(bound = "F:PartialOrd"),
+    Ord(bound = "F:Ord")
+)]
 pub struct MpcExtField<F: Field, FS: ExtFieldShare<F>> {
     pub val: MpcField<F, FS::Ext>,
 }
 
 #[derive(Derivative)]
 #[derivative(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MpcPairingEngine<E: PairingEngine, PS: PairingShare<E>> {
+pub struct MpcPairingEngine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     _phantom: PhantomData<(E, PS)>,
 }
 
-impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E, PS> {
+impl<E: ExtendedPairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E, PS> {
     type Fr = MpcField<E::Fr, PS::FrShare>;
     type G1Projective = MpcG1Projective<E, PS>;
     type G1Affine = MpcG1Affine<E, PS>;
@@ -84,3 +132,472 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
         todo!()
     }
 }
+
+macro_rules! impl_pairing_mpc_wrapper {
+    ($wrapped:ident, $bound1:ident, $bound2:ident, $base:ident, $share:ident, $wrap:ident) => {
+        impl<E: $bound1, PS: $bound2<E>> Display for $wrap<E, PS> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> ToBytes for $wrap<E, PS> {
+            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> FromBytes for $wrap<E, PS> {
+            fn read<R: Read>(reader: R) -> io::Result<Self> {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> CanonicalSerialize for $wrap<E, PS> {
+            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+                todo!()
+            }
+
+            fn serialized_size(&self) -> usize {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> CanonicalSerializeWithFlags for $wrap<E, PS> {
+            fn serialize_with_flags<W: Write, Fl: Flags>(
+                &self,
+                writer: W,
+                flags: Fl,
+            ) -> Result<(), SerializationError> {
+                todo!()
+            }
+
+            fn serialized_size_with_flags<Fl: Flags>(&self) -> usize {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> CanonicalDeserialize for $wrap<E, PS> {
+            fn deserialize<R: Read>(reader: R) -> Result<Self, SerializationError> {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> CanonicalDeserializeWithFlags for $wrap<E, PS> {
+            fn deserialize_with_flags<R: Read, Fl: Flags>(
+                reader: R,
+            ) -> Result<(Self, Fl), SerializationError> {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> UniformRand for $wrap<E, PS> {
+            fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> AddAssign for $wrap<E, PS> {
+            fn add_assign(&mut self, rhs: Self) {
+                todo!()
+            }
+        }
+
+        impl<'a, E: $bound1, PS: $bound2<E>> AddAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
+            fn add_assign(&mut self, rhs: &'a $wrap<E, PS>) {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Add for $wrap<E, PS> {
+            type Output = Self;
+
+            fn add(self, rhs: Self) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<'a, E: $bound1, PS: $bound2<E>> Add<&'a $wrap<E, PS>> for $wrap<E, PS> {
+            type Output = Self;
+
+            fn add(self, rhs: &'a $wrap<E, PS>) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<'a, E: $bound1, PS: $bound2<E>> SubAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
+            fn sub_assign(&mut self, rhs: &'a $wrap<E, PS>) {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> SubAssign for $wrap<E, PS> {
+            fn sub_assign(&mut self, rhs: Self) {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Sub for $wrap<E, PS> {
+            type Output = Self;
+
+            fn sub(self, rhs: Self) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<'a, E: $bound1, PS: $bound2<E>> Sub<&'a $wrap<E, PS>> for $wrap<E, PS> {
+            type Output = Self;
+
+            fn sub(self, rhs: &'a $wrap<E, PS>) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> MulAssign for $wrap<E, PS> {
+            fn mul_assign(&mut self, rhs: Self) {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Neg for $wrap<E, PS> {
+            type Output = Self;
+
+            fn neg(self) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Sum for $wrap<E, PS> {
+            fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+                todo!()
+            }
+        }
+
+        impl<'a, E: $bound1, PS: $bound2<E>> Sum<&'a $wrap<E, PS>> for $wrap<E, PS> {
+            fn sum<I: Iterator<Item = &'a $wrap<E, PS>>>(iter: I) -> Self {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Zero for $wrap<E, PS> {
+            fn zero() -> Self {
+                todo!()
+            }
+
+            fn is_zero(&self) -> bool {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Zeroize for $wrap<E, PS> {
+            fn zeroize(&mut self) {
+                todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Default for $wrap<E, PS> {
+            fn default() -> Self {
+                todo!()
+            }
+        }
+    };
+}
+
+macro_rules! impl_ext_field_wrapper {
+    ($wrapped:ident, $wrap:ident) => {
+        impl_pairing_mpc_wrapper!($wrapped, Field, ExtFieldShare, BasePrimeField, Ext, $wrap);
+
+        impl<'a, F: Field, S: ExtFieldShare<F>> MulAssign<&'a $wrap<F, S>> for $wrap<F, S> {
+            fn mul_assign(&mut self, rhs: &'a $wrap<F, S>) {
+                todo!()
+            }
+        }
+
+        impl<F: Field, S: ExtFieldShare<F>> Mul for $wrap<F, S> {
+            type Output = Self;
+
+            fn mul(self, rhs: Self) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<'a, F: Field, S: ExtFieldShare<F>> Mul<&'a $wrap<F, S>> for $wrap<F, S> {
+            type Output = Self;
+
+            fn mul(self, rhs: &'a $wrap<F, S>) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<F: Field, S: ExtFieldShare<F>> DivAssign for $wrap<F, S> {
+            fn div_assign(&mut self, rhs: Self) {
+                todo!()
+            }
+        }
+
+        impl<'a, F: Field, S: ExtFieldShare<F>> DivAssign<&'a $wrap<F, S>> for $wrap<F, S> {
+            fn div_assign(&mut self, rhs: &'a $wrap<F, S>) {
+                todo!()
+            }
+        }
+
+        impl<F: Field, S: ExtFieldShare<F>> Div for $wrap<F, S> {
+            type Output = Self;
+
+            fn div(self, rhs: Self) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<'a, F: Field, S: ExtFieldShare<F>> Div<&'a $wrap<F, S>> for $wrap<F, S> {
+            type Output = Self;
+
+            fn div(self, rhs: &'a $wrap<F, S>) -> Self::Output {
+                todo!()
+            }
+        }
+
+        impl<F: Field, S: ExtFieldShare<F>> One for $wrap<F, S> {
+            fn one() -> Self {
+                todo!()
+            }
+        }
+
+        impl<F: Field, S: ExtFieldShare<F>> Product for $wrap<F, S> {
+            fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+                todo!()
+            }
+        }
+
+        impl<'a, F: Field, S: ExtFieldShare<F>> Product<&'a $wrap<F, S>> for $wrap<F, S> {
+            fn product<I: Iterator<Item = &'a $wrap<F, S>>>(iter: I) -> Self {
+                todo!()
+            }
+        }
+
+        impl<F: Field, S: ExtFieldShare<F>> From<bool> for $wrap<F, S> {
+            fn from(value: bool) -> Self {
+                todo!()
+            }
+        }
+        impl<F: Field, S: ExtFieldShare<F>> From<u8> for $wrap<F, S> {
+            fn from(value: u8) -> Self {
+                todo!()
+            }
+        }
+        impl<F: Field, S: ExtFieldShare<F>> From<u16> for $wrap<F, S> {
+            fn from(value: u16) -> Self {
+                todo!()
+            }
+        }
+        impl<F: Field, S: ExtFieldShare<F>> From<u32> for $wrap<F, S> {
+            fn from(value: u32) -> Self {
+                todo!()
+            }
+        }
+        impl<F: Field, S: ExtFieldShare<F>> From<u64> for $wrap<F, S> {
+            fn from(value: u64) -> Self {
+                todo!()
+            }
+        }
+        impl<F: Field, S: ExtFieldShare<F>> From<u128> for $wrap<F, S> {
+            fn from(value: u128) -> Self {
+                todo!()
+            }
+        }
+        impl<F: SquareRootField, S: ExtFieldShare<F>> Field for $wrap<F, S> {
+            type BasePrimeField = MpcField<F::BasePrimeField, S::Base>;
+            fn extension_degree() -> u64 {
+                todo!()
+            }
+
+            fn from_base_prime_field_elems(
+                _el: &[<Self as ark_ff::Field>::BasePrimeField],
+            ) -> Option<Self> {
+                todo!()
+            }
+
+            fn double(&self) -> Self {
+                todo!()
+            }
+
+            fn double_in_place(&mut self) -> &mut Self {
+                todo!()
+            }
+
+            fn from_random_bytes_with_flags<Fl: Flags>(bytes: &[u8]) -> Option<(Self, Fl)> {
+                todo!()
+            }
+
+            fn square(&self) -> Self {
+                todo!()
+            }
+
+            fn square_in_place(&mut self) -> &mut Self {
+                todo!()
+            }
+
+            fn inverse(&self) -> Option<Self> {
+                todo!()
+            }
+
+            fn inverse_in_place(&mut self) -> Option<&mut Self> {
+                todo!()
+            }
+
+            fn frobenius_map(&mut self, _: usize) {
+                todo!()
+            }
+        }
+        impl<F: SquareRootField, S: ExtFieldShare<F>> SquareRootField for $wrap<F, S> {
+            fn legendre(&self) -> ark_ff::LegendreSymbol {
+                todo!()
+            }
+
+            fn sqrt(&self) -> Option<Self> {
+                todo!()
+            }
+
+            fn sqrt_in_place(&mut self) -> Option<&mut Self> {
+                todo!()
+            }
+        }
+    };
+}
+
+macro_rules! impl_pairing_curve_wrapper {
+    ($wrapped:ident, $bound1:ident, $bound2:ident, $base:ident, $share:ident, $wrap:ident) => {
+        impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);
+
+        impl<E: $bound1, PS: $bound2<E>> MulAssign<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
+            fn mul_assign(&mut self, rhs: MpcField<E::Fr, PS::FrShare>) {
+                todo!()
+            }
+        }
+    };
+}
+
+impl_pairing_curve_wrapper!(
+    MpcGroup,
+    ExtendedPairingEngine,
+    PairingShare,
+    G1Affine,
+    G1AffineShare,
+    MpcG1Affine
+);
+impl_pairing_curve_wrapper!(
+    MpcGroup,
+    ExtendedPairingEngine,
+    PairingShare,
+    G1Projective,
+    G1ProjectiveShare,
+    MpcG1Projective
+);
+impl_pairing_curve_wrapper!(
+    MpcGroup,
+    ExtendedPairingEngine,
+    PairingShare,
+    G2Affine,
+    G2AffineShare,
+    MpcG2Affine
+);
+impl_pairing_curve_wrapper!(
+    MpcGroup,
+    ExtendedPairingEngine,
+    PairingShare,
+    G2Projective,
+    G2ProjectiveShare,
+    MpcG2Projective
+);
+
+impl_ext_field_wrapper!(MpcField, MpcExtField);
+
+macro_rules! impl_aff_proj {
+    ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $g_name:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident, $share_proj:ident) => {
+        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> From<$w_pro<E, PS>> for $w_aff<E, PS> {
+            fn from(p: $w_pro<E, PS>) -> Self {
+                todo!()
+            }
+        }
+
+        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_pro<E, PS> {
+            fn from(p: $w_aff<E, PS>) -> Self {
+                todo!()
+            }
+        }
+
+        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_prep<E, PS> {
+            fn from(p: $w_aff<E, PS>) -> Self {
+                todo!()
+            }
+        }
+
+        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> ToBytes for $w_prep<E, PS> {
+            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+                todo!()
+            }
+        }
+
+        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> AffineCurve for $w_aff<E, PS> {
+            type ScalarField = MpcField<E::Fr, PS::FrShare>;
+            const COFACTOR: &'static [u64] = E::$aff::COFACTOR;
+            type BaseField = $w_base<E::$base, PS::$base_share>;
+            type Projective = $w_pro<E, PS>;
+
+            fn prime_subgroup_generator() -> Self {
+                todo!()
+            }
+
+            fn from_random_bytes(bytes: &[u8]) -> Option<Self> {
+                todo!()
+            }
+
+            // fn mul<S: Into<<Self::ScalarField as PrimeField>::BigInt>>(
+            //     self,
+            //     other: S,
+            // ) -> Self::Projective {
+            //     todo!()
+            // }
+
+            fn mul_by_cofactor_to_projective(&self) -> Self::Projective {
+                todo!()
+            }
+
+            fn mul_by_cofactor_inv(&self) -> Self {
+                todo!()
+            }
+        }
+
+        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> ProjectiveCurve for $w_pro<E, PS> {}
+    };
+}
+
+impl_aff_proj!(
+    MpcG1Prep,
+    G1Prepared,
+    MpcG1Affine,
+    MpcG1Projective,
+    G1Affine,
+    G1Projective,
+    G1,
+    MpcField,
+    Fq,
+    FqShare,
+    G1AffineShare,
+    G1ProjectiveShare
+);
+
+impl_aff_proj!(
+    MpcG2Prep,
+    G2Prepared,
+    MpcG2Affine,
+    MpcG2Projective,
+    G2Affine,
+    G2Projective,
+    G2,
+    MpcExtField,
+    Fqe,
+    FqeShare,
+    G2AffineShare,
+    G2ProjectiveShare
+);
