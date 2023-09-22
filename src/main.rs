@@ -7,9 +7,9 @@ mod input_circuit;
 // mod marlin;
 mod preprocessing;
 mod reveal;
-// mod share;
+mod share;
 mod she;
-// mod wire;
+mod wire;
 
 use ark_bls12_377::{Bls12_377, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;

@@ -55,7 +55,7 @@ impl<G: AffineCurve, D: Digest, P: UVPolynomial<G::ScalarField>> InnerProductArg
 
         if randomizer.is_some() {
             assert!(hiding_generator.is_some());
-            comm += &hiding_generator.unwrap().mul(randomizer.unwrap());
+            comm += &hiding_generator.unwrap().scalar_mul(randomizer.unwrap());
         }
 
         comm
@@ -110,7 +110,10 @@ impl<G: AffineCurve, D: Digest, P: UVPolynomial<G::ScalarField>> InnerProductArg
         for (labeled_commitment, value) in labeled_commitments.zip(values) {
             let commitment = labeled_commitment.commitment();
             combined_v += &(cur_challenge * &value);
-            combined_commitment_proj += &labeled_commitment.commitment().comm.mul(cur_challenge);
+            combined_commitment_proj += &labeled_commitment
+                .commitment()
+                .comm
+                .scalar_mul(cur_challenge);
             cur_challenge = opening_challenges(opening_challenge_counter);
             opening_challenge_counter += 1;
 
@@ -120,7 +123,8 @@ impl<G: AffineCurve, D: Digest, P: UVPolynomial<G::ScalarField>> InnerProductArg
             if let Some(degree_bound) = degree_bound {
                 let shift = point.pow([(vk.supported_degree() - degree_bound) as u64]);
                 combined_v += &(cur_challenge * &value * &shift);
-                combined_commitment_proj += &commitment.shifted_comm.unwrap().mul(cur_challenge);
+                combined_commitment_proj +=
+                    &commitment.shifted_comm.unwrap().scalar_mul(cur_challenge);
             }
 
             cur_challenge = opening_challenges(opening_challenge_counter);
@@ -137,7 +141,8 @@ impl<G: AffineCurve, D: Digest, P: UVPolynomial<G::ScalarField>> InnerProductArg
             let hiding_challenge = Self::compute_random_oracle_challenge(
                 &ark_ff::to_bytes![combined_commitment, point, combined_v, hiding_comm].unwrap(),
             );
-            combined_commitment_proj += &(hiding_comm.mul(hiding_challenge) - &vk.s.mul(rand));
+            combined_commitment_proj +=
+                &(hiding_comm.scalar_mul(hiding_challenge) - &vk.s.scalar_mul(rand));
             combined_commitment = combined_commitment_proj.into_affine();
         }
 
@@ -147,7 +152,7 @@ impl<G: AffineCurve, D: Digest, P: UVPolynomial<G::ScalarField>> InnerProductArg
             &ark_ff::to_bytes![combined_commitment, point, combined_v].unwrap(),
         );
 
-        let h_prime = vk.h.mul(round_challenge);
+        let h_prime = vk.h.scalar_mul(round_challenge);
 
         let mut round_commitment_proj =
             combined_commitment_proj + &h_prime.mul(&combined_v.into_repr());
@@ -160,8 +165,8 @@ impl<G: AffineCurve, D: Digest, P: UVPolynomial<G::ScalarField>> InnerProductArg
                 &ark_ff::to_bytes![round_challenge, l, r].unwrap(),
             );
             round_challenges.push(round_challenge);
-            round_commitment_proj +=
-                &(l.mul(round_challenge.inverse().unwrap()) + &r.mul(round_challenge));
+            round_commitment_proj += &(l.scalar_mul(round_challenge.inverse().unwrap())
+                + &r.scalar_mul(round_challenge));
         }
 
         let check_poly = SuccinctCheckPolynomial::<G::ScalarField>(round_challenges);
@@ -239,7 +244,7 @@ impl<G: AffineCurve, D: Digest, P: UVPolynomial<G::ScalarField>> InnerProductArg
         coeff: G::ScalarField,
     ) -> Option<G::Projective> {
         if let Some(new_comm) = new_comm {
-            let coeff_new_comm = new_comm.mul(coeff);
+            let coeff_new_comm = new_comm.scalar_mul(coeff);
             return Some(combined_comm.map_or(coeff_new_comm, |c| c + &coeff_new_comm));
         };
 
@@ -414,7 +419,7 @@ where
             ));
 
             let randomness = if let Some(h) = hiding_bound {
-                Randomness::rand(h, degree_bound.is_some(), None, rng)
+                <Randomness<G> as PCRandomness>::rand(h, degree_bound.is_some(), None, rng)
             } else {
                 Randomness::empty()
             };
@@ -493,7 +498,7 @@ where
             let commitment = labeled_commitment.commitment();
 
             combined_polynomial += (cur_challenge, polynomial);
-            combined_commitment_proj += &commitment.comm.mul(cur_challenge);
+            combined_commitment_proj += &commitment.comm.scalar_mul(cur_challenge);
 
             if hiding_bound.is_some() {
                 has_hiding = true;
@@ -521,7 +526,8 @@ where
             if let Some(degree_bound) = degree_bound {
                 let shifted_polynomial = Self::shift_polynomial(ck, polynomial, degree_bound);
                 combined_polynomial += (cur_challenge, &shifted_polynomial);
-                combined_commitment_proj += &commitment.shifted_comm.unwrap().mul(cur_challenge);
+                combined_commitment_proj +=
+                    &commitment.shifted_comm.unwrap().scalar_mul(cur_challenge);
 
                 if hiding_bound.is_some() {
                     let shifted_rand = randomness.shifted_rand;
@@ -583,8 +589,8 @@ where
             );
             combined_polynomial += (hiding_challenge, &hiding_polynomial);
             combined_rand += &(hiding_challenge * &hiding_rand);
-            combined_commitment_proj +=
-                &(hiding_commitment.unwrap().mul(hiding_challenge) - &ck.s.mul(combined_rand));
+            combined_commitment_proj += &(hiding_commitment.unwrap().scalar_mul(hiding_challenge)
+                - &ck.s.scalar_mul(combined_rand));
 
             end_timer!(hiding_time);
         }
@@ -605,7 +611,7 @@ where
             &ark_ff::to_bytes![combined_commitment, point, combined_v].unwrap(),
         );
 
-        let h_prime = ck.h.mul(round_challenge).into_affine();
+        let h_prime = ck.h.scalar_mul(round_challenge).into_affine();
 
         // Pads the coefficients with zeroes to get the number of coeff to be d+1
         let mut coeffs = combined_polynomial.coeffs().to_vec();
@@ -646,10 +652,10 @@ where
             let (key_proj_l, _) = key_proj.split_at_mut(n / 2);
 
             let l = Self::cm_commit(key_l, coeffs_r, None, None)
-                + &h_prime.mul(Self::inner_product(coeffs_r, z_l));
+                + &h_prime.scalar_mul(Self::inner_product(coeffs_r, z_l));
 
             let r = Self::cm_commit(key_r, coeffs_l, None, None)
-                + &h_prime.mul(Self::inner_product(coeffs_l, z_r));
+                + &h_prime.scalar_mul(Self::inner_product(coeffs_l, z_r));
 
             let lr = G::Projective::batch_normalization_into_affine(&[l, r]);
             l_vec.push(lr[0]);
@@ -670,7 +676,7 @@ where
 
             ark_std::cfg_iter_mut!(key_proj_l)
                 .zip(key_r)
-                .for_each(|(k_l, k_r)| *k_l += &(k_r.mul(round_challenge)));
+                .for_each(|(k_l, k_r)| *k_l += &(k_r.scalar_mul(round_challenge)));
 
             coeffs = coeffs_l;
             z = z_l;
@@ -809,7 +815,7 @@ where
 
             let check_poly = P::from_coefficients_vec(check_poly.unwrap().compute_coeffs());
             combined_check_poly += (randomizer, &check_poly);
-            combined_final_key += &p.final_comm_key.mul(randomizer);
+            combined_final_key += &p.final_comm_key.scalar_mul(randomizer);
 
             randomizer = u128::rand(rng).into();
             end_timer!(lc_time);
@@ -901,7 +907,7 @@ where
                 );
 
                 let commitment = cur_comm.commitment();
-                combined_comm += &commitment.comm.mul(*coeff);
+                combined_comm += &commitment.comm.scalar_mul(*coeff);
                 combined_shifted_comm = Self::combine_shifted_comm(
                     combined_shifted_comm,
                     commitment.shifted_comm,
@@ -995,7 +1001,7 @@ where
                     }
 
                     let commitment = cur_comm.commitment();
-                    combined_comm += &commitment.comm.mul(*coeff);
+                    combined_comm += &commitment.comm.scalar_mul(*coeff);
                     combined_shifted_comm = Self::combine_shifted_comm(
                         combined_shifted_comm,
                         commitment.shifted_comm,

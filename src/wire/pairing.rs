@@ -38,8 +38,11 @@ pub struct MpcG1Affine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     pub val: MpcGroup<E::GroupedG1Affine, PS::G1AffineShare>,
 }
 
-#[derive(Debug, Derivative, Clone, Copy, PartialEq, Eq)]
-#[derivative(Hash(bound = "E::G1Affine: Hash"))]
+#[derive(Debug, Derivative, Clone, Copy, Eq)]
+#[derivative(
+    PartialEq(bound = "E::G1Affine: PartialEq"),
+    Hash(bound = "E::G1Affine: Hash")
+)]
 pub struct MpcG1Projective<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     pub val: MpcGroup<E::GroupedG1Projective, PS::G1ProjectiveShare>,
 }
@@ -63,8 +66,11 @@ pub struct MpcG2Affine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     pub val: MpcGroup<E::GroupedG2Affine, PS::G2AffineShare>,
 }
 
-#[derive(Debug, Derivative, Clone, Copy, PartialEq, Eq)]
-#[derivative(Hash(bound = "E::G1Affine: Hash"))]
+#[derive(Debug, Derivative, Clone, Copy, Eq)]
+#[derivative(
+    PartialEq(bound = "E::G1Affine: PartialEq"),
+    Hash(bound = "E::G1Affine: Hash")
+)]
 pub struct MpcG2Projective<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     pub val: MpcGroup<E::GroupedG2Projective, PS::G2ProjectiveShare>,
 }
@@ -405,7 +411,7 @@ macro_rules! impl_ext_field_wrapper {
                 todo!()
             }
         }
-        impl<F: SquareRootField, S: ExtFieldShare<F>> Field for $wrap<F, S> {
+        impl<F: Field, S: ExtFieldShare<F>> Field for $wrap<F, S> {
             type BasePrimeField = MpcField<F::BasePrimeField, S::Base>;
             fn extension_degree() -> u64 {
                 todo!()
@@ -552,12 +558,12 @@ macro_rules! impl_aff_proj {
                 todo!()
             }
 
-            // fn mul<S: Into<<Self::ScalarField as PrimeField>::BigInt>>(
-            //     self,
-            //     other: S,
-            // ) -> Self::Projective {
-            //     todo!()
-            // }
+            fn mul<S: Into<<Self::ScalarField as PrimeField>::BigInt>>(
+                &self,
+                other: S,
+            ) -> Self::Projective {
+                todo!()
+            }
 
             fn mul_by_cofactor_to_projective(&self) -> Self::Projective {
                 todo!()
@@ -568,7 +574,30 @@ macro_rules! impl_aff_proj {
             }
         }
 
-        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> ProjectiveCurve for $w_pro<E, PS> {}
+        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> ProjectiveCurve for $w_pro<E, PS> {
+            type ScalarField = MpcField<E::Fr, PS::FrShare>;
+
+            // aff?pro?
+            const COFACTOR: &'static [u64] = E::$aff::COFACTOR;
+            type BaseField = $w_base<E::$base, PS::$base_share>;
+            type Affine = $w_aff<E, PS>;
+
+            fn prime_subgroup_generator() -> Self {
+                todo!()
+            }
+            fn batch_normalization(_v: &mut [Self]) {
+                todo!()
+            }
+            fn is_normalized(&self) -> bool {
+                todo!()
+            }
+            fn double_in_place(&mut self) -> &mut Self {
+                todo!()
+            }
+            fn add_assign_mixed(&mut self, _other: &Self::Affine) {
+                todo!()
+            }
+        }
     };
 }
 

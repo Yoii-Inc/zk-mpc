@@ -248,7 +248,7 @@ pub trait AffineCurve:
     + From<<Self as AffineCurve>::Projective>
 {
     const COFACTOR: &'static [u64];
-    type ScalarField: PrimeField + SquareRootField + Into<<Self::ScalarField as PrimeField>::BigInt>;
+    type ScalarField: PrimeField + SquareRootField;
     type BaseField: Field;
     type Projective: ProjectiveCurve<Affine = Self, ScalarField = Self::ScalarField, BaseField = Self::BaseField>
         + From<Self>
