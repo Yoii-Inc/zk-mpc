@@ -18,12 +18,12 @@ pub struct BracketShare {
     mac: Vec<(Plaintext, Vec<Plaintext>)>,
 }
 
-pub enum MpcField<F: Field, S: FieldShare<F>> {
-    // Angle(AngleShare),
-    // Bracket(BracketShare),
-    Public(F),
-    Shared(S),
-}
+// pub enum MpcField<F: Field, S: FieldShare<F>> {
+//     // Angle(AngleShare),
+//     // Bracket(BracketShare),
+//     Public(F),
+//     Shared(S),
+// }
 
 impl AngleShare {
     pub fn rand<T: Rng>(rng: &mut T) -> AngleShare {
