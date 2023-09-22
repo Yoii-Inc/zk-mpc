@@ -372,8 +372,10 @@ impl<F: PrimeField, S: FieldShare<F>> FftField for MpcField<F, S> {
 }
 
 impl<F: PrimeField, S: FieldShare<F>> PrimeField for MpcField<F, S>
-where Self: From<<F as PrimeField>::BigInt>,
-Self: Into<<F as PrimeField>::BigInt> {
+where
+    Self: From<<F as PrimeField>::BigInt>,
+    Self: Into<<F as PrimeField>::BigInt>,
+{
     type Params = F::Params;
 
     type BigInt = F::BigInt;
