@@ -15,14 +15,14 @@ edition = "2018"
 ################################# Dependencies ################################
 
 [dependencies]
-ark-ff = { version = "^0.3.0", default-features = false }
-ark-ec = { version = "^0.3.0", default-features = false }
-ark-serialize = { version = "^0.3.0", default-features = false, features = [ "derive" ] }
-ark-poly = { version = "^0.3.0", default-features = false }
-ark-std = { version = "^0.3.0", default-features = false }
-ark-relations = { version = "^0.3.0", default-features = false }
-ark-crypto-primitives = { version = "^0.3.0", default-features = false }
-ark-r1cs-std = { version = "^0.3.0", default-features = false, optional = true }
+ark-ff = { path = "../algebra/ff", version = "^0.3.0", default-features = false }
+ark-ec = { path = "../algebra/ec", version = "^0.3.0", default-features = false }
+ark-serialize = { path = "../algebra/serialize", version = "^0.3.0", default-features = false, features = [ "derive" ] }
+ark-poly = { path = "../algebra/poly", version = "^0.3.0", default-features = false }
+ark-std = { path = "../std", version = "^0.3.0", default-features = false }
+ark-relations = { path = "../snark/relations", version = "^0.3.0", default-features = false }
+ark-crypto-primitives = { path = "../crypto-primitives", version = "^0.3.0", default-features = false }
+ark-r1cs-std = { path = "../r1cs-std", version = "^0.3.0", default-features = false, optional = true }
 
 tracing = { version = "0.1", default-features = false, features = [ "attributes" ], optional = true }
 derivative = { version = "2.0", features = ["use_core"], optional = true}

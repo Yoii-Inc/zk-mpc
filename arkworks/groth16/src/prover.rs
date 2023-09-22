@@ -5,8 +5,7 @@ use ark_poly::GeneralEvaluationDomain;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, Result as R1CSResult,
 };
-use ark_std::rand::Rng;
-use ark_std::{cfg_into_iter, cfg_iter, vec::Vec};
+use ark_std::{cfg_into_iter, cfg_iter, rand::Rng, vec::Vec};
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -73,7 +72,7 @@ where
     let witness_map_time = start_timer!(|| "R1CS to QAP witness map");
     let h = R1CStoQAP::witness_map::<E::Fr, D<E::Fr>>(cs.clone())?;
     end_timer!(witness_map_time);
-    let h_assignment = cfg_into_iter!(h).map(|s| s.into()).collect::<Vec<_>>();
+    let h_assignment = cfg_into_iter!(h).map(|s| s.into_repr()).collect::<Vec<_>>();
     let c_acc_time = start_timer!(|| "Compute C");
 
     let h_acc = VariableBaseMSM::multi_scalar_mul(&pk.h_query, &h_assignment);
@@ -107,7 +106,7 @@ where
 
     // Compute A
     let a_acc_time = start_timer!(|| "Compute A");
-    let r_g1 = pk.delta_g1.mul(r);
+    let r_g1 = pk.delta_g1.scalar_mul(r);
 
     let g_a = calculate_coeff(r_g1, &pk.a_query, pk.vk.alpha_g1, &assignment);
 
@@ -117,7 +116,7 @@ where
     // Compute B in G1 if needed
     let g1_b = if !r.is_zero() {
         let b_g1_acc_time = start_timer!(|| "Compute B in G1");
-        let s_g1 = pk.delta_g1.mul(s);
+        let s_g1 = pk.delta_g1.scalar_mul(s);
         let g1_b = calculate_coeff(s_g1, &pk.b_g1_query, pk.beta_g1, &assignment);
 
         end_timer!(b_g1_acc_time);
@@ -129,7 +128,7 @@ where
 
     // Compute B in G2
     let b_g2_acc_time = start_timer!(|| "Compute B in G2");
-    let s_g2 = pk.vk.delta_g2.mul(s);
+    let s_g2 = pk.vk.delta_g2.scalar_mul(s);
     let g2_b = calculate_coeff(s_g2, &pk.b_g2_query, pk.vk.beta_g2, &assignment);
     let r_g1_b = g1_b.mul(&r.into_repr());
     drop(assignment);
@@ -153,16 +152,17 @@ where
     })
 }
 
-/// Given a Groth16 proof, returns a fresh proof of the same statement. For a proof π of a
-/// statement S, the output of the non-deterministic procedure `rerandomize_proof(π)` is
-/// statistically indistinguishable from a fresh honest proof of S. For more info, see theorem 3 of
-/// [\[BKSV20\]](https://eprint.iacr.org/2020/811)
+/// Given a Groth16 proof, returns a fresh proof of the same statement. For a
+/// proof π of a statement S, the output of the non-deterministic procedure
+/// `rerandomize_proof(π)` is statistically indistinguishable from a fresh
+/// honest proof of S. For more info, see theorem 3 of [\[BKSV20\]](https://eprint.iacr.org/2020/811)
 pub fn rerandomize_proof<E, R>(rng: &mut R, vk: &VerifyingKey<E>, proof: &Proof<E>) -> Proof<E>
 where
     E: PairingEngine,
     R: Rng,
 {
-    // These are our rerandomization factors. They must be nonzero and uniformly sampled.
+    // These are our rerandomization factors. They must be nonzero and uniformly
+    // sampled.
     let (mut r1, mut r2) = (E::Fr::zero(), E::Fr::zero());
     while r1.is_zero() || r2.is_zero() {
         r1 = E::Fr::rand(rng);
@@ -175,9 +175,9 @@ where
     //   C' = C + r₂A
 
     // We can unwrap() this because r₁ is guaranteed to be nonzero
-    let new_a = proof.a.mul(r1.inverse().unwrap());
-    let new_b = proof.b.mul(r1) + &vk.delta_g2.mul(r1 * &r2);
-    let new_c = proof.c + proof.a.mul(r2).into_affine();
+    let new_a = proof.a.scalar_mul(r1.inverse().unwrap());
+    let new_b = proof.b.scalar_mul(r1) + &vk.delta_g2.scalar_mul(r1 * &r2);
+    let new_c = proof.c + proof.a.scalar_mul(r2).into_affine();
 
     Proof {
         a: new_a.into_affine(),
