@@ -345,8 +345,8 @@ where
             if let Some(random_v) = proof.random_v {
                 gamma_g_multiplier += &(randomizer * &random_v);
             }
-            total_c += &c.mul(randomizer.into_repr());
-            total_w += &w.mul(randomizer.into_repr());
+            total_c += &c.scalar_mul(&randomizer);
+            total_w += &w.scalar_mul(randomizer);
             // We don't need to sample randomizers from the full field,
             // only from 128-bit strings.
             randomizer = u128::rand(rng).into();
