@@ -21,9 +21,9 @@ pub use plaintext::{Plaintext, Plaintextish, Plaintexts};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
-/// Parameters for a Secure Homomorphic Encryption Scheme (SHE).
+/// Parameters for a Somewhat Homomorphic Encryption Scheme (SHE).
 ///
-/// This struct holds various parameters used in the context of a Secure Homomorphic Encryption Scheme.
+/// This struct holds various parameters used in the context of a Somewhat Homomorphic Encryption Scheme.
 ///
 /// - `s`: The length of the Plaintext.
 /// - `n`: The degree of the polynomial (length of Encodedtext), which should match the length of the plaintext.

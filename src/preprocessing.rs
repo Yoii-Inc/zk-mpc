@@ -19,7 +19,7 @@ pub mod zkpopk {
     use rand::{thread_rng, Rng};
     use rand_distr::uniform::UniformSampler;
 
-    /// Parameters for ZKPoPK (Zero-Knowledge Proof of Partial Knowledge).
+    /// Parameters for ZKPoPK (Zero-Knowledge Proof of Plaintext Knowledge).
     ///
     /// This struct holds various parameters used in the context of ZKPoPK.
     ///
