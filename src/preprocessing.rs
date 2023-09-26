@@ -628,7 +628,15 @@ fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -
     flag
 }
 
-// initialize
+/// Initializes the preprocessing phase.
+///
+/// # Arguments
+/// * `parameters` - preprocessing parameters in SPDZ.
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+///
+/// # Returns
+/// The BracketShare of global public key.
+///
 pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
     let n = 3;
 
@@ -709,6 +717,18 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
     )
 }
 
+/// Generate BracketShare and AngleShare of random number.
+///
+/// # Arguments
+/// * `e_alpha` - Encrypted alpha.
+/// * `pk - The public key.
+/// * `sk` - The secret key.
+/// * `parameters` - preprocessing parameters in SPDZ.
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+///
+/// # Returns
+/// The BracketShare and AngleShare of random number.
+///
 pub fn pair(
     e_alpha: &Ciphertext,
     pk: &PublicKey,
@@ -766,6 +786,18 @@ pub fn pair(
     (r_bracket, r_angle)
 }
 
+/// Generate Multiplication tirples.
+///
+/// # Arguments
+/// * `e_alpha` - Encrypted alpha.
+/// * `pk` - The public key.
+/// * `sk` - The secret key.
+/// * `parameters` - preprocessing parameters in SPDZ.
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+///
+/// # Returns
+/// The AngleShare of (a, b, c) where c = a * b.
+///
 pub fn triple(
     e_alpha: &Ciphertext,
     pk: &PublicKey,

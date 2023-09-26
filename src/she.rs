@@ -75,6 +75,16 @@ impl PublicKey {
     }
 }
 
+/// From Gaussian distribution, generate Encodedtext.
+///
+/// # Arguments
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+/// * `dimension` - the length of desired Encodedtext.
+/// * `rng` - random number generator.
+///
+/// # Returns
+/// The randomly generated Encodedtext its length = dimension.
+///
 pub fn get_gaussian<T: Rng>(
     she_params: &SHEParameters,
     dimension: usize,

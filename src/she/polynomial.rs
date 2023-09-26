@@ -7,6 +7,15 @@ use ark_poly::{
 };
 use ark_std::log2;
 
+/// Interpolate polynomials such that the result of evaluated on each point is each number.
+///
+/// # Arguments
+/// * `eval_at` - The value to evaluate.
+/// * `evals` - The number of the evaluation.
+///
+/// # Returns
+/// The interpolated polynomial.
+///
 pub fn interpolate<F: FftField>(eval_at: &Vec<F>, evals: &Vec<F>) -> Option<Vec<F>> {
     let n = eval_at.len();
     let m = evals.len();
@@ -57,6 +66,15 @@ pub fn interpolate<F: FftField>(eval_at: &Vec<F>, evals: &Vec<F>) -> Option<Vec<
     Some(res_coeff)
 }
 
+/// Substitute a value into a polynomial.
+///
+/// # Arguments
+/// * `polynomial` - The polynomial to substitute into.
+/// * `variable` - The value to substitute.
+///
+/// # Returns
+/// The result of the substitution.
+///
 pub fn substitute<F: Field>(polynomial: &[F], variable: &F) -> F {
     let mut result = F::zero();
     for (i, coefficient) in polynomial.iter().enumerate() {
@@ -65,6 +83,14 @@ pub fn substitute<F: Field>(polynomial: &[F], variable: &F) -> F {
     result
 }
 
+/// Compute the roots of the cyclotomic polynomial \Phi_N(X) on F. wbere N is expected to be a power of two.
+///
+/// # Arguments
+/// * `length` - The length of the roots.
+///
+/// # Returns
+/// The roots of the cyclotomic polynomial.
+///
 pub fn cyclotomic_moduli<F: FftField>(length: usize) -> Vec<F> {
     // moduli: lengthは本来N-1だが、sで切り捨て
     // N-1個の根は、円分多項式Phi_N(X) on Fpの根である
@@ -109,6 +135,16 @@ fn poly_remainder<F: Field>(a: &[F], b: &[F], degree: usize) -> Vec<F> {
     r
 }
 
+/// Compute the remainder of a polynomial division on F.
+///
+/// # Arguments
+/// * `a` - The first polynomial.
+/// * `b` - The second polynomial.
+/// * `expect_length` - The degree of the remainder (Fill in 0 when it becomes shorter than that length.).
+///
+/// # Returns
+/// The residue of the polynomial division a % b.
+///
 pub fn poly_remainder2<F: Field>(a: &[F], b: &[F], expect_length: usize) -> Vec<F> {
     let a_poly = DensePolynomial::from_coefficients_vec(a.to_vec());
     let b_poly = DensePolynomial::from_coefficients_vec(b.to_vec());
