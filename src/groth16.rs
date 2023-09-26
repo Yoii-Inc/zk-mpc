@@ -1,18 +1,11 @@
-use ark_bls12_377::{Bls12_377, Fr};
-use ark_groth16::{
-    generate_random_parameters, prepare_verifying_key, verify_proof, Groth16, ProvingKey,
-};
-use ark_snark::SNARK;
-use ark_std::UniformRand;
-use rand::thread_rng;
-
-use super::circuit::MyCircuit;
-
 #[cfg(test)]
 mod tests {
-    use crate::algebra::AngleShare;
+    use ark_bls12_377::{Bls12_377, Fr};
+    use ark_groth16::Groth16;
+    use ark_snark::SNARK;
+    use ark_std::UniformRand;
 
-    use super::*;
+    use super::super::circuit::MyCircuit;
 
     #[test]
     fn test_single() {

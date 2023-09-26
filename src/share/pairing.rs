@@ -1,11 +1,11 @@
-use ark_ec::{bls12::Bls12Parameters, group::Group, AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 
 use super::{
     field::{ExtFieldShare, FieldShare},
     group::GroupShare,
 };
 
-use std::{fmt::Debug, ops::MulAssign};
+use std::fmt::Debug;
 
 // pub trait ExtendedPairingEngine: PairingEngine {
 //     type GroupedG1Projective: ProjectiveCurve<

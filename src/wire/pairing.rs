@@ -111,25 +111,25 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
     type Fqe = MpcExtField<E::Fqe, PS::FqeShare>;
     type Fqk = MpcExtField<E::Fqk, PS::FqkShare>;
 
-    fn miller_loop<'a, I>(i: I) -> Self::Fqk
+    fn miller_loop<'a, I>(_i: I) -> Self::Fqk
     where
         I: IntoIterator<Item = &'a (Self::G1Prepared, Self::G2Prepared)>,
     {
         todo!()
     }
 
-    fn final_exponentiation(r: &Self::Fqk) -> Option<Self::Fqk> {
+    fn final_exponentiation(_r: &Self::Fqk) -> Option<Self::Fqk> {
         todo!()
     }
 
-    fn product_of_pairings<'a, I>(i: I) -> Self::Fqk
+    fn product_of_pairings<'a, I>(_i: I) -> Self::Fqk
     where
         I: IntoIterator<Item = &'a (Self::G1Prepared, Self::G2Prepared)>,
     {
         todo!()
     }
 
-    fn pairing<G1, G2>(p: G1, q: G2) -> Self::Fqk
+    fn pairing<G1, G2>(_p: G1, _q: G2) -> Self::Fqk
     where
         G1: Into<Self::G1Affine>,
         G2: Into<Self::G2Affine>,
@@ -141,25 +141,25 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
 macro_rules! impl_pairing_mpc_wrapper {
     ($wrapped:ident, $bound1:ident, $bound2:ident, $base:ident, $share:ident, $wrap:ident) => {
         impl<E: $bound1, PS: $bound2<E>> Display for $wrap<E, PS> {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+            fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
                 todo!()
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> ToBytes for $wrap<E, PS> {
-            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
                 todo!()
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> FromBytes for $wrap<E, PS> {
-            fn read<R: Read>(reader: R) -> io::Result<Self> {
+            fn read<R: Read>(_reader: R) -> io::Result<Self> {
                 todo!()
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> CanonicalSerialize for $wrap<E, PS> {
-            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
                 todo!()
             }
 
@@ -171,8 +171,8 @@ macro_rules! impl_pairing_mpc_wrapper {
         impl<E: $bound1, PS: $bound2<E>> CanonicalSerializeWithFlags for $wrap<E, PS> {
             fn serialize_with_flags<W: Write, Fl: Flags>(
                 &self,
-                writer: W,
-                flags: Fl,
+                _writer: W,
+                _flags: Fl,
             ) -> Result<(), SerializationError> {
                 todo!()
             }
@@ -183,33 +183,33 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
 
         impl<E: $bound1, PS: $bound2<E>> CanonicalDeserialize for $wrap<E, PS> {
-            fn deserialize<R: Read>(reader: R) -> Result<Self, SerializationError> {
+            fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
                 todo!()
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> CanonicalDeserializeWithFlags for $wrap<E, PS> {
             fn deserialize_with_flags<R: Read, Fl: Flags>(
-                reader: R,
+                _reader: R,
             ) -> Result<(Self, Fl), SerializationError> {
                 todo!()
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> UniformRand for $wrap<E, PS> {
-            fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+            fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
                 todo!()
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> AddAssign for $wrap<E, PS> {
-            fn add_assign(&mut self, rhs: Self) {
+            fn add_assign(&mut self, _rhs: Self) {
                 todo!()
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> AddAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
-            fn add_assign(&mut self, rhs: &'a $wrap<E, PS>) {
+            fn add_assign(&mut self, _rhs: &'a $wrap<E, PS>) {
                 todo!()
             }
         }
@@ -217,7 +217,7 @@ macro_rules! impl_pairing_mpc_wrapper {
         impl<E: $bound1, PS: $bound2<E>> Add for $wrap<E, PS> {
             type Output = Self;
 
-            fn add(self, rhs: Self) -> Self::Output {
+            fn add(self, _rhs: Self) -> Self::Output {
                 todo!()
             }
         }
@@ -225,19 +225,19 @@ macro_rules! impl_pairing_mpc_wrapper {
         impl<'a, E: $bound1, PS: $bound2<E>> Add<&'a $wrap<E, PS>> for $wrap<E, PS> {
             type Output = Self;
 
-            fn add(self, rhs: &'a $wrap<E, PS>) -> Self::Output {
+            fn add(self, _rhs: &'a $wrap<E, PS>) -> Self::Output {
                 todo!()
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> SubAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
-            fn sub_assign(&mut self, rhs: &'a $wrap<E, PS>) {
+            fn sub_assign(&mut self, _rhs: &'a $wrap<E, PS>) {
                 todo!()
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> SubAssign for $wrap<E, PS> {
-            fn sub_assign(&mut self, rhs: Self) {
+            fn sub_assign(&mut self, _rhs: Self) {
                 todo!()
             }
         }
@@ -245,7 +245,7 @@ macro_rules! impl_pairing_mpc_wrapper {
         impl<E: $bound1, PS: $bound2<E>> Sub for $wrap<E, PS> {
             type Output = Self;
 
-            fn sub(self, rhs: Self) -> Self::Output {
+            fn sub(self, _rhs: Self) -> Self::Output {
                 todo!()
             }
         }
@@ -253,13 +253,13 @@ macro_rules! impl_pairing_mpc_wrapper {
         impl<'a, E: $bound1, PS: $bound2<E>> Sub<&'a $wrap<E, PS>> for $wrap<E, PS> {
             type Output = Self;
 
-            fn sub(self, rhs: &'a $wrap<E, PS>) -> Self::Output {
+            fn sub(self, _rhs: &'a $wrap<E, PS>) -> Self::Output {
                 todo!()
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> MulAssign for $wrap<E, PS> {
-            fn mul_assign(&mut self, rhs: Self) {
+            fn mul_assign(&mut self, _rhs: Self) {
                 todo!()
             }
         }
@@ -273,13 +273,13 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
 
         impl<E: $bound1, PS: $bound2<E>> Sum for $wrap<E, PS> {
-            fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+            fn sum<I: Iterator<Item = Self>>(_iter: I) -> Self {
                 todo!()
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> Sum<&'a $wrap<E, PS>> for $wrap<E, PS> {
-            fn sum<I: Iterator<Item = &'a $wrap<E, PS>>>(iter: I) -> Self {
+            fn sum<I: Iterator<Item = &'a $wrap<E, PS>>>(_iter: I) -> Self {
                 todo!()
             }
         }
@@ -313,7 +313,7 @@ macro_rules! impl_ext_field_wrapper {
         impl_pairing_mpc_wrapper!($wrapped, Field, ExtFieldShare, BasePrimeField, Ext, $wrap);
 
         impl<'a, F: Field, S: ExtFieldShare<F>> MulAssign<&'a $wrap<F, S>> for $wrap<F, S> {
-            fn mul_assign(&mut self, rhs: &'a $wrap<F, S>) {
+            fn mul_assign(&mut self, _rhs: &'a $wrap<F, S>) {
                 todo!()
             }
         }
@@ -321,7 +321,7 @@ macro_rules! impl_ext_field_wrapper {
         impl<F: Field, S: ExtFieldShare<F>> Mul for $wrap<F, S> {
             type Output = Self;
 
-            fn mul(self, rhs: Self) -> Self::Output {
+            fn mul(self, _rhs: Self) -> Self::Output {
                 todo!()
             }
         }
@@ -329,19 +329,19 @@ macro_rules! impl_ext_field_wrapper {
         impl<'a, F: Field, S: ExtFieldShare<F>> Mul<&'a $wrap<F, S>> for $wrap<F, S> {
             type Output = Self;
 
-            fn mul(self, rhs: &'a $wrap<F, S>) -> Self::Output {
+            fn mul(self, _rhs: &'a $wrap<F, S>) -> Self::Output {
                 todo!()
             }
         }
 
         impl<F: Field, S: ExtFieldShare<F>> DivAssign for $wrap<F, S> {
-            fn div_assign(&mut self, rhs: Self) {
+            fn div_assign(&mut self, _rhs: Self) {
                 todo!()
             }
         }
 
         impl<'a, F: Field, S: ExtFieldShare<F>> DivAssign<&'a $wrap<F, S>> for $wrap<F, S> {
-            fn div_assign(&mut self, rhs: &'a $wrap<F, S>) {
+            fn div_assign(&mut self, _rhs: &'a $wrap<F, S>) {
                 todo!()
             }
         }
@@ -349,7 +349,7 @@ macro_rules! impl_ext_field_wrapper {
         impl<F: Field, S: ExtFieldShare<F>> Div for $wrap<F, S> {
             type Output = Self;
 
-            fn div(self, rhs: Self) -> Self::Output {
+            fn div(self, _rhs: Self) -> Self::Output {
                 todo!()
             }
         }
@@ -357,7 +357,7 @@ macro_rules! impl_ext_field_wrapper {
         impl<'a, F: Field, S: ExtFieldShare<F>> Div<&'a $wrap<F, S>> for $wrap<F, S> {
             type Output = Self;
 
-            fn div(self, rhs: &'a $wrap<F, S>) -> Self::Output {
+            fn div(self, _rhs: &'a $wrap<F, S>) -> Self::Output {
                 todo!()
             }
         }
@@ -369,44 +369,44 @@ macro_rules! impl_ext_field_wrapper {
         }
 
         impl<F: Field, S: ExtFieldShare<F>> Product for $wrap<F, S> {
-            fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+            fn product<I: Iterator<Item = Self>>(_iter: I) -> Self {
                 todo!()
             }
         }
 
         impl<'a, F: Field, S: ExtFieldShare<F>> Product<&'a $wrap<F, S>> for $wrap<F, S> {
-            fn product<I: Iterator<Item = &'a $wrap<F, S>>>(iter: I) -> Self {
+            fn product<I: Iterator<Item = &'a $wrap<F, S>>>(_iter: I) -> Self {
                 todo!()
             }
         }
 
         impl<F: Field, S: ExtFieldShare<F>> From<bool> for $wrap<F, S> {
-            fn from(value: bool) -> Self {
+            fn from(_value: bool) -> Self {
                 todo!()
             }
         }
         impl<F: Field, S: ExtFieldShare<F>> From<u8> for $wrap<F, S> {
-            fn from(value: u8) -> Self {
+            fn from(_value: u8) -> Self {
                 todo!()
             }
         }
         impl<F: Field, S: ExtFieldShare<F>> From<u16> for $wrap<F, S> {
-            fn from(value: u16) -> Self {
+            fn from(_value: u16) -> Self {
                 todo!()
             }
         }
         impl<F: Field, S: ExtFieldShare<F>> From<u32> for $wrap<F, S> {
-            fn from(value: u32) -> Self {
+            fn from(_value: u32) -> Self {
                 todo!()
             }
         }
         impl<F: Field, S: ExtFieldShare<F>> From<u64> for $wrap<F, S> {
-            fn from(value: u64) -> Self {
+            fn from(_value: u64) -> Self {
                 todo!()
             }
         }
         impl<F: Field, S: ExtFieldShare<F>> From<u128> for $wrap<F, S> {
-            fn from(value: u128) -> Self {
+            fn from(_value: u128) -> Self {
                 todo!()
             }
         }
@@ -430,7 +430,7 @@ macro_rules! impl_ext_field_wrapper {
                 todo!()
             }
 
-            fn from_random_bytes_with_flags<Fl: Flags>(bytes: &[u8]) -> Option<(Self, Fl)> {
+            fn from_random_bytes_with_flags<Fl: Flags>(_bytes: &[u8]) -> Option<(Self, Fl)> {
                 todo!()
             }
 
@@ -475,7 +475,7 @@ macro_rules! impl_pairing_curve_wrapper {
         impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);
 
         impl<E: $bound1, PS: $bound2<E>> MulAssign<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
-            fn mul_assign(&mut self, rhs: MpcField<E::Fr, PS::FrShare>) {
+            fn mul_assign(&mut self, _rhs: MpcField<E::Fr, PS::FrShare>) {
                 todo!()
             }
         }
@@ -531,25 +531,25 @@ macro_rules! impl_aff_proj {
             }
         }
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_pro<E, PS>> for $w_aff<E, PS> {
-            fn from(p: $w_pro<E, PS>) -> Self {
+            fn from(_p: $w_pro<E, PS>) -> Self {
                 todo!()
             }
         }
 
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_pro<E, PS> {
-            fn from(p: $w_aff<E, PS>) -> Self {
+            fn from(_p: $w_aff<E, PS>) -> Self {
                 todo!()
             }
         }
 
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_prep<E, PS> {
-            fn from(p: $w_aff<E, PS>) -> Self {
+            fn from(_p: $w_aff<E, PS>) -> Self {
                 todo!()
             }
         }
 
         impl<E: PairingEngine, PS: PairingShare<E>> ToBytes for $w_prep<E, PS> {
-            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
                 todo!()
             }
         }
@@ -564,13 +564,13 @@ macro_rules! impl_aff_proj {
                 todo!()
             }
 
-            fn from_random_bytes(bytes: &[u8]) -> Option<Self> {
+            fn from_random_bytes(_bytes: &[u8]) -> Option<Self> {
                 todo!()
             }
 
             fn mul<S: Into<<Self::ScalarField as PrimeField>::BigInt>>(
                 &self,
-                other: S,
+                _other: S,
             ) -> Self::Projective {
                 todo!()
             }

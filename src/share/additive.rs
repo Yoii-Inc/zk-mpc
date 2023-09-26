@@ -3,7 +3,6 @@ use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
-use ark_ec::AffineCurve;
 use ark_ec::{group::Group, PairingEngine};
 use ark_ff::{Field, FromBytes, ToBytes};
 use ark_serialize::{
@@ -41,17 +40,17 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {}
 macro_rules! impl_field_basics {
     ($share:ident, $bound:ident) => {
         impl<T: $bound> ToBytes for $share<T> {
-            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
                 todo!()
             }
         }
         impl<T: $bound> FromBytes for $share<T> {
-            fn read<R: Read>(reader: R) -> io::Result<Self> {
+            fn read<R: Read>(_reader: R) -> io::Result<Self> {
                 todo!()
             }
         }
         impl<T: $bound> CanonicalSerialize for $share<T> {
-            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
                 todo!()
             }
 
@@ -62,8 +61,8 @@ macro_rules! impl_field_basics {
         impl<T: $bound> CanonicalSerializeWithFlags for $share<T> {
             fn serialize_with_flags<W: Write, Fl: Flags>(
                 &self,
-                writer: W,
-                flags: Fl,
+                _writer: W,
+                _flags: Fl,
             ) -> Result<(), SerializationError> {
                 todo!()
             }
@@ -73,19 +72,19 @@ macro_rules! impl_field_basics {
             }
         }
         impl<T: $bound> CanonicalDeserialize for $share<T> {
-            fn deserialize<R: Read>(reader: R) -> Result<Self, SerializationError> {
+            fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
                 todo!()
             }
         }
         impl<T: $bound> CanonicalDeserializeWithFlags for $share<T> {
             fn deserialize_with_flags<R: Read, Fl: Flags>(
-                reader: R,
+                _reader: R,
             ) -> Result<(Self, Fl), SerializationError> {
                 todo!()
             }
         }
         impl<T: $bound> UniformRand for $share<T> {
-            fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+            fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
                 todo!()
             }
         }
@@ -135,22 +134,22 @@ impl<G: Group> Reveal for AdditiveGroupShare<G> {
 macro_rules! impl_group_basics {
     ($share:ident, $bound:ident) => {
         impl<T: $bound> Debug for $share<T> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 todo!()
             }
         }
         impl<T: $bound> ToBytes for $share<T> {
-            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
                 todo!()
             }
         }
         impl<T: $bound> FromBytes for $share<T> {
-            fn read<R: Read>(reader: R) -> io::Result<Self> {
+            fn read<R: Read>(_reader: R) -> io::Result<Self> {
                 todo!()
             }
         }
         impl<T: $bound> CanonicalSerialize for $share<T> {
-            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
                 todo!()
             }
 
@@ -161,8 +160,8 @@ macro_rules! impl_group_basics {
         impl<T: $bound> CanonicalSerializeWithFlags for $share<T> {
             fn serialize_with_flags<W: Write, Fl: Flags>(
                 &self,
-                writer: W,
-                flags: Fl,
+                _writer: W,
+                _flags: Fl,
             ) -> Result<(), SerializationError> {
                 todo!()
             }
@@ -172,19 +171,19 @@ macro_rules! impl_group_basics {
             }
         }
         impl<T: $bound> CanonicalDeserialize for $share<T> {
-            fn deserialize<R: Read>(reader: R) -> Result<Self, SerializationError> {
+            fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
                 todo!()
             }
         }
         impl<T: $bound> CanonicalDeserializeWithFlags for $share<T> {
             fn deserialize_with_flags<R: Read, Fl: Flags>(
-                reader: R,
+                _reader: R,
             ) -> Result<(Self, Fl), SerializationError> {
                 todo!()
             }
         }
         impl<T: $bound> UniformRand for $share<T> {
-            fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+            fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
                 todo!()
             }
         }

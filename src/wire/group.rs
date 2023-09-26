@@ -1,13 +1,12 @@
 use std::fmt::{self, Display};
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::ops::*;
 
 use std::iter::Sum;
 
-use ark_ec::{group::Group, AffineCurve};
+use ark_ec::group::Group;
 use ark_ff::prelude::*;
 use ark_ff::{FromBytes, ToBytes};
-use rand::Rng;
 
 use crate::share::group::GroupShare;
 
@@ -26,37 +25,37 @@ pub enum MpcGroup<G: Group, S: GroupShare<G>> {
 // }
 
 impl<G: Group, S: GroupShare<G>> Display for MpcGroup<G, S> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
 }
 
 impl<G: Group, S: GroupShare<G>> ToBytes for MpcGroup<G, S> {
-    fn write<W: ark_serialize::Write>(&self, writer: W) -> io::Result<()> {
+    fn write<W: ark_serialize::Write>(&self, _writer: W) -> io::Result<()> {
         todo!()
     }
 }
 
 impl<G: Group, S: GroupShare<G>> FromBytes for MpcGroup<G, S> {
-    fn read<R: Read>(reader: R) -> io::Result<Self> {
+    fn read<R: Read>(_reader: R) -> io::Result<Self> {
         todo!()
     }
 }
 
 impl<G: Group, S: GroupShare<G>> UniformRand for MpcGroup<G, S> {
-    fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+    fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
         todo!()
     }
 }
 
 impl<G: Group, S: GroupShare<G>> Sum for MpcGroup<G, S> {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+    fn sum<I: Iterator<Item = Self>>(_iter: I) -> Self {
         todo!()
     }
 }
 
 impl<'a, G: Group, S: GroupShare<G>> Sum<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
-    fn sum<I: Iterator<Item = &'a MpcGroup<G, S>>>(iter: I) -> Self {
+    fn sum<I: Iterator<Item = &'a MpcGroup<G, S>>>(_iter: I) -> Self {
         todo!()
     }
 }
@@ -69,17 +68,14 @@ impl<G: Group, S: GroupShare<G>> Neg for MpcGroup<G, S> {
     }
 }
 
-// impl_ref_ops!(Add, AddAssign, add, add_assign, Group, GroupShare, MpcGroup);
-// impl_ref_ops!(Sub, SubAssign, sub, sub_assign, Group, GroupShare, MpcGroup);
-
 impl<G: Group, S: GroupShare<G>> AddAssign for MpcGroup<G, S> {
-    fn add_assign(&mut self, rhs: Self) {
+    fn add_assign(&mut self, _rhs: Self) {
         todo!()
     }
 }
 
 impl<'a, G: Group, S: GroupShare<G>> AddAssign<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
-    fn add_assign(&mut self, rhs: &'a MpcGroup<G, S>) {
+    fn add_assign(&mut self, _rhs: &'a MpcGroup<G, S>) {
         todo!()
     }
 }
@@ -87,7 +83,7 @@ impl<'a, G: Group, S: GroupShare<G>> AddAssign<&'a MpcGroup<G, S>> for MpcGroup<
 impl<G: Group, S: GroupShare<G>> Add for MpcGroup<G, S> {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output {
+    fn add(self, _rhs: Self) -> Self::Output {
         todo!()
     }
 }
@@ -95,19 +91,19 @@ impl<G: Group, S: GroupShare<G>> Add for MpcGroup<G, S> {
 impl<'a, G: Group, S: GroupShare<G>> Add<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
     type Output = Self;
 
-    fn add(self, rhs: &'a MpcGroup<G, S>) -> Self::Output {
+    fn add(self, _rhs: &'a MpcGroup<G, S>) -> Self::Output {
         todo!()
     }
 }
 
 impl<G: Group, S: GroupShare<G>> SubAssign for MpcGroup<G, S> {
-    fn sub_assign(&mut self, rhs: Self) {
+    fn sub_assign(&mut self, _rhs: Self) {
         todo!()
     }
 }
 
 impl<'a, G: Group, S: GroupShare<G>> SubAssign<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
-    fn sub_assign(&mut self, rhs: &'a MpcGroup<G, S>) {
+    fn sub_assign(&mut self, _rhs: &'a MpcGroup<G, S>) {
         todo!()
     }
 }
@@ -115,7 +111,7 @@ impl<'a, G: Group, S: GroupShare<G>> SubAssign<&'a MpcGroup<G, S>> for MpcGroup<
 impl<G: Group, S: GroupShare<G>> Sub for MpcGroup<G, S> {
     type Output = Self;
 
-    fn sub(self, rhs: Self) -> Self::Output {
+    fn sub(self, _rhs: Self) -> Self::Output {
         todo!()
     }
 }
@@ -123,7 +119,7 @@ impl<G: Group, S: GroupShare<G>> Sub for MpcGroup<G, S> {
 impl<'a, G: Group, S: GroupShare<G>> Sub<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
     type Output = Self;
 
-    fn sub(self, rhs: &'a MpcGroup<G, S>) -> Self::Output {
+    fn sub(self, _rhs: &'a MpcGroup<G, S>) -> Self::Output {
         todo!()
     }
 }
@@ -144,25 +140,6 @@ impl<G: Group, S: GroupShare<G>> Default for MpcGroup<G, S> {
     }
 }
 
-// impl<T: Group, S: GroupShare<T>> Mul<MpcField<T::ScalarField, S::FieldShare>> for MpcGroup<T, S> {
-//     type Output = Self;
-//     #[inline]
-//     fn mul(mut self, other: MpcField<T::ScalarField, S::FieldShare>) -> Self::Output {
-//         self *= &other;
-//         self
-//     }
-// }
-
-// impl<'a, T: Group, S: GroupShare<T>> Mul<&'a MpcField<T::ScalarField, S::FieldShare>>
-//     for MpcGroup<T, S>
-// {
-//     type Output = Self;
-//     #[inline]
-//     fn mul(mut self, other: &MpcField<T::ScalarField, S::FieldShare>) -> Self::Output {
-//         self *= other;
-//         self
-//     }
-// }
 impl<T: Group, S: GroupShare<T>> MulAssign<MpcField<T::ScalarField, S::FieldShare>>
     for MpcGroup<T, S>
 {
@@ -183,15 +160,15 @@ impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::F
                 MpcField::Public(y) => {
                     *x *= *y;
                 }
-                MpcField::Shared(y) => {
+                MpcField::Shared(_y) => {
                     todo!()
                 }
             },
-            MpcGroup::Shared(x) => match other {
-                MpcField::Public(y) => {
+            MpcGroup::Shared(_x) => match other {
+                MpcField::Public(_y) => {
                     todo!()
                 }
-                MpcField::Shared(y) => {
+                MpcField::Shared(_y) => {
                     todo!()
                 }
             },

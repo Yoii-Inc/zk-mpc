@@ -86,7 +86,7 @@ fn main() {
         3.2,
     );
 
-    let bracket_diag_alpha = preprocessing::initialize(&zkpopk_parameters, &she_parameters);
+    let _bracket_diag_alpha = preprocessing::initialize(&zkpopk_parameters, &she_parameters);
 
     // // pair phase
     let sk = she::SecretKey::generate(&she_parameters, &mut rng);
@@ -94,11 +94,11 @@ fn main() {
 
     let e_alpha = she::Ciphertext::rand(&pk, &mut rng, &she_parameters);
 
-    let (r_bracket, r_angle) =
+    let (_r_bracket, _r_angle) =
         preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
     // // triple phase
-    let (a_angle, b_angle, c_angle) =
+    let (_a_angle, _b_angle, _c_angle) =
         preprocessing::triple(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
     // make share, prove and verify

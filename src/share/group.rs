@@ -1,4 +1,4 @@
-use ark_ec::{group::Group, AffineCurve};
+use ark_ec::group::Group;
 use ark_ff::prelude::*;
 use ark_ff::ToBytes;
 use ark_serialize::{

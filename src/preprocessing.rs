@@ -96,7 +96,7 @@ pub mod zkpopk {
         #[allow(clippy::needless_range_loop)]
         for i in 0..parameters.v as usize {
             assert_eq!(u[i].get_degree(), { parameters.n });
-            let m_i = &witness.m[i].encode(she_params);
+            let _m_i = &witness.m[i].encode(she_params);
         }
         let y: Vec<Encodedtext> = witness
             .m
@@ -212,7 +212,7 @@ pub mod zkpopk {
     }
 
     // TODO: Implement hash function. output is sec bit.
-    fn hash(a: &[Ciphertext], c: &[Ciphertext], parameters: &Parameters) -> Vec<bool> {
+    fn hash(_a: &[Ciphertext], _c: &[Ciphertext], parameters: &Parameters) -> Vec<bool> {
         //let rng = &mut thread_rng();
         let mut rng: rand::rngs::StdRng = rand::SeedableRng::seed_from_u64(10);
         (0..parameters.sec).map(|_| rng.gen_bool(0.5)).collect()
@@ -313,7 +313,7 @@ pub mod zkpopk {
     fn dot_product3(row: &Vec<u128>, c: &Vec<Ciphertext>, parameters: &Parameters) -> Ciphertext {
         assert_eq!(row.len(), c.len(), "Vector dimensions must match!");
 
-        let rng = &mut thread_rng();
+        let _rng = &mut thread_rng();
 
         let mut sum = Ciphertext::from(
             Encodedtext::from_vec(vec![Fq::zero(); parameters.n]),
@@ -442,7 +442,7 @@ fn reshare(
 
         let instance = zkpopk::Instance::new(pk.clone(), vec![e_f_i.clone()]);
 
-        let r2: Vec<Encodedtext> =
+        let _r2: Vec<Encodedtext> =
             vec![
                 Encodedtext::from_vec(vec![Fq::zero(); parameters.get_d() as usize]);
                 parameters.get_sec() as usize
@@ -510,8 +510,6 @@ fn generate_angle_share(
     sk: &SecretKey,
     she_params: &SHEParameters,
 ) -> AngleShares {
-    let rng = thread_rng();
-
     let e_malpha = e_m * e_alpha.clone();
 
     let (gamma_vec, _) = reshare(
@@ -610,7 +608,7 @@ fn bracket(
     BracketShares { share: m_vec, mac }
 }
 
-fn verify_bracket_share(bracket_share: &BracketShares, parameters: &Parameters) -> bool {
+fn verify_bracket_share(bracket_share: &BracketShares, _parameters: &Parameters) -> bool {
     let n = bracket_share.share.len();
     let mut flag = true;
     let original: Plaintexts = bracket_share.share.iter().cloned().sum();
@@ -633,7 +631,6 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
     let n = 3;
 
     let mut rng = thread_rng();
-    let length_s = 1;
 
     // step 1
     //pk = keygendec
@@ -774,7 +771,6 @@ pub fn triple(
     she_params: &SHEParameters,
 ) -> (AngleShares, AngleShares, AngleShares) {
     let n = 3;
-    let length_s = 10;
     let mut rng = thread_rng();
 
     let r = get_gaussian(she_params, parameters.get_n() * 3, &mut rng);
@@ -884,7 +880,7 @@ mod tests {
 
         let e_m = Ciphertext::rand(&pk, &mut rng, &she_params);
 
-        let (m_vec, ct) = reshare(
+        let (_m_vec, ct) = reshare(
             e_m.clone(),
             CiphertextOpiton::NewCiphertext,
             &parameters,

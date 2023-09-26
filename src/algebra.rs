@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul};
 
-use ark_ff::Field;
+
 use ark_std::UniformRand;
 use num_traits::Zero;
 use rand::Rng;
@@ -68,7 +68,7 @@ impl AngleShare {
 impl Add for AngleShare {
     type Output = Self;
 
-    fn add(self, other: Self) -> Self {
+    fn add(self, _other: Self) -> Self {
         todo!()
     }
 }
@@ -76,7 +76,7 @@ impl Add for AngleShare {
 impl Mul for AngleShare {
     type Output = Self;
 
-    fn mul(self, other: Self) -> Self {
+    fn mul(self, _other: Self) -> Self {
         todo!()
     }
 }

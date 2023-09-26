@@ -147,9 +147,9 @@ fn poly_remainder(a: &[Fq], b: &[Fq], degree: usize) -> Vec<Fq> {
             r[i + degree] -= t[i];
         }
 
-        let zero = Fq::zero();
+        let _zero = Fq::zero();
 
-        while let Some(zero) = r.last() {
+        while let Some(_zero) = r.last() {
             r.pop();
         }
     }
@@ -186,7 +186,6 @@ mod tests {
     fn test_poly_remainder() {
         let a = vec![Fq::from(1), Fq::from(2), Fq::from(3)];
         let b = vec![Fq::from(2), Fq::from(1)];
-        let degree = 2;
         let res = poly_remainder2(&a, &b, b.len() - 1);
         assert_eq!(res, vec![Fq::from(9)]);
     }
