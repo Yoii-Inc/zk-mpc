@@ -44,11 +44,35 @@ struct Output {
 
 pub type MarlinLocal = Marlin<Fr, MarlinKZG10<Bls12_377, DensePolynomial<Fr>>, Blake2s>;
 
+fn which_zksnark(zksnark: &str) -> Result<(), &'static str> {
+    if zksnark != "groth16" && zksnark != "marlin" {
+        Err("Only groth16 or marlin are supported")
+    } else {
+        Ok(())
+    }
+}
+
+fn create_file() -> Result<File, std::io::Error> {
+    let file = File::create("./outputs/outputs.json")?;
+    Ok(file)
+}
+
+fn write_data(file: &mut File, data: &[u8]) -> Result<(), std::io::Error> {
+    file.write_all(data)?;
+    Ok(())
+}
+
 fn main() {
     let opt = Opt::from_args();
 
-    if opt.zksnark != "groth16" && opt.zksnark != "marlin" {
-        panic!("Only groth16 or marlin are supported");
+    let result = which_zksnark(&opt.zksnark);
+
+    match result {
+        Ok(_) => println!("selected zksnarks is OK"),
+        Err(err) => {
+            eprintln!("Error: {err}");
+            // error handling
+        }
     }
 
     let mut file = File::open(opt.input_file_path).expect("Failed to open file");
@@ -164,16 +188,26 @@ fn main() {
     // create JSON object
     let json_data = json!({ "hex_commitment": prefixed_hex_string });
 
-    let mut file = match File::create("./outputs/outputs.json") {
-        Ok(file) => file,
-        Err(e) => panic!("couldn't create output.json: {}", e),
-    };
+    let create_file_result = create_file();
+
+    match create_file_result {
+        Ok(_) => println!("The file has been successfully created."),
+        Err(e) => {
+            eprintln!("couldn't create output.json: {e}");
+            // error handling
+        }
+    }
 
     let json_string = serde_json::to_string_pretty(&json_data).unwrap();
 
-    match file.write_all(json_string.as_bytes()) {
+    let write_result = write_data(&mut file, json_string.as_bytes());
+
+    match write_result {
         Ok(_) => println!("The data has been successfully written."),
-        Err(e) => panic!("couldn't write data: {}", e),
+        Err(e) => {
+            eprintln!("couldn't write data: {e}");
+            // error handling
+        }
     }
 
     // deserialize
