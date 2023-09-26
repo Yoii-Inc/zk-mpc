@@ -8,6 +8,8 @@ use ark_serialize::{
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use super::field::FieldShare;
+
 pub trait GroupShare<G: Group>:
     Clone
     + Copy
@@ -24,6 +26,7 @@ pub trait GroupShare<G: Group>:
     + ToBytes
     + 'static
 {
+    type FieldShare: FieldShare<G::ScalarField>;
 }
 
 // pub trait GroupAffineShare<G: AffineCurve>:

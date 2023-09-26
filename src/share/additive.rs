@@ -15,7 +15,7 @@ use derivative::Derivative;
 
 use crate::reveal::Reveal;
 
-use super::pairing::ExtendedPairingEngine;
+// use super::pairing::ExtendedPairingEngine;
 // use super::group::GroupAffineShare;
 use super::{
     field::{ExtFieldShare, FieldShare},
@@ -193,7 +193,9 @@ macro_rules! impl_group_basics {
 
 impl_group_basics!(AdditiveGroupShare, Group);
 
-impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {}
+impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
+    type FieldShare = AdditiveFieldShare<G::ScalarField>;
+}
 
 #[derive(Clone, Copy, Debug, Derivative)]
 #[derivative(
@@ -202,14 +204,14 @@ impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {}
 )]
 pub struct AdditivePairingShare<E: PairingEngine>(pub PhantomData<E>);
 
-impl<E: ExtendedPairingEngine> PairingShare<E> for AdditivePairingShare<E> {
+impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
     type FrShare = AdditiveFieldShare<E::Fr>;
     type FqShare = AdditiveFieldShare<E::Fq>;
     type FqeShare = AdditiveExtFieldShare<E::Fqe>;
     // Not a typo. We want a multiplicative subgroup.
     type FqkShare = MulExtFieldShare<E::Fqk>;
-    type G1AffineShare = AdditiveGroupShare<E::GroupedG1Affine>;
-    type G2AffineShare = AdditiveGroupShare<E::GroupedG2Affine>;
-    type G1ProjectiveShare = AdditiveGroupShare<E::GroupedG1Projective>;
-    type G2ProjectiveShare = AdditiveGroupShare<E::GroupedG2Projective>;
+    type G1AffineShare = AdditiveGroupShare<E::G1Affine>;
+    type G2AffineShare = AdditiveGroupShare<E::G2Affine>;
+    type G1ProjectiveShare = AdditiveGroupShare<E::G1Projective>;
+    type G2ProjectiveShare = AdditiveGroupShare<E::G2Projective>;
 }

@@ -8,6 +8,7 @@ use std::ops::*;
 
 use zeroize::Zeroize;
 
+use ark_ec::group::Group;
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::prelude::*;
@@ -16,8 +17,6 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
-
-use crate::share::pairing::ExtendedPairingEngine;
 
 use super::super::share::field::ExtFieldShare;
 use super::super::share::pairing::PairingShare;
@@ -34,8 +33,8 @@ use derivative::Derivative;
     Eq(bound = "E::G1Affine: Eq"),
     Hash(bound = "E::G1Affine: Hash")
 )]
-pub struct MpcG1Affine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroup<E::GroupedG1Affine, PS::G1AffineShare>,
+pub struct MpcG1Affine<E: PairingEngine, PS: PairingShare<E>> {
+    pub val: MpcGroup<E::G1Affine, PS::G1AffineShare>,
 }
 
 #[derive(Debug, Derivative, Clone, Copy, Eq)]
@@ -43,13 +42,13 @@ pub struct MpcG1Affine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     PartialEq(bound = "E::G1Affine: PartialEq"),
     Hash(bound = "E::G1Affine: Hash")
 )]
-pub struct MpcG1Projective<E: ExtendedPairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroup<E::GroupedG1Projective, PS::G1ProjectiveShare>,
+pub struct MpcG1Projective<E: PairingEngine, PS: PairingShare<E>> {
+    pub val: MpcGroup<E::G1Projective, PS::G1ProjectiveShare>,
 }
 
 #[derive(Debug, Clone, Derivative)]
 #[derivative(Default(bound = "E::G1Prepared: Default"))]
-pub struct MpcG1Prep<E: ExtendedPairingEngine, PS: PairingShare<E>> {
+pub struct MpcG1Prep<E: PairingEngine, PS: PairingShare<E>> {
     pub val: E::G1Prepared,
     _phantom: PhantomData<(E, PS)>,
 }
@@ -62,8 +61,8 @@ pub struct MpcG1Prep<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     Eq(bound = "E::G1Affine: Eq"),
     Hash(bound = "E::G1Affine: Hash")
 )]
-pub struct MpcG2Affine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroup<E::GroupedG2Affine, PS::G2AffineShare>,
+pub struct MpcG2Affine<E: PairingEngine, PS: PairingShare<E>> {
+    pub val: MpcGroup<E::G2Affine, PS::G2AffineShare>,
 }
 
 #[derive(Debug, Derivative, Clone, Copy, Eq)]
@@ -71,13 +70,13 @@ pub struct MpcG2Affine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
     PartialEq(bound = "E::G1Affine: PartialEq"),
     Hash(bound = "E::G1Affine: Hash")
 )]
-pub struct MpcG2Projective<E: ExtendedPairingEngine, PS: PairingShare<E>> {
-    pub val: MpcGroup<E::GroupedG2Projective, PS::G2ProjectiveShare>,
+pub struct MpcG2Projective<E: PairingEngine, PS: PairingShare<E>> {
+    pub val: MpcGroup<E::G2Projective, PS::G2ProjectiveShare>,
 }
 
 #[derive(Debug, Clone, Derivative)]
 #[derivative(Default(bound = "E::G1Prepared: Default"))]
-pub struct MpcG2Prep<E: ExtendedPairingEngine, PS: PairingShare<E>> {
+pub struct MpcG2Prep<E: PairingEngine, PS: PairingShare<E>> {
     pub val: E::G2Prepared,
     _phantom: PhantomData<(E, PS)>,
 }
@@ -96,11 +95,11 @@ pub struct MpcExtField<F: Field, FS: ExtFieldShare<F>> {
 
 #[derive(Derivative)]
 #[derivative(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MpcPairingEngine<E: ExtendedPairingEngine, PS: PairingShare<E>> {
+pub struct MpcPairingEngine<E: PairingEngine, PS: PairingShare<E>> {
     _phantom: PhantomData<(E, PS)>,
 }
 
-impl<E: ExtendedPairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E, PS> {
+impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E, PS> {
     type Fr = MpcField<E::Fr, PS::FrShare>;
     type G1Projective = MpcG1Projective<E, PS>;
     type G1Affine = MpcG1Affine<E, PS>;
@@ -485,7 +484,7 @@ macro_rules! impl_pairing_curve_wrapper {
 
 impl_pairing_curve_wrapper!(
     MpcGroup,
-    ExtendedPairingEngine,
+    PairingEngine,
     PairingShare,
     G1Affine,
     G1AffineShare,
@@ -493,7 +492,7 @@ impl_pairing_curve_wrapper!(
 );
 impl_pairing_curve_wrapper!(
     MpcGroup,
-    ExtendedPairingEngine,
+    PairingEngine,
     PairingShare,
     G1Projective,
     G1ProjectiveShare,
@@ -501,7 +500,7 @@ impl_pairing_curve_wrapper!(
 );
 impl_pairing_curve_wrapper!(
     MpcGroup,
-    ExtendedPairingEngine,
+    PairingEngine,
     PairingShare,
     G2Affine,
     G2AffineShare,
@@ -509,7 +508,7 @@ impl_pairing_curve_wrapper!(
 );
 impl_pairing_curve_wrapper!(
     MpcGroup,
-    ExtendedPairingEngine,
+    PairingEngine,
     PairingShare,
     G2Projective,
     G2ProjectiveShare,
@@ -520,31 +519,42 @@ impl_ext_field_wrapper!(MpcField, MpcExtField);
 
 macro_rules! impl_aff_proj {
     ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $g_name:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident, $share_proj:ident) => {
-        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> From<$w_pro<E, PS>> for $w_aff<E, PS> {
+        impl<E: PairingEngine, PS: PairingShare<E>> Group for $w_aff<E, PS> {
+            type ScalarField = MpcField<E::Fr, PS::FrShare>;
+
+            fn double(&self) -> Self {
+                todo!()
+            }
+
+            fn double_in_place(&mut self) -> &mut Self {
+                todo!()
+            }
+        }
+        impl<E: PairingEngine, PS: PairingShare<E>> From<$w_pro<E, PS>> for $w_aff<E, PS> {
             fn from(p: $w_pro<E, PS>) -> Self {
                 todo!()
             }
         }
 
-        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_pro<E, PS> {
+        impl<E: PairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_pro<E, PS> {
             fn from(p: $w_aff<E, PS>) -> Self {
                 todo!()
             }
         }
 
-        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_prep<E, PS> {
+        impl<E: PairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_prep<E, PS> {
             fn from(p: $w_aff<E, PS>) -> Self {
                 todo!()
             }
         }
 
-        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> ToBytes for $w_prep<E, PS> {
+        impl<E: PairingEngine, PS: PairingShare<E>> ToBytes for $w_prep<E, PS> {
             fn write<W: Write>(&self, writer: W) -> io::Result<()> {
                 todo!()
             }
         }
 
-        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> AffineCurve for $w_aff<E, PS> {
+        impl<E: PairingEngine, PS: PairingShare<E>> AffineCurve for $w_aff<E, PS> {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
             const COFACTOR: &'static [u64] = E::$aff::COFACTOR;
             type BaseField = $w_base<E::$base, PS::$base_share>;
@@ -574,7 +584,7 @@ macro_rules! impl_aff_proj {
             }
         }
 
-        impl<E: ExtendedPairingEngine, PS: PairingShare<E>> ProjectiveCurve for $w_pro<E, PS> {
+        impl<E: PairingEngine, PS: PairingShare<E>> ProjectiveCurve for $w_pro<E, PS> {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
 
             // aff?pro?
