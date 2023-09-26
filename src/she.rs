@@ -1,6 +1,12 @@
+//! An implementation of the SHE (somewhat homomorphic encryption) of MPC.
+//! Concrete implementation is based on "6. Concrete Instantiation of the Abstract Scheme based on LWE" in [`DPSZ11`].
+//!
+//! [`DPSZ11`]: https://eprint.iacr.org/2011/535.pdf
+
 pub mod ciphertext;
 pub mod encodedtext;
 pub mod plaintext;
+mod polynomial;
 pub mod texts;
 pub use ark_bls12_377::{Fr, FrParameters};
 pub use ciphertext::Ciphertext;
@@ -9,13 +15,22 @@ pub use texts::Texts;
 
 pub use ark_ff::{FftField, Field, FpParameters};
 pub use ark_mnt4_753::{Fq, FqParameters};
-use ark_poly::{polynomial::univariate::DensePolynomial, univariate::DenseOrSparsePolynomial};
-use ark_std::log2;
+use ark_poly::polynomial::univariate::DensePolynomial;
 use num_bigint::BigUint;
 pub use plaintext::{Plaintext, Plaintextish, Plaintexts};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
+/// Parameters for a Somewhat Homomorphic Encryption Scheme (SHE).
+///
+/// This struct holds various parameters used in the context of a Somewhat Homomorphic Encryption Scheme.
+///
+/// - `s`: The length of the Plaintext.
+/// - `n`: The degree of the polynomial (length of Encodedtext), which should match the length of the plaintext.
+/// - `p`: The modulus of the Plaintext.
+/// - `q`: The modulus of the Encodedtext.
+/// - `std_dev`: The standard deviation for generating random numbers from a Gaussian distribution.
+///
 pub struct SHEParameters {
     // length of Plaintext
     s: usize,
@@ -75,6 +90,16 @@ impl PublicKey {
     }
 }
 
+/// From Gaussian distribution, generate Encodedtext.
+///
+/// # Arguments
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+/// * `dimension` - the length of desired Encodedtext.
+/// * `rng` - random number generator.
+///
+/// # Returns
+/// The randomly generated Encodedtext its length = dimension.
+///
 pub fn get_gaussian<T: Rng>(
     she_params: &SHEParameters,
     dimension: usize,
@@ -87,58 +112,13 @@ pub fn get_gaussian<T: Rng>(
     Encodedtext::from_vec(val)
 }
 
-fn substitute(polynomial: &[Fr], variable: &Fr) -> Fr {
-    let mut result = Fr::from(0);
-    for (i, coefficient) in polynomial.iter().enumerate() {
-        result += *coefficient * variable.pow([i as u64]);
-    }
-    result
-}
-
-fn cyclotomic_moduli(length: usize) -> Vec<Fr> {
-    // moduli: lengthは本来N-1だが、sで切り捨て
-    // N-1個の根は、円分多項式Phi_N(X) on Fpの根である
-
-    // N=sである。N * 2=mである。mは2の冪である。m=2^kであるとき(ただし、1<=k<47)、moduliは、TWO_ADIC_ROOT_OF_UNITY^{2^(47-k)}のi乗である。
-
-    let k = log2(length * 2);
-    let m_root_of_unity = Fr::two_adic_root_of_unity().pow([2_u64.pow(47 - k)]);
-    let mut moduli = Vec::new();
-    for i in 0..length {
-        moduli.push(m_root_of_unity.pow([(2 * i + 1) as u64]));
-    }
-
-    moduli
-}
-
 #[cfg(test)]
 mod tests {
-    use num_traits::One;
-    use rand::thread_rng;
-
     use super::*;
+    use rand::thread_rng;
 
     fn is_power_of_two(n: usize) -> bool {
         n != 0 && (n & (n - 1)) == 0
-    }
-
-    #[test]
-    fn test_cyclotomic_moduli() {
-        // Set the parameters for this instantiation of BV11
-        let std_dev = 3.2; // Standard deviation for generating the error
-        let s = 64;
-        let p: BigUint = FrParameters::MODULUS.into();
-        let q: BigUint = FqParameters::MODULUS.into();
-        let degree = s;
-
-        let she_params = SHEParameters::new(s, degree, p.clone(), q.clone(), std_dev);
-
-        let res = cyclotomic_moduli(she_params.n);
-
-        for v in res {
-            assert_eq!(Fr::one(), v.pow([(s * 2) as u64]));
-        }
-        println!("hello");
     }
 
     #[test]

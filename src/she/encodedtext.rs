@@ -5,11 +5,10 @@ use rand::Rng;
 use std::ops::{Add, Mul};
 
 use crate::she::{
-    cyclotomic_moduli, DenseOrSparsePolynomial, DensePolynomial, FpParameters, Fq, FqParameters,
-    Fr, Plaintexts, SHEParameters, Texts,
+    DensePolynomial, FpParameters, Fq, FqParameters, Fr, Plaintexts, SHEParameters, Texts,
 };
 
-use super::substitute;
+use super::polynomial::{cyclotomic_moduli, poly_remainder2, substitute};
 
 pub type Encodedtext = Texts<Fq>;
 impl Encodedtext {
@@ -132,50 +131,6 @@ impl Mul<Encodedtext> for Encodedtext {
         let out_val = poly_remainder2(&out_raw_val, &modulo_poly, self.len());
         Self { vals: out_val }
     }
-}
-
-fn poly_remainder(a: &[Fq], b: &[Fq], degree: usize) -> Vec<Fq> {
-    let mut r = a.to_vec();
-
-    while r.len() >= b.len() {
-        let ratio = *r.last().unwrap() / b.last().unwrap();
-        let degree = r.len() - b.len();
-
-        let t: Vec<Fq> = b.iter().map(|&x| x * ratio).collect();
-
-        for i in (0..t.len()).rev() {
-            r[i + degree] -= t[i];
-        }
-
-        let _zero = Fq::zero();
-
-        while let Some(_zero) = r.last() {
-            r.pop();
-        }
-    }
-
-    if r.len() < degree {
-        r.extend(vec![Fq::zero(); degree - r.len()])
-    }
-    r
-}
-
-fn poly_remainder2(a: &[Fq], b: &[Fq], expect_length: usize) -> Vec<Fq> {
-    let a_poly = DensePolynomial::from_coefficients_vec(a.to_vec());
-    let b_poly = DensePolynomial::from_coefficients_vec(b.to_vec());
-
-    let a_poly2 = DenseOrSparsePolynomial::from(a_poly);
-    let b_poly2 = DenseOrSparsePolynomial::from(b_poly);
-
-    let (_, res) = a_poly2.divide_with_q_and_r(&b_poly2).unwrap();
-
-    let mut res_vec = res.coeffs;
-
-    if res_vec.len() < expect_length {
-        res_vec.extend(vec![Fq::zero(); expect_length - res_vec.len()])
-    }
-
-    res_vec
 }
 
 #[cfg(test)]
