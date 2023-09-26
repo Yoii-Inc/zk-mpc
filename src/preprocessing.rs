@@ -10,6 +10,13 @@ pub mod zkpopk {
     use rand::{thread_rng, Rng};
     use rand_distr::uniform::UniformSampler;
 
+    /// Parameters for ZKPoPK.
+    /// v: number of ciphertexts. 2*sec-1
+    /// n: degree of Encodedtext.
+    /// tau: parameter used description of upper bound of plaintext.
+    /// sec: security parameter.
+    /// d: parameter used description of upper bound of rand.
+    /// rho: parameter used description of upper bound of rand.
     pub struct Parameters {
         v: i32,
         n: usize,

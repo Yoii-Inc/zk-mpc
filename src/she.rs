@@ -16,6 +16,12 @@ pub use plaintext::{Plaintext, Plaintextish, Plaintexts};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
+/// Parameters for ZKPoPK.
+/// s: length of Plaintext.
+/// n: degree of polynomial (length of Encodedtext) should be same with lenght of Plaintext.
+/// p: modulus of Plaintext.
+/// q: modulus of Encodedtext.
+/// std_dev: standard deviation for generating the random number from gaussian.
 pub struct SHEParameters {
     // length of Plaintext
     s: usize,
