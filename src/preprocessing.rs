@@ -655,7 +655,7 @@ fn verify_bracket_share(bracket_share: &BracketShares, _parameters: &Parameters)
 /// # Returns
 /// The BracketShare of global public key.
 ///
-pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
+pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShares {
     let n = 3;
 
     let mut rng = thread_rng();
