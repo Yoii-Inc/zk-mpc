@@ -42,13 +42,21 @@ struct Output {
     hex_commitment: String,
 }
 
+enum ZkSnark {
+    Groth16,
+    Marlin,
+}
+
 pub type MarlinLocal = Marlin<Fr, MarlinKZG10<Bls12_377, DensePolynomial<Fr>>, Blake2s>;
 
-fn which_zksnark(zksnark: &str) -> Result<(), &'static str> {
-    if zksnark != "groth16" && zksnark != "marlin" {
-        Err("Only groth16 or marlin are supported")
-    } else {
-        Ok(())
+fn which_zksnark(zksnark: &str) -> Result<ZkSnark, std::io::Error> {
+    match zksnark {
+        "groth16" => Ok(ZkSnark::Groth16),
+        "marlin" => Ok(ZkSnark::Marlin),
+        _ => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Only groth16 or marlin are supported",
+        )),
     }
 }
 
@@ -62,18 +70,22 @@ fn write_data(file: &mut File, data: &[u8]) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = Opt::from_args();
 
-    let result = which_zksnark(&opt.zksnark);
-
-    match result {
-        Ok(_) => println!("selected zksnarks is OK"),
+    let zksnark: ZkSnark = match which_zksnark(&opt.zksnark) {
+        Ok(zk) => {
+            println!("selected zksnarks is OK");
+            zk
+        }
         Err(err) => {
             eprintln!("Error: {err}");
-            // error handling
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                err,
+            )));
         }
-    }
+    };
 
     let mut file = File::open(opt.input_file_path).expect("Failed to open file");
     let mut contents = String::new();
@@ -139,39 +151,41 @@ fn main() {
         lower_bound,
         upper_bound,
     );
+    match zksnark {
+        ZkSnark::Groth16 => {
+            let (circuit_pk, circuit_vk) =
+                Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
 
-    if opt.zksnark == "groth16" {
-        let (circuit_pk, circuit_vk) =
-            Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
+            // // calculate the proof by passing witness variable value
+            let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit, &mut rng).unwrap();
 
-        // // calculate the proof by passing witness variable value
-        let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit, &mut rng).unwrap();
+            // // validate the proof
+            assert!(Groth16::<Bls12_377>::verify(
+                &circuit_vk,
+                &[lower_bound, upper_bound, h_x.x, h_x.y],
+                &proof
+            )
+            .unwrap());
+        }
+        ZkSnark::Marlin => {
+            let universal_srs =
+                MarlinLocal::universal_setup(50000, 250, 300, &mut rng).expect("Failed to setup");
 
-        // // validate the proof
-        assert!(Groth16::<Bls12_377>::verify(
-            &circuit_vk,
-            &[lower_bound, upper_bound, h_x.x, h_x.y],
-            &proof
-        )
-        .unwrap());
-    } else if opt.zksnark == "marlin" {
-        let universal_srs =
-            MarlinLocal::universal_setup(50000, 250, 300, &mut rng).expect("Failed to setup");
+            let (index_pk, index_vk) = MarlinLocal::index(&universal_srs, circuit.clone()).unwrap();
+            println!("Called index");
 
-        let (index_pk, index_vk) = MarlinLocal::index(&universal_srs, circuit.clone()).unwrap();
-        println!("Called index");
+            // calculate the proof by passing witness variable value
+            let proof = MarlinLocal::prove(&index_pk, circuit.clone(), &mut rng).unwrap();
+            println!("Called prover");
 
-        // calculate the proof by passing witness variable value
-        let proof = MarlinLocal::prove(&index_pk, circuit.clone(), &mut rng).unwrap();
-        println!("Called prover");
-
-        assert!(MarlinLocal::verify(
-            &index_vk,
-            &[lower_bound, upper_bound, h_x.x, h_x.y],
-            &proof,
-            &mut rng
-        )
-        .unwrap());
+            assert!(MarlinLocal::verify(
+                &index_vk,
+                &[lower_bound, upper_bound, h_x.x, h_x.y],
+                &proof,
+                &mut rng
+            )
+            .unwrap());
+        }
     }
 
     // serialize commitment
@@ -195,6 +209,7 @@ fn main() {
         Err(e) => {
             eprintln!("couldn't create output.json: {e}");
             // error handling
+            return Err(Box::new(e));
         }
     }
 
@@ -207,6 +222,7 @@ fn main() {
         Err(e) => {
             eprintln!("couldn't write data: {e}");
             // error handling
+            return Err(Box::new(e));
         }
     }
 
@@ -233,4 +249,5 @@ fn main() {
         ark_ec::models::twisted_edwards_extended::GroupAffine::deserialize(reader).unwrap();
 
     assert_eq!(h_x, deserialized_h_x);
+    Ok(())
 }
