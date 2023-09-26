@@ -21,12 +21,16 @@ pub use plaintext::{Plaintext, Plaintextish, Plaintexts};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
-/// Parameters for ZKPoPK.
-/// s: length of Plaintext.
-/// n: degree of polynomial (length of Encodedtext) should be same with length of Plaintext.
-/// p: modulus of Plaintext.
-/// q: modulus of Encodedtext.
-/// std_dev: standard deviation for generating the random number from gaussian.
+/// Parameters for a Secure Homomorphic Encryption Scheme (SHE).
+///
+/// This struct holds various parameters used in the context of a Secure Homomorphic Encryption Scheme.
+///
+/// - `s`: The length of the Plaintext.
+/// - `n`: The degree of the polynomial (length of Encodedtext), which should match the length of the plaintext.
+/// - `p`: The modulus of the Plaintext.
+/// - `q`: The modulus of the Encodedtext.
+/// - `std_dev`: The standard deviation for generating random numbers from a Gaussian distribution.
+/// 
 pub struct SHEParameters {
     // length of Plaintext
     s: usize,

@@ -19,13 +19,17 @@ pub mod zkpopk {
     use rand::{thread_rng, Rng};
     use rand_distr::uniform::UniformSampler;
 
-    /// Parameters for ZKPoPK.
-    /// v: number of ciphertexts. 2*sec-1
-    /// n: degree of Encodedtext.
-    /// tau: parameter used description of upper bound of plaintext.
-    /// sec: security parameter.
-    /// d: parameter used description of upper bound of rand.
-    /// rho: parameter used description of upper bound of rand.
+    /// Parameters for ZKPoPK (Zero-Knowledge Proof of Partial Knowledge).
+    ///
+    /// This struct holds various parameters used in the context of ZKPoPK.
+    ///
+    /// - `v`: Number of ciphertexts, typically set to `2 * sec - 1`.
+    /// - `n`: Degree of Encodedtext.
+    /// - `tau`: A parameter used to describe the upper bound of plaintext.
+    /// - `sec`: Security parameter.
+    /// - `d`: A parameter used to describe the upper bound of randomness.
+    /// - `rho`: A parameter used to describe the upper bound of randomness.
+    ///
     pub struct Parameters {
         v: i32,
         n: usize,
