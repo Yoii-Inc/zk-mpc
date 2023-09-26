@@ -1,6 +1,5 @@
 use std::ops::{Add, Mul};
 
-
 use ark_std::UniformRand;
 use num_traits::Zero;
 use rand::Rng;
