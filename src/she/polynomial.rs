@@ -7,6 +7,17 @@ use ark_poly::{
 };
 use ark_std::log2;
 
+/// Interpolate a polynomial such that it passes through specified points.
+/// This function calculates an interpolated polynomial that passes through a set of given points.
+///
+/// # Arguments
+///
+/// * `eval_at` - A vector containing the x-values of the points to interpolate.
+/// * `evals` - A vector containing the corresponding y-values of the points to interpolate.
+///
+/// # Returns
+/// An `Option` containing the coefficients of the interpolated polynomial. Returns `None` if interpolation fails.
+///
 pub fn interpolate<F: FftField>(eval_at: &Vec<F>, evals: &Vec<F>) -> Option<Vec<F>> {
     let n = eval_at.len();
     let m = evals.len();
@@ -57,6 +68,15 @@ pub fn interpolate<F: FftField>(eval_at: &Vec<F>, evals: &Vec<F>) -> Option<Vec<
     Some(res_coeff)
 }
 
+/// Substitute a value into a polynomial.
+///
+/// # Arguments
+/// * `polynomial` - The polynomial to substitute into.
+/// * `variable` - The value to substitute.
+///
+/// # Returns
+/// The result of the substitution.
+///
 pub fn substitute<F: Field>(polynomial: &[F], variable: &F) -> F {
     let mut result = F::zero();
     for (i, coefficient) in polynomial.iter().enumerate() {
@@ -65,12 +85,22 @@ pub fn substitute<F: Field>(polynomial: &[F], variable: &F) -> F {
     result
 }
 
+/// Compute the roots of the cyclotomic polynomial \Phi_(2 * length)(X) on F. where length is expected to be a power of two.
+///
+/// # Arguments
+/// * `length` - The length of the roots.
+///
+/// # Returns
+/// The vector of (2 * length)-th roots of the cyclotomic polynomial.
+///
+/// # Notes
+/// The cyclotomic polynomial \Phi_N(X) is defined as the minimal polynomial of the primitive N-th root of unity.
+/// If N is a power of two, then \Phi_N(X) = X^(N/2) + 1. For example, \Phi_8(X) = X^4 + 1.
+/// let r is a one of the roots of the cyclotomic polynomial \Phi_N(X) on F, then returns [r, r^2, r^3, r^4, ..., r^length].
+///
+/// TWO_ADIC_ROOT_OF_UNITY = 2^s-th root of unity in Fp (s = F::FftParams::TWO_ADICITY).
+///
 pub fn cyclotomic_moduli<F: FftField>(length: usize) -> Vec<F> {
-    // moduli: lengthは本来N-1だが、sで切り捨て
-    // N-1個の根は、円分多項式Phi_N(X) on Fpの根である
-
-    // N=sである。N * 2=mである。mは2の冪である。m=2^kであるとき(ただし、1<=k<47)、moduliは、TWO_ADIC_ROOT_OF_UNITY^{2^(47-k)}のi乗である。
-
     let k = log2(length * 2);
     let s = F::FftParams::TWO_ADICITY;
     assert!(k < s);
@@ -109,6 +139,16 @@ fn poly_remainder<F: Field>(a: &[F], b: &[F], degree: usize) -> Vec<F> {
     r
 }
 
+/// Compute the remainder of a polynomial division on F.
+///
+/// # Arguments
+/// * `a` - The first polynomial.
+/// * `b` - The second polynomial.
+/// * `expect_length` - The degree of the remainder (Fill in 0 when it becomes shorter than that length.).
+///
+/// # Returns
+/// The residue of the polynomial division a % b.
+///
 pub fn poly_remainder2<F: Field>(a: &[F], b: &[F], expect_length: usize) -> Vec<F> {
     let a_poly = DensePolynomial::from_coefficients_vec(a.to_vec());
     let b_poly = DensePolynomial::from_coefficients_vec(b.to_vec());

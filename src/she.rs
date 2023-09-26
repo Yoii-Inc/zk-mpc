@@ -1,3 +1,8 @@
+//! An implementation of the SHE (somewhat homomorphic encryption) of MPC.
+//! Concrete implementation is based on "6. Concrete Instantiation of the Abstract Scheme based on LWE" in [`DPSZ11`].
+//!
+//! [`DPSZ11`]: https://eprint.iacr.org/2011/535.pdf
+
 pub mod ciphertext;
 pub mod encodedtext;
 pub mod plaintext;
@@ -16,6 +21,16 @@ pub use plaintext::{Plaintext, Plaintextish, Plaintexts};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
+/// Parameters for a Somewhat Homomorphic Encryption Scheme (SHE).
+///
+/// This struct holds various parameters used in the context of a Somewhat Homomorphic Encryption Scheme.
+///
+/// - `s`: The length of the Plaintext.
+/// - `n`: The degree of the polynomial (length of Encodedtext), which should match the length of the plaintext.
+/// - `p`: The modulus of the Plaintext.
+/// - `q`: The modulus of the Encodedtext.
+/// - `std_dev`: The standard deviation for generating random numbers from a Gaussian distribution.
+///
 pub struct SHEParameters {
     // length of Plaintext
     s: usize,
@@ -75,6 +90,16 @@ impl PublicKey {
     }
 }
 
+/// From Gaussian distribution, generate Encodedtext.
+///
+/// # Arguments
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+/// * `dimension` - the length of desired Encodedtext.
+/// * `rng` - random number generator.
+///
+/// # Returns
+/// The randomly generated Encodedtext its length = dimension.
+///
 pub fn get_gaussian<T: Rng>(
     she_params: &SHEParameters,
     dimension: usize,

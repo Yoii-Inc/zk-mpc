@@ -1,4 +1,13 @@
+//! An implementation of the preprocessing of MPC.
+//! Concrete implementation is based on "5. The Preprocessing Phase" in [`DPSZ11`].
+//!
+//! [`DPSZ11`]: https://eprint.iacr.org/2011/535.pdf
+
 pub mod zkpopk {
+    //! An implementation of the ZKPoPK (Zero-Knowledge Proof of Plaintext Knowledge) in MPC.
+    //! Concrete implementation is based on "4. Zero-Knowledge Proof of Plaintext Knowledge" and Fig.10 in "A.1 Zero-Knowledge Proof" in [`DPSZ11`].
+    //!
+    //! [`DPSZ11`]: https://eprint.iacr.org/2011/535.pdf
 
     use crate::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey, SHEParameters};
 
@@ -10,6 +19,17 @@ pub mod zkpopk {
     use rand::{thread_rng, Rng};
     use rand_distr::uniform::UniformSampler;
 
+    /// Parameters for ZKPoPK (Zero-Knowledge Proof of Plaintext Knowledge).
+    ///
+    /// This struct holds various parameters used in the context of ZKPoPK.
+    ///
+    /// - `v`: Number of ciphertexts, typically set to `2 * sec - 1`.
+    /// - `n`: Degree of Encodedtext.
+    /// - `tau`: A parameter used to describe the upper bound of plaintext.
+    /// - `sec`: Security parameter.
+    /// - `d`: A parameter used to describe the upper bound of randomness.
+    /// - `rho`: A parameter used to describe the upper bound of randomness.
+    ///
     pub struct Parameters {
         v: i32,
         n: usize,
@@ -628,7 +648,15 @@ fn verify_bracket_share(bracket_share: &BracketShare, parameters: &Parameters) -
     flag
 }
 
-// initialize
+/// Initializes the preprocessing phase.
+///
+/// # Arguments
+/// * `parameters` - preprocessing parameters in SPDZ.
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+///
+/// # Returns
+/// The BracketShare of global public key.
+///
 pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> BracketShare {
     let n = 3;
 
@@ -709,6 +737,18 @@ pub fn initialize(parameters: &Parameters, she_params: &SHEParameters) -> Bracke
     )
 }
 
+/// Generate BracketShare and AngleShare of random number.
+///
+/// # Arguments
+/// * `e_alpha` - Encrypted alpha.
+/// * `pk - The public key.
+/// * `sk` - The secret key.
+/// * `parameters` - preprocessing parameters in SPDZ.
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+///
+/// # Returns
+/// The BracketShare and AngleShare of random number.
+///
 pub fn pair(
     e_alpha: &Ciphertext,
     pk: &PublicKey,
@@ -766,6 +806,18 @@ pub fn pair(
     (r_bracket, r_angle)
 }
 
+/// Generate Multiplication tirples.
+///
+/// # Arguments
+/// * `e_alpha` - Encrypted alpha.
+/// * `pk` - The public key.
+/// * `sk` - The secret key.
+/// * `parameters` - preprocessing parameters in SPDZ.
+/// * `she_params` - SHE(Somewhat Homomorphic Encryption) parameters.
+///
+/// # Returns
+/// The AngleShare of (a, b, c) where c = a * b.
+///
 pub fn triple(
     e_alpha: &Ciphertext,
     pk: &PublicKey,
