@@ -30,7 +30,7 @@ use rand_distr::{Distribution, Normal};
 /// - `p`: The modulus of the Plaintext.
 /// - `q`: The modulus of the Encodedtext.
 /// - `std_dev`: The standard deviation for generating random numbers from a Gaussian distribution.
-/// 
+///
 pub struct SHEParameters {
     // length of Plaintext
     s: usize,
