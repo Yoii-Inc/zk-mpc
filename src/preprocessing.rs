@@ -1,4 +1,13 @@
+//! An implementation of the preprocessing of MPC.
+//! Concrete implementation is based on "5. The Preprocessing Phase" in [`DPSZ11`].
+//!
+//! [`DPSZ11`]: https://eprint.iacr.org/2011/535.pdf
+
 pub mod zkpopk {
+    //! An implementation of the ZKPoPK (Zero-Knowledge Proof of Plaintext Knowledge) in MPC.
+    //! Concrete implementation is based on "4. Zero-Knowledge Proof of Plaintext Knowledge" and Fig.10 in "A.1 Zero-Knowledge Proof" in [`DPSZ11`].
+    //!
+    //! [`DPSZ11`]: https://eprint.iacr.org/2011/535.pdf
 
     use crate::she::{Ciphertext, Encodedtext, Plaintexts, PublicKey, SHEParameters};
 

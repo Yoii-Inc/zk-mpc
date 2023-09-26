@@ -1,3 +1,8 @@
+//! An implementation of the SHE (somewhat homomorphic encryption) of MPC.
+//! Concrete implementation is based on "6. Concrete Instantiation of the Abstract Scheme based on LWE" in [`DPSZ11`].
+//!
+//! [`DPSZ11`]: https://eprint.iacr.org/2011/535.pdf
+
 pub mod ciphertext;
 pub mod encodedtext;
 pub mod plaintext;
