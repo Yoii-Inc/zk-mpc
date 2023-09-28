@@ -260,7 +260,7 @@ pub mod zkpopk {
         parameters: &Parameters,
         instance: &Instance,
         she_params: &SHEParameters,
-    ) -> Result<(), ()> {
+    ) -> Result<(), std::io::Error> {
         // step 6
         let e = hash(&proof.a, &instance.c, parameters);
         let d: Vec<Ciphertext> = proof
@@ -281,7 +281,12 @@ pub mod zkpopk {
             .map(|(row, a_i)| a_i.clone() + dot_product3(row, &instance.c, parameters))
             .collect();
 
-        assert_eq!(d, rhs);
+        if d != rhs {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Verification failed!",
+            ));
+        }
 
         let norm_z = proof.z.iter().map(|z_i| z_i.norm()).max().unwrap();
 
@@ -293,15 +298,31 @@ pub mod zkpopk {
                     * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
         );
 
+        if norm_z
+            >= (BigUint::from(128_usize)
+                * BigUint::from(parameters.n)
+                * parameters.tau.clone()
+                * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "norm_z is too large!",
+            ));
+        }
+
         let norm_t = proof.t.iter().map(|t_i| t_i.norm()).max().unwrap();
 
-        assert!(
-            norm_t
-                < (BigUint::from(128_usize)
-                    * BigUint::from(parameters.d as usize)
-                    * BigUint::from(parameters.rho as usize)
-                    * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
-        );
+        if norm_t
+            >= (BigUint::from(128_usize)
+                * BigUint::from(parameters.d as usize)
+                * BigUint::from(parameters.rho as usize)
+                * BigUint::from(parameters.sec.pow(2) as usize)) as BigUint
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "norm_z is too large!",
+            ));
+        }
 
         Ok(())
     }
