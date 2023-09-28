@@ -126,9 +126,9 @@ fn poly_remainder<F: Field>(a: &[F], b: &[F], degree: usize) -> Vec<F> {
             r[i + degree] -= t[i];
         }
 
-        let zero = F::zero();
+        let _zero = F::zero();
 
-        while let Some(zero) = r.last() {
+        while let Some(_zero) = r.last() {
             r.pop();
         }
     }

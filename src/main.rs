@@ -1,8 +1,15 @@
 #![allow(dead_code)]
 
+mod algebra;
+mod circuit;
+mod groth16;
 mod input_circuit;
+// mod marlin;
 mod preprocessing;
+mod reveal;
+mod share;
 mod she;
+mod wire;
 
 use ark_bls12_377::{Bls12_377, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;
@@ -115,7 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         3.2,
     );
 
-    let bracket_diag_alpha = preprocessing::initialize(&zkpopk_parameters, &she_parameters);
+    let _bracket_diag_alpha = preprocessing::initialize(&zkpopk_parameters, &she_parameters);
 
     // // pair phase
     let sk = she::SecretKey::generate(&she_parameters, &mut rng);
@@ -123,11 +130,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let e_alpha = she::Ciphertext::rand(&pk, &mut rng, &she_parameters);
 
-    let (r_bracket, r_angle) =
+    let (_r_bracket, _r_angle) =
         preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
     // // triple phase
-    let (a_angle, b_angle, c_angle) =
+    let (_a_angle, _b_angle, _c_angle) =
         preprocessing::triple(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
     // make share, prove and verify

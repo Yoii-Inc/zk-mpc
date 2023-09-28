@@ -141,7 +141,6 @@ mod tests {
     fn test_poly_remainder() {
         let a = vec![Fq::from(1), Fq::from(2), Fq::from(3)];
         let b = vec![Fq::from(2), Fq::from(1)];
-        let degree = 2;
         let res = poly_remainder2(&a, &b, b.len() - 1);
         assert_eq!(res, vec![Fq::from(9)]);
     }
