@@ -410,7 +410,7 @@ pub mod zkpopk {
                     parameters.sec as usize
                 ];
 
-            let witness = Witness::new(m, &x, &r);
+            let witness = Witness::new(m.clone(), &x, &r);
 
             let sk = SecretKey::generate(&she_params, &mut rng);
 
@@ -426,6 +426,20 @@ pub mod zkpopk {
             let proof = prove(&parameters, &witness, &instance, &she_params);
 
             verify(&proof, &parameters, &instance, &she_params).unwrap();
+
+            let invalid_x: Vec<Encodedtext> =
+                vec![Encodedtext::rand(&she_params, &mut rng); parameters.sec as usize];
+            let invalid_r: Vec<Encodedtext> =
+                vec![
+                    Encodedtext::from_vec(vec![Fq::zero(); parameters.d as usize]);
+                    parameters.sec as usize
+                ];
+
+            let invalid_witness = Witness::new(m, &invalid_x, &invalid_r);
+
+            let invalid_proof = prove(&parameters, &invalid_witness, &instance, &she_params);
+
+            verify(&invalid_proof, &parameters, &instance, &she_params).unwrap_err();
         }
     }
 }
