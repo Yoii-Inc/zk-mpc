@@ -72,6 +72,66 @@ By following these steps, you can specify secret inputs in the inputs.json file 
 
 ### how to specify constraints
 
+Constraints are specified in input_circuit.rs. For example:
+
+```rust
+pub struct MySecretInputCircuit {
+    // private witness to the circuit
+    x: Option<Fr>,
+    randomness: Option<PedersenRandomness>,
+    params: Option<PedersenParam>,
+
+    // public instance to the circuit
+    h_x: Option<PedersenCommitment>,
+    lower_bound: Option<Fr>,
+    upper_bound: Option<Fr>,
+}
+```
+
+This sturuct represents a circuit, and it requires to define the necessary witness and public instances.
+
+In addition, the constraints in the circuit are defined as follows.
+
+```rust
+impl ConstraintSynthesizer<Fr> for MySecretInputCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        self.verify_constraints(cs.clone())?;
+
+        self.verify_commitment(cs.clone())?;
+
+        Ok(())
+    }
+}
+```
+
+In addition to usual constraints, we also defines one here to calculate commitments.
+
+Here we show the example of the former constraints:
+
+```rust
+impl MySecretInputCircuit {
+    fn verify_constraints(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let x = FpVar::new_witness(cs.clone(), || {
+            self.x.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
+        let lower_bound = FpVar::new_input(cs.clone(), || {
+            self.lower_bound.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
+        let upper_bound = FpVar::new_input(cs.clone(), || {
+            self.upper_bound.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
+        x.enforce_cmp(&lower_bound, Ordering::Greater, true)?;
+        x.enforce_cmp(&upper_bound, Ordering::Less, false)?;
+
+        Ok(())
+    }
+}
+```
+
+See [this](https://github.com/arkworks-rs/r1cs-tutorial/) to learn more about how to specify constraints.
 
 ## Technical Details
 ### Generating secret sharing of inputs and ZKP verification
