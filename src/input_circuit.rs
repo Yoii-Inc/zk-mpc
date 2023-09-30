@@ -236,10 +236,18 @@ mod tests {
         // calculate the proof by passing witness variable value
         let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit.clone(), &mut rng).unwrap();
 
-        // // validate the proof
+        // validate the proof
         assert!(Groth16::<Bls12_377>::verify(
             &circuit_vk,
             &[lower_bound, upper_bound, h_x.x, h_x.y],
+            &proof
+        )
+        .unwrap());
+
+        // expected to fail
+        assert!(!Groth16::<Bls12_377>::verify(
+            &circuit_vk,
+            &[lower_bound, upper_bound, h_x.y, h_x.x],
             &proof
         )
         .unwrap());

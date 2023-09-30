@@ -194,5 +194,15 @@ mod tests {
         let expected_pt = pt.clone() * pt_2.clone() + pt_3.clone();
 
         assert_eq!(expected_pt, dect);
+
+        // expected to fail
+        let dect = ct.decrypt(&secret_key).decode(&she_params);
+        assert!(!(pt_2 == dect));
+
+        // expected to fail
+        let expr_ct = ct.clone() + ct_2.clone();
+        let dect = expr_ct.decrypt(&secret_key).decode(&she_params);
+        let not_expected_pt = pt.clone() + pt_3.clone();
+        assert!(!(not_expected_pt == dect));
     }
 }
