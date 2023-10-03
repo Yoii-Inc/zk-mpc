@@ -696,7 +696,7 @@ mod tests {
         _: Option<usize>,
         rng: &mut StdRng,
     ) -> DensePoly<E::Fr> {
-        <DensePoly<E::Fr> as UVPolynomial>::rand(degree, rng)
+        DensePoly::<E::Fr>::rand(degree, rng)
     }
 
     fn rand_point<E: PairingEngine>(_: Option<usize>, rng: &mut StdRng) -> E::Fr {

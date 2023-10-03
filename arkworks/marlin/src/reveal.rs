@@ -156,7 +156,11 @@ impl<E: PairingEngine, S: PairingShare<E>> Reveal
     }
 
     fn from_public(b: Self::Base) -> Self {
-        todo!()
+        IndexVerifierKey {
+            index_comms: Reveal::from_public(b.index_comms),
+            verifier_key: todo!(), //Reveal::from_public(b.verifier_key),
+            index_info: Reveal::from_public(b.index_info),
+        }
     }
     // struct_reveal_simp_impl!(IndexVerifierKey; index_comms, verifier_key, index_info);
 }
@@ -320,7 +324,12 @@ impl<E: PairingEngine, S: PairingShare<E>> Reveal
     }
 
     fn from_public(b: Self::Base) -> Self {
-        todo!()
+        IndexProverKey {
+            index_vk: Reveal::from_public(b.index_vk),
+            index_comm_rands: todo!(), //Reveal::from_public(b.index_comm_rands),
+            index: Reveal::from_public(b.index),
+            committer_key: todo!(), //Reveal::from_public(b.committer_key),
+        }
     }
     // struct_reveal_simp_impl!(IndexProverKey; index_vk, index_comm_rands, index, committer_key);
 }

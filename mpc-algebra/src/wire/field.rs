@@ -442,3 +442,44 @@ impl<F: PrimeField, S: FieldShare<F>> SquareRootField for MpcField<F, S> {
         todo!()
     }
 }
+
+mod poly_impl {
+
+    use crate::share::*;
+    use crate::wire::*;
+    use crate::Reveal;
+    use ark_ff::PrimeField;
+    use ark_poly::domain::{EvaluationDomain, GeneralEvaluationDomain};
+    use ark_poly::evaluations::univariate::Evaluations;
+    use ark_poly::univariate::DensePolynomial;
+
+    impl<E: PrimeField, S: FieldShare<E>> Reveal for DensePolynomial<MpcField<E, S>> {
+        type Base = DensePolynomial<E>;
+        struct_reveal_simp_impl!(DensePolynomial; coeffs);
+    }
+
+    impl<F: PrimeField, S: FieldShare<F>> Reveal for Evaluations<MpcField<F, S>> {
+        type Base = Evaluations<F>;
+
+        fn reveal(self) -> Self::Base {
+            Evaluations::from_vec_and_domain(
+                self.evals.reveal(),
+                GeneralEvaluationDomain::new(self.domain.size()).unwrap(),
+            )
+        }
+
+        fn from_add_shared(b: Self::Base) -> Self {
+            Evaluations::from_vec_and_domain(
+                Reveal::from_add_shared(b.evals),
+                GeneralEvaluationDomain::new(b.domain.size()).unwrap(),
+            )
+        }
+
+        fn from_public(b: Self::Base) -> Self {
+            Evaluations::from_vec_and_domain(
+                Reveal::from_public(b.evals),
+                GeneralEvaluationDomain::new(b.domain.size()).unwrap(),
+            )
+        }
+    }
+}

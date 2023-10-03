@@ -6,6 +6,7 @@ use std::iter::{Product, Sum};
 use std::marker::PhantomData;
 use std::ops::*;
 
+use rand::Rng;
 use zeroize::Zeroize;
 
 use ark_ec::group::Group;
@@ -18,6 +19,8 @@ use ark_serialize::{
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
 
+use super::super::mpctrait::MpcWire;
+use super::super::reveal::Reveal;
 use super::super::share::field::ExtFieldShare;
 use super::super::share::pairing::PairingShare;
 use super::field::MpcField;
@@ -305,12 +308,60 @@ macro_rules! impl_pairing_mpc_wrapper {
                 todo!()
             }
         }
+
+        impl<E: $bound1, PS: $bound2<E>> MpcWire for $wrap<E, PS> {
+            #[inline]
+            fn publicize(&mut self) {
+                // self.val.publicize();
+                todo!()
+            }
+            #[inline]
+            fn is_shared(&self) -> bool {
+                // self.val.is_shared()
+                todo!()
+            }
+        }
     };
 }
 
 macro_rules! impl_ext_field_wrapper {
     ($wrapped:ident, $wrap:ident) => {
         impl_pairing_mpc_wrapper!($wrapped, Field, ExtFieldShare, BasePrimeField, Ext, $wrap);
+
+        impl<F: Field, S: ExtFieldShare<F>> Reveal for $wrap<F, S> {
+            type Base = F;
+            #[inline]
+            fn reveal(self) -> F {
+                self.val.reveal()
+            }
+            #[inline]
+            fn from_public(t: F) -> Self {
+                // Self::wrap($wrapped::from_public(t))
+                todo!()
+            }
+            #[inline]
+            fn from_add_shared(t: F) -> Self {
+                // Self::wrap($wrapped::from_add_shared(t))
+                todo!()
+            }
+            #[inline]
+            fn unwrap_as_public(self) -> Self::Base {
+                self.val.unwrap_as_public()
+            }
+            #[inline]
+            fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+                // Self::wrap($wrapped::king_share(f, rng))
+                todo!()
+            }
+            #[inline]
+            fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+                // $wrapped::king_share_batch(f, rng)
+                //     .into_iter()
+                //     .map(Self::wrap)
+                //     .collect()
+                todo!()
+            }
+        }
 
         impl<'a, F: Field, S: ExtFieldShare<F>> MulAssign<&'a $wrap<F, S>> for $wrap<F, S> {
             fn mul_assign(&mut self, _rhs: &'a $wrap<F, S>) {
@@ -474,6 +525,49 @@ macro_rules! impl_pairing_curve_wrapper {
     ($wrapped:ident, $bound1:ident, $bound2:ident, $base:ident, $share:ident, $wrap:ident) => {
         impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);
 
+        impl<E: $bound1, PS: $bound2<E>> Reveal for $wrap<E, PS> {
+            type Base = E::$base;
+            #[inline]
+            fn reveal(self) -> Self::Base {
+                // self.val.reveal()
+                todo!()
+            }
+            #[inline]
+            fn from_public(t: Self::Base) -> Self {
+                Self {
+                    // val: $wrapped::from_public(t),
+                    val: todo!(),
+                }
+            }
+            #[inline]
+            fn from_add_shared(t: Self::Base) -> Self {
+                Self {
+                    // val: $wrapped::from_add_shared(t),
+                    val: todo!(),
+                }
+            }
+            #[inline]
+            fn unwrap_as_public(self) -> Self::Base {
+                // self.val.unwrap_as_public()
+                todo!()
+            }
+            #[inline]
+            fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+                Self {
+                    // val: $wrapped::king_share(f, rng),
+                    val: todo!(),
+                }
+            }
+            #[inline]
+            fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+                // $wrapped::king_share_batch(f, rng)
+                //     .into_iter()
+                //     .map(|val| Self { val })
+                //     .collect()
+                todo!()
+            }
+        }
+
         impl<E: $bound1, PS: $bound2<E>> MulAssign<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
             fn mul_assign(&mut self, _rhs: MpcField<E::Fr, PS::FrShare>) {
                 todo!()
@@ -519,6 +613,25 @@ impl_ext_field_wrapper!(MpcField, MpcExtField);
 
 macro_rules! impl_aff_proj {
     ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $g_name:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident, $share_proj:ident) => {
+        impl<E: PairingEngine, PS: PairingShare<E>> Reveal for $w_prep<E, PS> {
+            type Base = E::$prep;
+            #[inline]
+            fn reveal(self) -> E::$prep {
+                self.val
+            }
+            #[inline]
+            fn from_public(g: E::$prep) -> Self {
+                Self {
+                    val: g,
+                    _phantom: PhantomData::default(),
+                }
+            }
+            #[inline]
+            fn from_add_shared(_g: E::$prep) -> Self {
+                panic!("Cannot add share a prepared curve")
+            }
+        }
+
         impl<E: PairingEngine, PS: PairingShare<E>> Group for $w_aff<E, PS> {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
 

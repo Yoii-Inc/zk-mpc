@@ -38,6 +38,8 @@ derivative = { version = "2", features = [ "use_core" ] }
 
 tracing = { version = "0.1", default-features = false, features = [ "attributes" ] }
 
+mpc-algebra = { path = "../../mpc-algebra" }
+
 [dev-dependencies]
 ark-ed-on-bls12-381 = { path = "../curves/ed_on_bls12_381", version = "^0.3.0", default-features = false }
 ark-bls12-381 = { path = "../curves/bls12_381", version = "^0.3.0", default-features = false, features = [ "curve" ] }

@@ -1,7 +1,6 @@
 //! A univariate polynomial represented in evaluations form.
 
-use crate::univariate::DensePolynomial;
-use crate::{EvaluationDomain, GeneralEvaluationDomain, UVPolynomial};
+use crate::{univariate::DensePolynomial, EvaluationDomain, GeneralEvaluationDomain, UVPolynomial};
 use ark_ff::{batch_inversion, FftField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::{
@@ -19,7 +18,7 @@ pub struct Evaluations<F: FftField, D: EvaluationDomain<F> = GeneralEvaluationDo
     /// The evaluations of a polynomial over the domain `D`
     pub evals: Vec<F>,
     #[doc(hidden)]
-    domain: D,
+    pub domain: D,
 }
 
 impl<F: FftField, D: EvaluationDomain<F>> Evaluations<F, D> {

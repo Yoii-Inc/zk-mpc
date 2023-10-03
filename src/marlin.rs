@@ -4,23 +4,24 @@ use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_std::{end_timer, start_timer, test_rng};
 use blake2::Blake2s;
+use mpc_algebra::*;
 // use mpc_algebra::honest_but_curious::*;
 // use mpc_algebra::Reveal;
 
-use super::{
-    share::{additive::*, pairing::*},
-    // share::msm::NaiveMsm,
-    wire::{field, group, pairing},
-};
-pub type MpcField<F> = field::MpcField<F, AdditiveFieldShare<F>>;
+// use super::{
+//     share::{additive::*, pairing::*},
+//     // share::msm::NaiveMsm,
+//     wire::{field, group, pairing},
+// };
+pub type MpcField<F> = wire::field::MpcField<F, AdditiveFieldShare<F>>;
 // pub type MpcGroup<G> = group::MpcGroup<G, AdditiveGroupShare<G, NaiveMsm<G>>>;
-pub type MpcG1Affine<E> = pairing::MpcG1Affine<E, AdditivePairingShare<E>>;
-pub type MpcG2Affine<E> = pairing::MpcG2Affine<E, AdditivePairingShare<E>>;
-pub type MpcG1Projective<E> = pairing::MpcG1Projective<E, AdditivePairingShare<E>>;
-pub type MpcG2Projective<E> = pairing::MpcG2Projective<E, AdditivePairingShare<E>>;
-pub type MpcG1Prep<E> = pairing::MpcG1Prep<E, AdditivePairingShare<E>>;
-pub type MpcG2Prep<E> = pairing::MpcG2Prep<E, AdditivePairingShare<E>>;
-pub type MpcPairingEngine<E> = pairing::MpcPairingEngine<E, AdditivePairingShare<E>>;
+pub type MpcG1Affine<E> = wire::pairing::MpcG1Affine<E, AdditivePairingShare<E>>;
+pub type MpcG2Affine<E> = wire::pairing::MpcG2Affine<E, AdditivePairingShare<E>>;
+pub type MpcG1Projective<E> = wire::pairing::MpcG1Projective<E, AdditivePairingShare<E>>;
+pub type MpcG2Projective<E> = wire::pairing::MpcG2Projective<E, AdditivePairingShare<E>>;
+pub type MpcG1Prep<E> = wire::pairing::MpcG1Prep<E, AdditivePairingShare<E>>;
+pub type MpcG2Prep<E> = wire::pairing::MpcG2Prep<E, AdditivePairingShare<E>>;
+pub type MpcPairingEngine<E> = wire::pairing::MpcPairingEngine<E, AdditivePairingShare<E>>;
 
 fn prover_message_publicize(
     p: ProverMsg<MpcField<ark_bls12_377::Fr>>,
@@ -45,13 +46,15 @@ fn comm_publicize(
 fn commit_from_mpc<'a>(
     p: ark_poly_commit::kzg10::Commitment<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
 ) -> ark_poly_commit::kzg10::Commitment<ark_bls12_377::Bls12_377> {
-    ark_poly_commit::kzg10::Commitment(p.0.reveal())
+    // ark_poly_commit::kzg10::Commitment(p.0.reveal())
+    todo!()
 }
 fn pf_from_mpc<'a>(
     pf: ark_poly_commit::kzg10::Proof<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
 ) -> ark_poly_commit::kzg10::Proof<ark_bls12_377::Bls12_377> {
     ark_poly_commit::kzg10::Proof {
-        w: pf.w.reveal(),
+        // w: pf.w.reveal(),
+        w: todo!(),
         random_v: pf.random_v.map(MpcField::reveal),
     }
 }

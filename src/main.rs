@@ -4,7 +4,7 @@ mod algebra;
 mod circuit;
 mod groth16;
 mod input_circuit;
-// mod marlin;
+mod marlin;
 mod preprocessing;
 mod she;
 

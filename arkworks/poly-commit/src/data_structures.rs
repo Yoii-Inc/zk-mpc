@@ -117,7 +117,8 @@ pub struct BatchLCProof<F: Field, P: Polynomial<F>, PC: PolynomialCommitment<F, 
 #[derive(Debug, Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct LabeledPolynomial<F: Field, P: Polynomial<F>> {
     label: PolynomialLabel,
-    polynomial: Rc<P>,
+    /// The polynomial
+    pub polynomial: Rc<P>,
     degree_bound: Option<usize>,
     hiding_bound: Option<usize>,
     _field: PhantomData<F>,
@@ -188,7 +189,8 @@ impl<'a, F: Field, P: Polynomial<F>> LabeledPolynomial<F, P> {
 #[derive(Clone)]
 pub struct LabeledCommitment<C: PCCommitment> {
     label: PolynomialLabel,
-    commitment: C,
+    /// The commitment
+    pub commitment: C,
     degree_bound: Option<usize>,
 }
 

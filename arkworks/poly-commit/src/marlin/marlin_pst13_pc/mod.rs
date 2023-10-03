@@ -741,7 +741,7 @@ mod tests {
         num_vars: Option<usize>,
         rng: &mut StdRng,
     ) -> SparsePoly<E::Fr, SparseTerm> {
-        <SparsePoly<E::Fr, SparseTerm> as MVPolynomial>::rand(degree, num_vars.unwrap(), rng)
+        SparsePoly::<E::Fr, SparseTerm>::rand(degree, num_vars.unwrap(), rng)
     }
 
     fn rand_point<E: PairingEngine>(num_vars: Option<usize>, rng: &mut StdRng) -> Vec<E::Fr> {
