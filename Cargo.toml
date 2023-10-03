@@ -42,3 +42,5 @@ hex = "0.4.3"
 blake2 = "0.9"
 derivative = { version = "2.0", features = ["use_core"]}
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
+
+mpc-algebra = { path = "mpc-algebra", version = "0.1.0" }

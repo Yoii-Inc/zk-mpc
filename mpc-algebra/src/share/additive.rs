@@ -30,7 +30,15 @@ pub struct AdditiveFieldShare<T> {
 impl<F: Field> Reveal for AdditiveFieldShare<F> {
     type Base = F;
 
-    fn reveal(&self) -> Self::Base {
+    fn reveal(self) -> Self::Base {
+        todo!()
+    }
+
+    fn from_add_shared(b: Self::Base) -> Self {
+        todo!()
+    }
+
+    fn from_public(b: Self::Base) -> Self {
         todo!()
     }
 }
@@ -126,7 +134,15 @@ pub struct AdditiveGroupShare<T> {
 impl<G: Group> Reveal for AdditiveGroupShare<G> {
     type Base = G;
 
-    fn reveal(&self) -> Self::Base {
+    fn reveal(self) -> Self::Base {
+        todo!()
+    }
+
+    fn from_add_shared(b: Self::Base) -> Self {
+        todo!()
+    }
+
+    fn from_public(b: Self::Base) -> Self {
         todo!()
     }
 }

@@ -1,4 +1,5 @@
 use num_bigint::BigUint;
+use rand::Rng;
 use std::fmt::{self, Debug, Display};
 use std::io::{self, Read, Write};
 use std::iter::{Product, Sum};
@@ -14,11 +15,54 @@ use ark_serialize::{
 };
 
 use crate::share::field::FieldShare;
+use crate::Reveal;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: FieldShare<F>> {
     Public(F),
     Shared(S),
+}
+
+impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
+    type Base = T;
+    #[inline]
+    fn reveal(self) -> Self::Base {
+        let result = match self {
+            Self::Shared(s) => todo!(),
+            Self::Public(s) => s,
+        };
+        todo!();
+        result
+    }
+    #[inline]
+    fn from_public(b: Self::Base) -> Self {
+        MpcField::Public(b)
+    }
+    #[inline]
+    fn from_add_shared(b: Self::Base) -> Self {
+        todo!()
+    }
+    #[inline]
+    fn unwrap_as_public(self) -> Self::Base {
+        match self {
+            Self::Shared(s) => todo!(),
+            Self::Public(s) => s,
+        }
+    }
+    #[inline]
+    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        todo!()
+    }
+    #[inline]
+    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        todo!()
+    }
+    fn init_protocol() {
+        todo!()
+    }
+    fn deinit_protocol() {
+        todo!()
+    }
 }
 
 impl<F: Field, S: FieldShare<F>> Display for MpcField<F, S> {
