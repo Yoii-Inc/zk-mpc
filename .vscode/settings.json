@@ -1,6 +1,9 @@
 {
     "rust-analyzer.check.command": "clippy",
     "rust-analyzer.linkedProjects": [
-        "./mpc-algebra/Cargo.toml"
+        "./Cargo.toml",
+        "./mpc-algebra/Cargo.toml",
+        "./arkworks/marlin/Cargo.toml",
+        "./arkworks/poly-commit/Cargo.toml"
     ]
 }
