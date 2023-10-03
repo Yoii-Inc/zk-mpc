@@ -38,7 +38,7 @@ pub struct IndexInfo<F> {
     pub num_instance_variables: usize,
 
     #[doc(hidden)]
-    f: PhantomData<F>,
+    pub f: PhantomData<F>,
 }
 
 impl<F: PrimeField> ark_ff::ToBytes for IndexInfo<F> {

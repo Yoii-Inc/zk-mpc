@@ -57,6 +57,8 @@ pub mod ahp;
 pub use ahp::AHPForR1CS;
 use ahp::EvaluationsProvider;
 
+pub mod reveal;
+
 #[cfg(test)]
 mod test;
 

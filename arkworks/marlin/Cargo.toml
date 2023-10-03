@@ -22,6 +22,7 @@ edition = "2018"
 [dependencies]
 ark-serialize = { path = "../algebra/serialize", version = "^0.3.0", default-features = false, features = [ "derive" ] }
 ark-ff = { path = "../algebra/ff", version = "^0.3.0", default-features = false }
+ark-ec = { path = "../algebra/ec", version = "^0.3.0", default-features = false }
 ark-std = { path = "../std", version = "^0.3.0", default-features = false }
 ark-poly = { path = "../algebra/poly", version = "^0.3.0", default-features = false }
 ark-relations = { path = "../snark/relations", version = "^0.3.0", default-features = false }
@@ -31,10 +32,12 @@ rand_chacha = { version = "0.3.0", default-features = false }
 rayon = { version = "1", optional = true }
 digest = { version = "0.9" }
 derivative = { version = "2", features = ["use_core"] }
+mpc-algebra = { path = "../../mpc-algebra" }
+blake2 = "0.9"
 
 [dev-dependencies]
 blake2 = { version = "0.9", default-features = false }
-ark-bls12-381 = { version = "^0.3.0", default-features = false, features = [ "curve" ] }
+ark-bls12-381 = { path = "../curves/bls12_381", version = "^0.3.0", default-features = false, features = [ "curve" ] }
 ark-mnt4-298 = { version = "^0.3.0", default-features = false, features = ["r1cs", "curve"] }
 ark-mnt6-298 = { version = "^0.3.0", default-features = false, features = ["r1cs"] }
 ark-mnt4-753 = { version = "^0.3.0", default-features = false, features = ["r1cs", "curve"] }
