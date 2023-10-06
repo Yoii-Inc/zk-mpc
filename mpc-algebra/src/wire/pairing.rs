@@ -19,7 +19,8 @@ use ark_serialize::{
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
 
-use super::super::mpctrait::MpcWire;
+use mpc_trait::MpcWire;
+
 use super::super::reveal::Reveal;
 use super::super::share::field::ExtFieldShare;
 use super::super::share::pairing::PairingShare;

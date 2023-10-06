@@ -1,3 +1,4 @@
+use mpc_trait::MpcWire;
 use num_bigint::BigUint;
 use rand::Rng;
 use std::fmt::{self, Debug, Display};
@@ -354,6 +355,8 @@ impl<F: PrimeField, S: FieldShare<F>> Into<BigUint> for MpcField<F, S> {
         todo!()
     }
 }
+
+impl<F: PrimeField, S: FieldShare<F>> MpcWire for MpcField<F, S> {}
 
 impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     type BasePrimeField = Self;

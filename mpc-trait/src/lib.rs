@@ -1,3 +1,5 @@
+#![feature(associated_type_defaults)]
+
 use std::borrow::Cow;
 
 pub trait MpcWire: Clone {

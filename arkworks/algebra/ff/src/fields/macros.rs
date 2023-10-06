@@ -274,6 +274,9 @@ macro_rules! impl_Fp {
             }
         }
 
+        impl<P: $FpParameters> MpcWire for $Fp<P> {
+        }
+
         impl<P: $FpParameters> Field for $Fp<P> {
             type BasePrimeField = Self;
 

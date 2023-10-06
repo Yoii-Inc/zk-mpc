@@ -33,6 +33,7 @@ rayon = { version = "1", optional = true }
 digest = { version = "0.9" }
 derivative = { version = "2", features = ["use_core"] }
 mpc-algebra = { path = "../../mpc-algebra" }
+mpc-trait = { path = "../../mpc-trait" }
 blake2 = "0.9"
 
 [dev-dependencies]

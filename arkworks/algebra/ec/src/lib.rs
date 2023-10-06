@@ -153,6 +153,7 @@ pub trait ProjectiveCurve:
     + core::iter::Sum<Self>
     + for<'a> core::iter::Sum<&'a Self>
     + From<<Self as ProjectiveCurve>::Affine>
+    + mpc_trait::MpcWire
 {
     const COFACTOR: &'static [u64];
     type ScalarField: PrimeField + SquareRootField;
@@ -252,6 +253,7 @@ pub trait AffineCurve:
     + core::iter::Sum<Self>
     + for<'a> core::iter::Sum<&'a Self>
     + From<<Self as AffineCurve>::Projective>
+    + mpc_trait::MpcWire
 {
     const COFACTOR: &'static [u64];
     type ScalarField: PrimeField + SquareRootField;

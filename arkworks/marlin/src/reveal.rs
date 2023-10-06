@@ -9,6 +9,7 @@ use ark_poly_commit::marlin_pc::MarlinKZG10;
 // use ark_poly_commit::reveal as pc_reveal;
 use blake2::Blake2s;
 use mpc_algebra::*;
+use mpc_trait::MpcWire;
 use Marlin;
 
 use super::*;

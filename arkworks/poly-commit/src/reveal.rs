@@ -3,7 +3,7 @@ use ark_ec::PairingEngine;
 use ark_ff::{Field, PrimeField};
 use ark_poly::univariate::DensePolynomial;
 use mpc_algebra::*;
-// use mpc_trait::{struct_mpc_wire_simp_impl, MpcWire};
+use mpc_trait::{struct_mpc_wire_simp_impl, MpcWire};
 
 use std::rc::Rc;
 
