@@ -301,6 +301,8 @@ pub trait MpcNet {
         let king_response = Self::send_bytes_to_king(bytes).map(f);
         Self::recv_bytes_from_king(king_response)
     }
+
+    fn uninit();
 }
 
 pub struct MpcMultiNet;
@@ -360,5 +362,10 @@ impl MpcNet for MpcMultiNet {
     #[inline]
     fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8> {
         get_ch!().recv_from_king(bytes)
+    }
+
+    #[inline]
+    fn uninit() {
+        get_ch!().uninit()
     }
 }
