@@ -1,5 +1,5 @@
 use std::fmt::{self, Display};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::ops::*;
 
 use std::iter::Sum;
@@ -7,6 +7,11 @@ use std::iter::Sum;
 use ark_ec::group::Group;
 use ark_ff::prelude::*;
 use ark_ff::{FromBytes, ToBytes};
+use ark_serialize::{
+    CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
+    CanonicalSerializeWithFlags,
+};
+use ark_serialize::{Flags, SerializationError};
 
 use crate::share::group::GroupShare;
 use crate::Reveal;
@@ -58,6 +63,44 @@ impl<G: Group, S: GroupShare<G>> ToBytes for MpcGroup<G, S> {
 
 impl<G: Group, S: GroupShare<G>> FromBytes for MpcGroup<G, S> {
     fn read<R: Read>(_reader: R) -> io::Result<Self> {
+        todo!()
+    }
+}
+
+impl<G: Group, S: GroupShare<G>> CanonicalSerialize for MpcGroup<G, S> {
+    fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
+        todo!()
+    }
+
+    fn serialized_size(&self) -> usize {
+        todo!()
+    }
+}
+
+impl<G: Group, S: GroupShare<G>> CanonicalSerializeWithFlags for MpcGroup<G, S> {
+    fn serialize_with_flags<W: Write, Fl: Flags>(
+        &self,
+        _writer: W,
+        _flags: Fl,
+    ) -> Result<(), SerializationError> {
+        todo!()
+    }
+
+    fn serialized_size_with_flags<Fl: Flags>(&self) -> usize {
+        todo!()
+    }
+}
+
+impl<G: Group, S: GroupShare<G>> CanonicalDeserialize for MpcGroup<G, S> {
+    fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
+        todo!()
+    }
+}
+
+impl<G: Group, S: GroupShare<G>> CanonicalDeserializeWithFlags for MpcGroup<G, S> {
+    fn deserialize_with_flags<R: Read, Fl: Flags>(
+        _reader: R,
+    ) -> Result<(Self, Fl), SerializationError> {
         todo!()
     }
 }

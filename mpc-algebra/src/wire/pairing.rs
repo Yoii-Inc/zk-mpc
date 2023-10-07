@@ -145,8 +145,8 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
 macro_rules! impl_pairing_mpc_wrapper {
     ($wrapped:ident, $bound1:ident, $bound2:ident, $base:ident, $share:ident, $wrap:ident) => {
         impl<E: $bound1, PS: $bound2<E>> Display for $wrap<E, PS> {
-            fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-                todo!()
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.val)
             }
         }
 
@@ -163,8 +163,8 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
 
         impl<E: $bound1, PS: $bound2<E>> CanonicalSerialize for $wrap<E, PS> {
-            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
-                todo!()
+            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+                self.val.serialize(writer)
             }
 
             fn serialized_size(&self) -> usize {
@@ -202,63 +202,69 @@ macro_rules! impl_pairing_mpc_wrapper {
 
         impl<E: $bound1, PS: $bound2<E>> UniformRand for $wrap<E, PS> {
             fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
-                todo!()
+                Self {
+                    val: $wrapped::rand(_rng),
+                }
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> AddAssign for $wrap<E, PS> {
-            fn add_assign(&mut self, _rhs: Self) {
-                todo!()
+            fn add_assign(&mut self, rhs: Self) {
+                self.add_assign(&rhs)
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> AddAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
-            fn add_assign(&mut self, _rhs: &'a $wrap<E, PS>) {
-                todo!()
+            fn add_assign(&mut self, rhs: &'a $wrap<E, PS>) {
+                self.val += &rhs.val;
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> Add for $wrap<E, PS> {
             type Output = Self;
 
-            fn add(self, _rhs: Self) -> Self::Output {
-                todo!()
+            fn add(mut self, rhs: Self) -> Self::Output {
+                self.add_assign(&rhs);
+                self
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> Add<&'a $wrap<E, PS>> for $wrap<E, PS> {
             type Output = Self;
 
-            fn add(self, _rhs: &'a $wrap<E, PS>) -> Self::Output {
-                todo!()
+            fn add(mut self, rhs: &'a $wrap<E, PS>) -> Self::Output {
+                self.add_assign(rhs);
+                self
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> SubAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
-            fn sub_assign(&mut self, _rhs: &'a $wrap<E, PS>) {
-                todo!()
+            fn sub_assign(&mut self, rhs: &'a $wrap<E, PS>) {
+                self.val -= &rhs.val;
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> SubAssign for $wrap<E, PS> {
-            fn sub_assign(&mut self, _rhs: Self) {
-                todo!()
+            fn sub_assign(&mut self, rhs: Self) {
+                self.sub_assign(&rhs)
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> Sub for $wrap<E, PS> {
             type Output = Self;
 
-            fn sub(self, _rhs: Self) -> Self::Output {
-                todo!()
+            fn sub(mut self, rhs: Self) -> Self::Output {
+                self.sub_assign(&rhs);
+                self
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> Sub<&'a $wrap<E, PS>> for $wrap<E, PS> {
             type Output = Self;
 
-            fn sub(self, _rhs: &'a $wrap<E, PS>) -> Self::Output {
-                todo!()
+            fn sub(mut self, rhs: &'a $wrap<E, PS>) -> Self::Output {
+                self.sub_assign(rhs);
+                self
             }
         }
 

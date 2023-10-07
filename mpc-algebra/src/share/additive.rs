@@ -17,6 +17,9 @@ use derivative::Derivative;
 use crate::reveal::Reveal;
 use crate::{DenseOrSparsePolynomial, DensePolynomial, SparsePolynomial};
 
+use crate::channel::MpcSerNet;
+use mpc_net::{MpcMultiNet as Net, MpcNet};
+
 // use super::pairing::ExtendedPairingEngine;
 // use super::group::GroupAffineShare;
 use super::{
@@ -77,7 +80,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
     type Base = F;
 
     fn reveal(self) -> Self::Base {
-        todo!()
+        Net::broadcast(&self.val).into_iter().sum()
     }
 
     fn from_add_shared(b: Self::Base) -> Self {
@@ -106,10 +109,9 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
     }
 
     fn shift(&mut self, other: &F) -> &mut Self {
-        // TODO after implementing mpc_net
-        // if Net::am_king() {
-        //     self.val += other;
-        // }
+        if Net::am_king() {
+            self.val += other;
+        }
         self
     }
 
