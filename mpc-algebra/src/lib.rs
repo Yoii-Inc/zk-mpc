@@ -6,3 +6,5 @@ pub mod share;
 pub use share::*;
 pub mod wire;
 pub use wire::*;
+
+pub mod channel;
