@@ -31,7 +31,7 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
     #[inline]
     fn reveal(self) -> Self::Base {
         let result = match self {
-            Self::Shared(s) => todo!(),
+            Self::Shared(s) => s.reveal(),
             Self::Public(s) => s,
         };
         // TODO Add appropriate assert
@@ -43,7 +43,7 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
     }
     #[inline]
     fn from_add_shared(b: Self::Base) -> Self {
-        todo!()
+        MpcField::Shared(S::from_add_shared(b))
     }
     #[inline]
     fn unwrap_as_public(self) -> Self::Base {
@@ -156,7 +156,9 @@ impl<'a, F: Field, S: FieldShare<F>> AddAssign<&'a MpcField<F, S>> for MpcField<
                     *a += b;
                 }
                 MpcField::Shared(b) => {
-                    todo!();
+                    let mut tmp = *b;
+                    tmp.shift(a);
+                    *self = MpcField::Shared(tmp);
                 }
             },
             MpcField::Shared(a) => match rhs {
@@ -190,14 +192,14 @@ impl<'a, F: Field, S: FieldShare<F>> Add<&'a MpcField<F, S>> for MpcField<F, S> 
 }
 
 impl<F: Field, S: FieldShare<F>> Sum for MpcField<F, S> {
-    fn sum<I: Iterator<Item = Self>>(_iter: I) -> Self {
-        todo!()
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::zero(), Add::add)
     }
 }
 
 impl<'a, F: Field, S: FieldShare<F>> Sum<&'a MpcField<F, S>> for MpcField<F, S> {
-    fn sum<I: Iterator<Item = &'a MpcField<F, S>>>(_iter: I) -> Self {
-        todo!()
+    fn sum<I: Iterator<Item = &'a MpcField<F, S>>>(iter: I) -> Self {
+        iter.fold(Self::zero(), |x, y| x.add(y.clone()))
     }
 }
 
@@ -229,7 +231,9 @@ impl<'a, F: Field, S: FieldShare<F>> SubAssign<&'a MpcField<F, S>> for MpcField<
                     *a -= b;
                 }
                 MpcField::Shared(b) => {
-                    todo!();
+                    let mut tmp = *b;
+                    tmp.neg().shift(a);
+                    *self = MpcField::Shared(tmp);
                 }
             },
             MpcField::Shared(a) => match rhs {
@@ -317,8 +321,26 @@ impl<F: Field, S: FieldShare<F>> DivAssign for MpcField<F, S> {
 }
 
 impl<'a, F: Field, S: FieldShare<F>> DivAssign<&'a MpcField<F, S>> for MpcField<F, S> {
-    fn div_assign(&mut self, _rhs: &'a MpcField<F, S>) {
-        todo!()
+    fn div_assign(&mut self, rhs: &'a MpcField<F, S>) {
+        match self {
+            MpcField::Public(a) => match rhs {
+                MpcField::Public(b) => {
+                    *a /= b;
+                }
+                MpcField::Shared(b) => {
+                    todo!();
+                }
+            },
+            MpcField::Shared(a) => match rhs {
+                MpcField::Public(b) => {
+                    a.scale(&b.inverse().unwrap());
+                }
+                MpcField::Shared(b) => {
+                    // TODO implement correctly by using beaver triples
+                    todo!()
+                }
+            },
+        }
     }
 }
 
@@ -644,5 +666,101 @@ mod poly_impl {
                 GeneralEvaluationDomain::new(b.domain.size()).unwrap(),
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::AdditiveFieldShare;
+
+    use super::*;
+
+    type F = ark_bls12_377::Fr;
+    type S = AdditiveFieldShare<F>;
+    type MF = MpcField<F, S>;
+
+    #[test]
+    fn test_add() {
+        let pub_a = MF::from_public(F::from(1u64));
+        let pub_b = MF::from_public(F::from(2u64));
+
+        let shared_a = MF::from_add_shared(F::from(1u64));
+        let shared_b = MF::from_add_shared(F::from(2u64));
+
+        let c = pub_a + pub_b;
+        assert_eq!(c.reveal(), F::from(3u64));
+
+        let c = pub_a + shared_b;
+        assert_eq!(c.reveal(), F::from(3u64));
+
+        let c = shared_a + shared_b;
+        assert_eq!(c.reveal(), F::from(3u64));
+    }
+
+    #[test]
+    fn test_sub() {
+        let pub_a = MF::from_public(F::from(1u64));
+        let pub_b = MF::from_public(F::from(2u64));
+
+        let shared_a = MF::from_add_shared(F::from(1u64));
+        let shared_b = MF::from_add_shared(F::from(2u64));
+
+        let c = pub_a - pub_b;
+        assert_eq!(c.reveal(), -F::from(1u64));
+
+        let c = pub_a - shared_b;
+        assert_eq!(c.reveal(), -F::from(1u64));
+
+        let c = shared_a - shared_b;
+        assert_eq!(c.reveal(), -F::from(1u64));
+    }
+
+    #[test]
+    fn test_mul() {
+        let pub_a = MF::from_public(F::from(1u64));
+        let pub_b = MF::from_public(F::from(2u64));
+
+        let shared_a = MF::from_add_shared(F::from(1u64));
+        let shared_b = MF::from_add_shared(F::from(2u64));
+
+        let c = pub_a * pub_b;
+        assert_eq!(c.reveal(), F::from(2u64));
+
+        let c = pub_a * shared_b;
+        assert_eq!(c.reveal(), F::from(2u64));
+
+        let c = shared_a * shared_b;
+        assert_eq!(c.reveal(), F::from(2u64));
+    }
+
+    #[test]
+    fn test_div() {
+        let pub_a = MF::from_public(F::from(2u64));
+        let pub_b = MF::from_public(F::from(1u64));
+
+        let shared_a = MF::from_add_shared(F::from(2u64));
+        let shared_b = MF::from_add_shared(F::from(1u64));
+
+        let c = pub_a / pub_b;
+        assert_eq!(c.reveal(), F::from(2u64));
+
+        let c = pub_a / shared_b;
+        assert_eq!(c.reveal(), F::from(2u64));
+
+        let c = shared_a / shared_b;
+        assert_eq!(c.reveal(), F::from(2u64));
+    }
+
+    #[test]
+    fn test_sum() {
+        let a = vec![
+            MF::from_public(F::from(1u64)),
+            MF::from_add_shared(F::from(2u64)),
+            MF::from_public(F::from(3u64)),
+        ];
+
+        let result = a.iter().sum::<MF>();
+
+        assert_eq!(result.reveal(), F::from(6u64));
     }
 }

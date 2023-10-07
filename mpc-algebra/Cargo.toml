@@ -12,12 +12,13 @@ ark-poly = { path = "../arkworks/algebra/poly", version = "0.3.0" }
 ark-serialize = { path = "../arkworks/algebra/serialize", version = "0.3.0" }
 ark-std = { path = "../arkworks/std", version = "0.3.0", features = ["std"] }
 
+ark-bls12-377 = { path = "../arkworks/curves/bls12_377", version = "0.3.0" }
+
 rand = "0.8.5"
 num-bigint = { version = "0.4.3", features = ["rand"] }
 derivative = { version = "2.0", features = ["use_core"]}
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
-
 log = {version = "0.4"}
 
-
+mpc-net = { path = "../mpc-net" }
 mpc-trait = { path = "../mpc-trait" }

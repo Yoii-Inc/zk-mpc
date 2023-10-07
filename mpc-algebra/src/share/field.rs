@@ -7,6 +7,8 @@ use ark_serialize::{
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+use crate::Reveal;
+
 pub trait FieldShare<F: Field>:
     Clone
     + Copy
@@ -23,6 +25,7 @@ pub trait FieldShare<F: Field>:
     + UniformRand
     + ToBytes
     + 'static
+    + Reveal<Base = F>
 {
     fn add(&mut self, other: &Self) -> &mut Self;
 
