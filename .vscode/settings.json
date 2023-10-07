@@ -3,6 +3,7 @@
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml",
         "./mpc-algebra/Cargo.toml",
+        "./mpc-net/Cargo.toml",
         "./arkworks/marlin/Cargo.toml",
         "./arkworks/poly-commit/Cargo.toml"
     ]
