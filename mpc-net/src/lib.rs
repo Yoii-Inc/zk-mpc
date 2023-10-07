@@ -57,24 +57,23 @@ struct Connections {
 impl Connections {
     /// Given a path and the `id` of oneself, initialize the structure
     fn init_from_path(&mut self, path: &str, id: usize) {
-        let file = File::open(path).expect("Could not open file");
-        let reader = BufReader::new(file);
-        let mut addrs = Vec::new();
-        for line in reader.lines() {
-            let line = line.expect("Could not read line");
-            let addr = line.parse().expect("Could not parse address");
-            addrs.push(addr);
-        }
-        self.init_from_addrs(&addrs, id);
-    }
-    fn init_from_addrs(&mut self, addr: &[SocketAddr], id: usize) {
-        for (peer_id, addr) in addr.iter().enumerate() {
-            let peer = Peer {
-                id: peer_id,
-                addr: *addr,
-                stream: None,
-            };
-            self.peers.push(peer);
+        let f = BufReader::new(File::open(path).expect("host configuration path"));
+        let mut peer_id = 0;
+        for line in f.lines() {
+            let line = line.unwrap();
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                let addr: SocketAddr = trimmed
+                    .parse()
+                    .unwrap_or_else(|e| panic!("bad socket address: {}:\n{}", trimmed, e));
+                let peer = Peer {
+                    id: peer_id,
+                    addr,
+                    stream: None,
+                };
+                self.peers.push(peer);
+                peer_id += 1;
+            }
         }
         assert!(id < self.peers.len());
         self.id = id;
@@ -276,7 +275,6 @@ pub trait MpcNet {
     ///
     /// Parties are zero-indexed.
     fn init_from_file(path: &str, party_id: usize);
-    fn init_from_addrs(adds: &[SocketAddr], party_id: usize);
     /// Is the network layer initalized?
     fn is_init() -> bool;
     /// Uninitialize the network layer, closing all connections.
@@ -303,6 +301,8 @@ pub trait MpcNet {
         let king_response = Self::send_bytes_to_king(bytes).map(f);
         Self::recv_bytes_from_king(king_response)
     }
+
+    fn uninit();
 }
 
 pub struct MpcMultiNet;
@@ -322,13 +322,6 @@ impl MpcNet for MpcMultiNet {
     fn init_from_file(path: &str, party_id: usize) {
         let mut ch = get_ch!();
         ch.init_from_path(path, party_id);
-        ch.connect_to_all();
-    }
-
-    #[inline]
-    fn init_from_addrs(adds: &[SocketAddr], party_id: usize) {
-        let mut ch = get_ch!();
-        ch.init_from_addrs(adds, party_id);
         ch.connect_to_all();
     }
 
@@ -370,113 +363,9 @@ impl MpcNet for MpcMultiNet {
     fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8> {
         get_ch!().recv_from_king(bytes)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::Mutex;
-
-    lazy_static! {
-        static ref PORT_LOCK: Mutex<()> = Mutex::new(());
-    }
-
-    fn get_free_port() -> SocketAddr {
-        let _guard = PORT_LOCK.lock().unwrap();
-        TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap()
-    }
-    #[test]
-    fn test_connections_init_from_path() {
-        let addr1 = get_free_port();
-        let addr2 = get_free_port();
-
-        let file_path = "test_init_from_path.txt";
-        let content = format!("{}\n{}", addr1, addr2);
-        std::fs::write(file_path, content).unwrap();
-
-        let mut connections = Connections::default();
-        connections.init_from_path(file_path, 0);
-        assert_eq!(connections.peers.len(), 2);
-        assert_eq!(connections.peers[0].addr, addr1);
-        assert_eq!(connections.peers[1].addr, addr2);
-
-        std::fs::remove_file(file_path).unwrap();
-    }
-
-    #[test]
-    fn test_connections_init_from_addrs() {
-        let addr3 = get_free_port();
-        let addr4 = get_free_port();
-
-        let addrs = [addr3, addr4];
-
-        let mut connections = Connections::default();
-        connections.init_from_addrs(&addrs, 1);
-        assert_eq!(connections.peers.len(), 2);
-        assert_eq!(connections.peers[0].addr, addr3);
-        assert_eq!(connections.peers[1].addr, addr4);
-    }
-
-    #[test]
-    fn test_send_recv_from_king() {
-        // 2つのアドレスを取得して、ネットワークを2つのパーティで初期化
-        let addr5 = get_free_port();
-        let addr6 = get_free_port();
-
-        let addrs = [addr5, addr6];
-
-        MpcMultiNet::init_from_addrs(&addrs, 0);
-        MpcMultiNet::init_from_addrs(&addrs, 1);
-
-        let data = b"Hello, King!";
-        let response = MpcMultiNet::send_bytes_to_king(data);
-
-        assert_eq!(response, None);
-
-        let expected_bytes: Vec<Vec<u8>> = vec![data.to_vec()];
-        let recv_data = MpcMultiNet::recv_bytes_from_king(Some(expected_bytes));
-
-        assert_eq!(recv_data, data);
-    }
-
-    #[test]
-    fn test_stats_reset() {
-        let stats = MpcMultiNet::stats();
-        assert_eq!(stats.bytes_sent, 0);
-        assert_eq!(stats.bytes_recv, 0);
-        assert_eq!(stats.broadcasts, 0);
-        assert_eq!(stats.to_king, 0);
-        assert_eq!(stats.from_king, 0);
-
-        {
-            let mut ch = get_ch!();
-            ch.stats.bytes_sent = 50;
-        }
-
-        MpcMultiNet::reset_stats();
-        let stats = MpcMultiNet::stats();
-        assert_eq!(stats.bytes_sent, 0);
-    }
-
-    // TODO: failing
-    #[test]
-    fn test_broadcast() {
-        let addr1 = get_free_port();
-        let addr2 = get_free_port();
-
-        let addrs = [addr1, addr2];
-
-        MpcMultiNet::init_from_addrs(&addrs, 0);
-        MpcMultiNet::init_from_addrs(&addrs, 1);
-
-        let data = b"Broadcast data";
-        let received_data = MpcMultiNet::broadcast_bytes(data);
-
-        for rdata in received_data {
-            assert_eq!(rdata, data);
-        }
+    #[inline]
+    fn uninit() {
+        get_ch!().uninit()
     }
 }

@@ -27,5 +27,5 @@ fn main() {
     let all = MpcMultiNet::recv_bytes_from_king(r);
     println!("{:?}", all);
     // TODO
-    // MpcMultiNet::uninit();
+    MpcMultiNet::uninit();
 }
