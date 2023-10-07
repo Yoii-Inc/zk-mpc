@@ -8,7 +8,9 @@ use std::ops::*;
 use std::str::FromStr;
 use zeroize::Zeroize;
 
-use ark_ff::{prelude::*, FftField};
+use log::debug;
+
+use ark_ff::{poly_stub, prelude::*, FftField};
 use ark_ff::{FromBytes, ToBytes};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
@@ -32,7 +34,7 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
             Self::Shared(s) => todo!(),
             Self::Public(s) => s,
         };
-        todo!();
+        // TODO Add appropriate assert
         result
     }
     #[inline]
@@ -67,14 +69,20 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
 }
 
 impl<F: Field, S: FieldShare<F>> Display for MpcField<F, S> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MpcField::Public(x) => write!(f, "{} (public)", x),
+            MpcField::Shared(x) => write!(f, "{} (shared)", x),
+        }
     }
 }
 
 impl<F: Field, S: FieldShare<F>> ToBytes for MpcField<F, S> {
-    fn write<W: ark_serialize::Write>(&self, _writer: W) -> io::Result<()> {
-        todo!()
+    fn write<W: ark_serialize::Write>(&self, writer: W) -> io::Result<()> {
+        match self {
+            Self::Public(v) => v.write(writer),
+            Self::Shared(_) => unimplemented!("write share: {}", self),
+        }
     }
 }
 
@@ -85,12 +93,18 @@ impl<F: Field, S: FieldShare<F>> FromBytes for MpcField<F, S> {
 }
 
 impl<F: Field, S: FieldShare<F>> CanonicalSerialize for MpcField<F, S> {
-    fn serialize<W: Write>(&self, _writer: W) -> Result<(), ark_serialize::SerializationError> {
-        todo!()
+    fn serialize<W: Write>(&self, writer: W) -> Result<(), ark_serialize::SerializationError> {
+        match self {
+            Self::Public(v) => v.serialize(writer),
+            Self::Shared(_) => unimplemented!("serialize share: {}", self),
+        }
     }
 
     fn serialized_size(&self) -> usize {
-        todo!()
+        match self {
+            Self::Public(v) => v.serialized_size(),
+            Self::Shared(_) => unimplemented!("serialized_size share: {}", self),
+        }
     }
 }
 
@@ -123,36 +137,55 @@ impl<F: Field, S: FieldShare<F>> CanonicalDeserializeWithFlags for MpcField<F, S
 }
 
 impl<F: Field, S: FieldShare<F>> UniformRand for MpcField<F, S> {
-    fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
-        todo!()
+    fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+        Self::Shared(<S as UniformRand>::rand(rng))
     }
 }
 
 impl<F: Field, S: FieldShare<F>> AddAssign for MpcField<F, S> {
-    fn add_assign(&mut self, _rhs: Self) {
-        todo!()
+    fn add_assign(&mut self, rhs: Self) {
+        self.add_assign(&rhs);
     }
 }
 
 impl<'a, F: Field, S: FieldShare<F>> AddAssign<&'a MpcField<F, S>> for MpcField<F, S> {
-    fn add_assign(&mut self, _rhs: &'a MpcField<F, S>) {
-        todo!()
+    fn add_assign(&mut self, rhs: &Self) {
+        match self {
+            MpcField::Public(a) => match rhs {
+                MpcField::Public(b) => {
+                    *a += b;
+                }
+                MpcField::Shared(b) => {
+                    todo!();
+                }
+            },
+            MpcField::Shared(a) => match rhs {
+                MpcField::Public(b) => {
+                    a.shift(b);
+                }
+                MpcField::Shared(b) => {
+                    a.add(b);
+                }
+            },
+        }
     }
 }
 
 impl<F: Field, S: FieldShare<F>> Add for MpcField<F, S> {
     type Output = Self;
 
-    fn add(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self.add_assign(&rhs);
+        self
     }
 }
 
 impl<'a, F: Field, S: FieldShare<F>> Add<&'a MpcField<F, S>> for MpcField<F, S> {
     type Output = Self;
 
-    fn add(self, _rhs: &'a MpcField<F, S>) -> Self::Output {
-        todo!()
+    fn add(mut self, rhs: &'a MpcField<F, S>) -> Self::Output {
+        self.add_assign(rhs);
+        self
     }
 }
 
@@ -172,69 +205,114 @@ impl<F: Field, S: FieldShare<F>> Neg for MpcField<F, S> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        todo!()
+        match self {
+            MpcField::Public(x) => MpcField::Public(-x),
+            MpcField::Shared(mut x) => MpcField::Shared({
+                x.neg();
+                x
+            }),
+        }
     }
 }
 
 impl<F: Field, S: FieldShare<F>> SubAssign for MpcField<F, S> {
-    fn sub_assign(&mut self, _rhs: Self) {
-        todo!()
+    fn sub_assign(&mut self, rhs: Self) {
+        self.sub_assign(&rhs);
     }
 }
 
 impl<'a, F: Field, S: FieldShare<F>> SubAssign<&'a MpcField<F, S>> for MpcField<F, S> {
-    fn sub_assign(&mut self, _rhs: &'a MpcField<F, S>) {
-        todo!()
+    fn sub_assign(&mut self, rhs: &Self) {
+        match self {
+            MpcField::Public(a) => match rhs {
+                MpcField::Public(b) => {
+                    *a -= b;
+                }
+                MpcField::Shared(b) => {
+                    todo!();
+                }
+            },
+            MpcField::Shared(a) => match rhs {
+                MpcField::Public(b) => {
+                    a.shift(&-*b);
+                }
+                MpcField::Shared(b) => {
+                    a.sub(b);
+                }
+            },
+        }
     }
 }
 
 impl<F: Field, S: FieldShare<F>> Sub for MpcField<F, S> {
     type Output = Self;
 
-    fn sub(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        self.sub_assign(&rhs);
+        self
     }
 }
 
 impl<'a, F: Field, S: FieldShare<F>> Sub<&'a MpcField<F, S>> for MpcField<F, S> {
     type Output = Self;
 
-    fn sub(self, _rhs: &'a MpcField<F, S>) -> Self::Output {
-        todo!()
+    fn sub(mut self, rhs: &'a MpcField<F, S>) -> Self::Output {
+        self.sub_assign(rhs);
+        self
     }
 }
 
 impl<F: Field, S: FieldShare<F>> MulAssign for MpcField<F, S> {
-    fn mul_assign(&mut self, _rhs: Self) {
-        todo!()
+    fn mul_assign(&mut self, rhs: Self) {
+        self.mul_assign(&rhs);
     }
 }
 
 impl<'a, F: Field, S: FieldShare<F>> MulAssign<&'a MpcField<F, S>> for MpcField<F, S> {
-    fn mul_assign(&mut self, _rhs: &'a MpcField<F, S>) {
-        todo!()
+    fn mul_assign(&mut self, rhs: &'a MpcField<F, S>) {
+        match self {
+            MpcField::Public(a) => match rhs {
+                MpcField::Public(b) => {
+                    *a *= b;
+                }
+                MpcField::Shared(b) => {
+                    todo!();
+                }
+            },
+            MpcField::Shared(a) => match rhs {
+                MpcField::Public(b) => {
+                    a.scale(b);
+                }
+                MpcField::Shared(b) => {
+                    // TODO implement correctly by using beaver triples
+                    todo!()
+                }
+            },
+        }
     }
 }
 
 impl<F: Field, S: FieldShare<F>> Mul for MpcField<F, S> {
     type Output = Self;
 
-    fn mul(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn mul(mut self, rhs: Self) -> Self::Output {
+        self.mul_assign(&rhs);
+        self
     }
 }
 
 impl<'a, F: Field, S: FieldShare<F>> Mul<&'a MpcField<F, S>> for MpcField<F, S> {
     type Output = Self;
 
-    fn mul(self, _rhs: &'a MpcField<F, S>) -> Self::Output {
-        todo!()
+    fn mul(mut self, rhs: &'a MpcField<F, S>) -> Self::Output {
+        self.mul_assign(rhs);
+        self
     }
 }
 
 impl<F: Field, S: FieldShare<F>> DivAssign for MpcField<F, S> {
-    fn div_assign(&mut self, _rhs: Self) {
-        todo!()
+    fn div_assign(&mut self, rhs: Self) {
+        self.div_assign(&rhs);
     }
 }
 
@@ -247,16 +325,18 @@ impl<'a, F: Field, S: FieldShare<F>> DivAssign<&'a MpcField<F, S>> for MpcField<
 impl<F: Field, S: FieldShare<F>> Div for MpcField<F, S> {
     type Output = Self;
 
-    fn div(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn div(mut self, rhs: Self) -> Self::Output {
+        self.div_assign(&rhs);
+        self
     }
 }
 
 impl<'a, F: Field, S: FieldShare<F>> Div<&'a MpcField<F, S>> for MpcField<F, S> {
     type Output = Self;
 
-    fn div(self, _rhs: &'a MpcField<F, S>) -> Self::Output {
-        todo!()
+    fn div(mut self, rhs: &'a MpcField<F, S>) -> Self::Output {
+        self.div_assign(rhs);
+        self
     }
 }
 
@@ -274,65 +354,71 @@ impl<'a, F: Field, S: FieldShare<F>> Product<&'a MpcField<F, S>> for MpcField<F,
 
 impl<F: Field, S: FieldShare<F>> One for MpcField<F, S> {
     fn one() -> Self {
-        todo!()
+        MpcField::Public(F::one())
     }
 }
 
 impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
     fn zero() -> Self {
-        todo!()
+        MpcField::Public(F::zero())
     }
 
     fn is_zero(&self) -> bool {
-        todo!()
+        match self {
+            MpcField::Public(x) => x.is_zero(),
+            MpcField::Shared(_x) => {
+                debug!("Warning: is_zero on shared data. Returning false");
+                false
+            }
+        }
     }
 }
 
 impl<F: Field, S: FieldShare<F>> Zeroize for MpcField<F, S> {
     fn zeroize(&mut self) {
-        todo!()
+        *self = MpcField::Public(F::zero());
     }
 }
 
 impl<F: Field, S: FieldShare<F>> Default for MpcField<F, S> {
     fn default() -> Self {
-        todo!()
+        Self::zero()
     }
 }
 
 impl<F: Field, S: FieldShare<F>> From<bool> for MpcField<F, S> {
-    fn from(_value: bool) -> Self {
-        todo!()
+    fn from(value: bool) -> Self {
+        MpcField::from_public(F::from(value))
     }
 }
 
 impl<F: Field, S: FieldShare<F>> From<u8> for MpcField<F, S> {
-    fn from(_value: u8) -> Self {
-        todo!()
+    fn from(value: u8) -> Self {
+        MpcField::from_public(F::from(value))
     }
 }
 
 impl<F: Field, S: FieldShare<F>> From<u16> for MpcField<F, S> {
-    fn from(_value: u16) -> Self {
-        todo!()
+    fn from(value: u16) -> Self {
+        MpcField::from_public(F::from(value))
     }
 }
 
 impl<F: Field, S: FieldShare<F>> From<u32> for MpcField<F, S> {
-    fn from(_value: u32) -> Self {
-        todo!()
+    fn from(value: u32) -> Self {
+        MpcField::from_public(F::from(value))
     }
 }
 
 impl<F: Field, S: FieldShare<F>> From<u64> for MpcField<F, S> {
-    fn from(_value: u64) -> Self {
-        todo!()
+    fn from(value: u64) -> Self {
+        MpcField::from_public(F::from(value))
     }
 }
 
 impl<F: Field, S: FieldShare<F>> From<u128> for MpcField<F, S> {
-    fn from(_value: u128) -> Self {
-        todo!()
+    fn from(value: u128) -> Self {
+        MpcField::from_public(F::from(value))
     }
 }
 
@@ -356,7 +442,14 @@ impl<F: PrimeField, S: FieldShare<F>> Into<BigUint> for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcWire for MpcField<F, S> {}
+impl<F: PrimeField, S: FieldShare<F>> MpcWire for MpcField<F, S> {
+    fn is_shared(&self) -> bool {
+        match self {
+            MpcField::Shared(_) => true,
+            MpcField::Public(_) => false,
+        }
+    }
+}
 
 impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     type BasePrimeField = Self;
@@ -386,11 +479,15 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn square_in_place(&mut self) -> &mut Self {
-        todo!()
+        *self *= self.clone();
+        self
     }
 
     fn inverse(&self) -> Option<Self> {
-        todo!()
+        match self {
+            Self::Public(x) => x.inverse().map(MpcField::Public),
+            Self::Shared(x) => Some(MpcField::Shared(todo!())),
+        }
     }
 
     fn inverse_in_place(&mut self) -> Option<&mut Self> {
@@ -400,21 +497,84 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     fn frobenius_map(&mut self, _power: usize) {
         todo!()
     }
+
+    fn has_univariate_div_qr() -> bool {
+        true
+    }
+    fn univariate_div_qr<'a>(
+        num: poly_stub::DenseOrSparsePolynomial<Self>,
+        den: poly_stub::DenseOrSparsePolynomial<Self>,
+    ) -> Option<(
+        poly_stub::DensePolynomial<Self>,
+        poly_stub::DensePolynomial<Self>,
+    )> {
+        use poly_stub::DenseOrSparsePolynomial::*;
+        let shared_num = match num {
+            DPolynomial(d) => Ok(d
+                .into_owned()
+                .coeffs
+                .into_iter()
+                .map(|c| match c {
+                    MpcField::Shared(s) => s,
+                    MpcField::Public(_) => panic!("public numerator"),
+                })
+                .collect()),
+            SPolynomial(d) => Err(d
+                .into_owned()
+                .coeffs
+                .into_iter()
+                .map(|(i, c)| match c {
+                    MpcField::Shared(s) => (i, s),
+                    MpcField::Public(_) => panic!("public numerator"),
+                })
+                .collect()),
+        };
+        let pub_denom = match den {
+            DPolynomial(d) => Ok(d
+                .into_owned()
+                .coeffs
+                .into_iter()
+                .map(|c| match c {
+                    MpcField::Public(s) => s,
+                    MpcField::Shared(_) => panic!("shared denominator"),
+                })
+                .collect()),
+            SPolynomial(d) => Err(d
+                .into_owned()
+                .coeffs
+                .into_iter()
+                .map(|(i, c)| match c {
+                    MpcField::Public(s) => (i, s),
+                    MpcField::Shared(_) => panic!("shared denominator"),
+                })
+                .collect()),
+        };
+        S::univariate_div_qr(shared_num, pub_denom).map(|(q, r)| {
+            (
+                poly_stub::DensePolynomial {
+                    coeffs: q.into_iter().map(|qc| MpcField::Shared(qc)).collect(),
+                },
+                poly_stub::DensePolynomial {
+                    coeffs: r.into_iter().map(|rc| MpcField::Shared(rc)).collect(),
+                },
+            )
+        })
+    }
 }
 
 impl<F: PrimeField, S: FieldShare<F>> FftField for MpcField<F, S> {
     type FftParams = F::FftParams;
 
     fn two_adic_root_of_unity() -> Self {
-        todo!()
+        Self::from_public(F::two_adic_root_of_unity())
     }
 
     fn large_subgroup_root_of_unity() -> Option<Self> {
-        todo!()
+        F::large_subgroup_root_of_unity().map(Self::from_public)
     }
 
     fn multiplicative_generator() -> Self {
-        todo!()
+        Self::from_public(F::multiplicative_generator())
     }
 }
 

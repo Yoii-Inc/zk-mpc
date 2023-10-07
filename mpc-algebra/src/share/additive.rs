@@ -1,10 +1,12 @@
-use std::fmt::{self, Debug};
+use std::borrow::Cow;
+use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
 use ark_ec::{group::Group, PairingEngine};
 use ark_ff::{Field, FromBytes, ToBytes};
+use ark_poly::UVPolynomial;
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
@@ -13,6 +15,7 @@ use ark_std::UniformRand;
 use derivative::Derivative;
 
 use crate::reveal::Reveal;
+use crate::{DenseOrSparsePolynomial, DensePolynomial, SparsePolynomial};
 
 // use super::pairing::ExtendedPairingEngine;
 // use super::group::GroupAffineShare;
@@ -27,6 +30,49 @@ pub struct AdditiveFieldShare<T> {
     pub val: T,
 }
 
+impl<F: Field> AdditiveFieldShare<F> {
+    fn poly_share<'a>(
+        p: DenseOrSparsePolynomial<Self>,
+    ) -> ark_poly::univariate::DenseOrSparsePolynomial<'a, F> {
+        match p {
+            Ok(p) => ark_poly::univariate::DenseOrSparsePolynomial::DPolynomial(Cow::Owned(
+                Self::d_poly_share(p),
+            )),
+            Err(p) => ark_poly::univariate::DenseOrSparsePolynomial::SPolynomial(Cow::Owned(
+                Self::s_poly_share(p),
+            )),
+        }
+    }
+    fn d_poly_share(p: DensePolynomial<Self>) -> ark_poly::univariate::DensePolynomial<F> {
+        ark_poly::univariate::DensePolynomial::from_coefficients_vec(
+            p.into_iter().map(|s| s.val).collect(),
+        )
+    }
+    fn s_poly_share(p: SparsePolynomial<Self>) -> ark_poly::univariate::SparsePolynomial<F> {
+        ark_poly::univariate::SparsePolynomial::from_coefficients_vec(
+            p.into_iter().map(|(i, s)| (i, s.val)).collect(),
+        )
+    }
+    fn poly_share2<'a>(
+        p: DenseOrSparsePolynomial<F>,
+    ) -> ark_poly::univariate::DenseOrSparsePolynomial<'a, F> {
+        match p {
+            Ok(p) => ark_poly::univariate::DenseOrSparsePolynomial::DPolynomial(Cow::Owned(
+                ark_poly::univariate::DensePolynomial::from_coefficients_vec(p),
+            )),
+            Err(p) => ark_poly::univariate::DenseOrSparsePolynomial::SPolynomial(Cow::Owned(
+                ark_poly::univariate::SparsePolynomial::from_coefficients_vec(p),
+            )),
+        }
+    }
+    fn d_poly_unshare(p: ark_poly::univariate::DensePolynomial<F>) -> DensePolynomial<Self> {
+        p.coeffs
+            .into_iter()
+            .map(|s| Self::from_add_shared(s))
+            .collect()
+    }
+}
+
 impl<F: Field> Reveal for AdditiveFieldShare<F> {
     type Base = F;
 
@@ -35,7 +81,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
     }
 
     fn from_add_shared(b: Self::Base) -> Self {
-        todo!()
+        Self { val: b }
     }
 
     fn from_public(b: Self::Base) -> Self {
@@ -43,10 +89,48 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
     }
 }
 
-impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {}
+impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
+    fn add(&mut self, other: &Self) -> &mut Self {
+        self.val += &other.val;
+        self
+    }
+
+    fn sub(&mut self, other: &Self) -> &mut Self {
+        self.val -= &other.val;
+        self
+    }
+
+    fn scale(&mut self, other: &F) -> &mut Self {
+        self.val *= other;
+        self
+    }
+
+    fn shift(&mut self, other: &F) -> &mut Self {
+        // TODO after implementing mpc_net
+        // if Net::am_king() {
+        //     self.val += other;
+        // }
+        self
+    }
+
+    fn univariate_div_qr<'a>(
+        num: DenseOrSparsePolynomial<Self>,
+        den: DenseOrSparsePolynomial<F>,
+    ) -> Option<(DensePolynomial<Self>, DensePolynomial<Self>)> {
+        let num = Self::poly_share(num);
+        let den = Self::poly_share2(den);
+        num.divide_with_q_and_r(&den)
+            .map(|(q, r)| (Self::d_poly_unshare(q), Self::d_poly_unshare(r)))
+    }
+}
 
 macro_rules! impl_field_basics {
     ($share:ident, $bound:ident) => {
+        impl<T: $bound> Display for $share<T> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.val)
+            }
+        }
         impl<T: $bound> ToBytes for $share<T> {
             fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
                 todo!()
@@ -92,8 +176,8 @@ macro_rules! impl_field_basics {
             }
         }
         impl<T: $bound> UniformRand for $share<T> {
-            fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
-                todo!()
+            fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+                Self::from_add_shared(<T as UniformRand>::rand(rng))
             }
         }
     };

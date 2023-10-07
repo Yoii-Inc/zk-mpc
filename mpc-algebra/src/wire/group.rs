@@ -9,6 +9,7 @@ use ark_ff::prelude::*;
 use ark_ff::{FromBytes, ToBytes};
 
 use crate::share::group::GroupShare;
+use crate::Reveal;
 
 use super::field::MpcField;
 
@@ -16,6 +17,22 @@ use super::field::MpcField;
 pub enum MpcGroup<G: Group, S: GroupShare<G>> {
     Public(G),
     Shared(S),
+}
+
+impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
+    type Base = G;
+
+    fn reveal(self) -> Self::Base {
+        todo!()
+    }
+
+    fn from_add_shared(b: Self::Base) -> Self {
+        todo!()
+    }
+
+    fn from_public(b: Self::Base) -> Self {
+        Self::Public(b)
+    }
 }
 
 // #[derive(Copy, Clone)]
@@ -31,8 +48,11 @@ impl<G: Group, S: GroupShare<G>> Display for MpcGroup<G, S> {
 }
 
 impl<G: Group, S: GroupShare<G>> ToBytes for MpcGroup<G, S> {
-    fn write<W: ark_serialize::Write>(&self, _writer: W) -> io::Result<()> {
-        todo!()
+    fn write<W: ark_serialize::Write>(&self, writer: W) -> io::Result<()> {
+        match self {
+            Self::Public(v) => v.write(writer),
+            Self::Shared(_) => unimplemented!("write share: {}", self),
+        }
     }
 }
 
@@ -126,7 +146,7 @@ impl<'a, G: Group, S: GroupShare<G>> Sub<&'a MpcGroup<G, S>> for MpcGroup<G, S> 
 
 impl<G: Group, S: GroupShare<G>> Zero for MpcGroup<G, S> {
     fn zero() -> Self {
-        todo!()
+        MpcGroup::Public(G::zero())
     }
 
     fn is_zero(&self) -> bool {

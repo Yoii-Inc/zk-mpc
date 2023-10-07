@@ -70,18 +70,7 @@ impl<E: PairingEngine, S: PairingShare<E>> Reveal
     type Base =
         Proof<<E as PairingEngine>::Fr, MarlinKZG10<E, DensePolynomial<<E as PairingEngine>::Fr>>>;
 
-    fn reveal(self) -> Self::Base {
-        todo!()
-    }
-
-    fn from_add_shared(b: Self::Base) -> Self {
-        todo!()
-    }
-
-    fn from_public(b: Self::Base) -> Self {
-        todo!()
-    }
-    // struct_reveal_simp_impl!(Proof; commitments, evaluations, prover_messages, pc_proof);
+    struct_reveal_simp_impl!(Proof; commitments, evaluations, prover_messages, pc_proof);
 }
 
 impl<F: PrimeField, S: FieldShare<F>> Reveal for ahp::indexer::IndexInfo<MpcField<F, S>> {
@@ -148,22 +137,7 @@ impl<E: PairingEngine, S: PairingShare<E>> Reveal
         MarlinKZG10<E, DensePolynomial<<E as PairingEngine>::Fr>>,
     >;
 
-    fn reveal(self) -> Self::Base {
-        todo!()
-    }
-
-    fn from_add_shared(b: Self::Base) -> Self {
-        todo!()
-    }
-
-    fn from_public(b: Self::Base) -> Self {
-        IndexVerifierKey {
-            index_comms: Reveal::from_public(b.index_comms),
-            verifier_key: todo!(), //Reveal::from_public(b.verifier_key),
-            index_info: Reveal::from_public(b.index_info),
-        }
-    }
-    // struct_reveal_simp_impl!(IndexVerifierKey; index_comms, verifier_key, index_info);
+    struct_reveal_simp_impl!(IndexVerifierKey; index_comms, verifier_key, index_info);
 }
 //impl<F: PrimeField, S: FieldShare<F>> Reveal for ahp::indexer::Matrix<MpcField<F, S>> {
 //    type Base = ahp::indexer::Matrix<F>;
@@ -242,36 +216,14 @@ impl<E: PrimeField, S: FieldShare<E>> Reveal
 {
     type Base = ahp::constraint_systems::MatrixEvals<E>;
 
-    fn reveal(self) -> Self::Base {
-        todo!()
-    }
-
-    fn from_add_shared(b: Self::Base) -> Self {
-        todo!()
-    }
-
-    fn from_public(b: Self::Base) -> Self {
-        todo!()
-    }
-    // struct_reveal_simp_impl!(ahp::constraint_systems::MatrixEvals; row, col, val);
+    struct_reveal_simp_impl!(ahp::constraint_systems::MatrixEvals; row, col, val);
 }
 impl<E: PrimeField, S: FieldShare<E>> Reveal
     for ahp::constraint_systems::MatrixArithmetization<MpcField<E, S>>
 {
     type Base = ahp::constraint_systems::MatrixArithmetization<E>;
 
-    fn reveal(self) -> Self::Base {
-        todo!()
-    }
-
-    fn from_add_shared(b: Self::Base) -> Self {
-        todo!()
-    }
-
-    fn from_public(b: Self::Base) -> Self {
-        todo!()
-    }
-    // struct_reveal_simp_impl!(ahp::constraint_systems::MatrixArithmetization; row, col, val, row_col, evals_on_K, evals_on_B, row_col_evals_on_B);
+    struct_reveal_simp_impl!(ahp::constraint_systems::MatrixArithmetization; row, col, val, row_col, evals_on_K, evals_on_B, row_col_evals_on_B);
 }
 //
 // fn lift_matrix_arith(
@@ -316,21 +268,5 @@ impl<E: PairingEngine, S: PairingShare<E>> Reveal
         MarlinKZG10<E, DensePolynomial<<E as PairingEngine>::Fr>>,
     >;
 
-    fn reveal(self) -> Self::Base {
-        todo!()
-    }
-
-    fn from_add_shared(b: Self::Base) -> Self {
-        todo!()
-    }
-
-    fn from_public(b: Self::Base) -> Self {
-        IndexProverKey {
-            index_vk: Reveal::from_public(b.index_vk),
-            index_comm_rands: todo!(), //Reveal::from_public(b.index_comm_rands),
-            index: Reveal::from_public(b.index),
-            committer_key: todo!(), //Reveal::from_public(b.committer_key),
-        }
-    }
-    // struct_reveal_simp_impl!(IndexProverKey; index_vk, index_comm_rands, index, committer_key);
+    struct_reveal_simp_impl!(IndexProverKey; index_vk, index_comm_rands, index, committer_key);
 }

@@ -151,8 +151,8 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
 
         impl<E: $bound1, PS: $bound2<E>> ToBytes for $wrap<E, PS> {
-            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
-                todo!()
+            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+                self.val.write(writer)
             }
         }
 
@@ -290,7 +290,9 @@ macro_rules! impl_pairing_mpc_wrapper {
 
         impl<E: $bound1, PS: $bound2<E>> Zero for $wrap<E, PS> {
             fn zero() -> Self {
-                todo!()
+                Self {
+                    val: $wrapped::zero(),
+                }
             }
 
             fn is_zero(&self) -> bool {
@@ -536,8 +538,7 @@ macro_rules! impl_pairing_curve_wrapper {
             #[inline]
             fn from_public(t: Self::Base) -> Self {
                 Self {
-                    // val: $wrapped::from_public(t),
-                    val: todo!(),
+                    val: $wrapped::from_public(t),
                 }
             }
             #[inline]
