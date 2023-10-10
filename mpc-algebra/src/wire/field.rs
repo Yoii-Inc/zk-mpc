@@ -17,8 +17,10 @@ use ark_serialize::{
     CanonicalSerializeWithFlags,
 };
 
+use crate::channel::{self, MpcSerNet};
 use crate::share::field::FieldShare;
 use crate::Reveal;
+use mpc_net::MpcNet;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: FieldShare<F>> {
@@ -35,6 +37,26 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
             Self::Public(s) => s,
         };
         // TODO Add appropriate assert
+        debug_assert!({
+            debug!("Consistency check");
+            let t = result.clone();
+            let others = mpc_net::MpcMultiNet::broadcast(&t);
+            let mut result = true;
+            for (i, other_t) in others.iter().enumerate() {
+                if &t != other_t {
+                    println!(
+                        "\nConsistency check failed\nI (party {}) have {}\nvs\n  (party {}) has  {}",
+                        mpc_net::MpcMultiNet::party_id(),
+                        t,
+                        i,
+                        other_t
+                    );
+                    result = false;
+                    break;
+                }
+            }
+            result
+        });
         result
     }
     #[inline]
@@ -681,6 +703,9 @@ mod tests {
 
     #[test]
     fn test_add() {
+        // init communication protocol
+
+        // calculate
         let pub_a = MF::from_public(F::from(1u64));
         let pub_b = MF::from_public(F::from(2u64));
 

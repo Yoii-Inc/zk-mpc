@@ -32,6 +32,42 @@ fn test_add() {
     assert_eq!(c.reveal(), F::from(3u64));
 }
 
+fn test_sub() {
+    let pub_a = MF::from_public(F::from(1u64));
+    let pub_b = MF::from_public(F::from(2u64));
+
+    let c = pub_a - pub_b;
+    assert_eq!(c.reveal(), -F::from(1u64));
+}
+
+fn test_mul() {
+    let pub_a = MF::from_public(F::from(1u64));
+    let pub_b = MF::from_public(F::from(2u64));
+
+    let c = pub_a * pub_b;
+    assert_eq!(c.reveal(), F::from(2u64));
+}
+
+fn test_div() {
+    let pub_a = MF::from_public(F::from(2u64));
+    let pub_b = MF::from_public(F::from(1u64));
+
+    let c = pub_a / pub_b;
+    assert_eq!(c.reveal(), F::from(2u64));
+}
+
+fn test_sum() {
+    let a = vec![
+        MF::from_public(F::from(1u64)),
+        MF::from_public(F::from(2u64)),
+        MF::from_public(F::from(3u64)),
+    ];
+
+    let result = a.iter().sum::<MF>();
+
+    assert_eq!(result.reveal(), F::from(6u64));
+}
+
 fn main() {
     env_logger::builder().format_timestamp(None).init();
     debug!("Start");
@@ -40,4 +76,8 @@ fn main() {
     Net::init_from_file(opt.input.to_str().unwrap(), opt.id);
 
     test_add();
+    test_sub();
+    test_mul();
+    test_div();
+    test_sum();
 }
