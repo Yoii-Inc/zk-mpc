@@ -1,10 +1,11 @@
-use super::circuit::MyCircuit;
 use ark_marlin::{ahp::prover::*, *};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_std::{end_timer, start_timer, test_rng};
 use blake2::Blake2s;
 use mpc_algebra::*;
+
+use crate::circuit::MyCircuit;
 // use mpc_algebra::honest_but_curious::*;
 // use mpc_algebra::Reveal;
 
