@@ -6,8 +6,7 @@ use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, Result as R1CSResult,
     SynthesisError, SynthesisMode,
 };
-use ark_std::rand::Rng;
-use ark_std::{cfg_into_iter, cfg_iter};
+use ark_std::{cfg_into_iter, cfg_iter, rand::Rng};
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -78,7 +77,7 @@ where
 
     let domain_size = cs.num_constraints() + cs.num_instance_variables();
     let domain = D::new(domain_size).ok_or(SynthesisError::PolynomialDegreeTooLarge)?;
-    let t = domain.sample_element_outside_domain(rng);
+    let t = domain.sample_element_outside_domain(rng, false);
 
     end_timer!(domain_time);
     ///////////////////////////////////////////////////////////////////////////

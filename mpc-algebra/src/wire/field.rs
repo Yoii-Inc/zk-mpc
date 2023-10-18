@@ -200,6 +200,13 @@ impl<F: Field, S: FieldShare<F>> UniformRand for MpcField<F, S> {
     }
 }
 
+impl<F: Field, S: FieldShare<F>> PubUniformRand for MpcField<F, S> {
+    fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+        let mut val = Self::Public(<F as PubUniformRand>::pub_rand(rng));
+        val
+    }
+}
+
 impl<F: Field, S: FieldShare<F>> AddAssign for MpcField<F, S> {
     fn add_assign(&mut self, rhs: Self) {
         self.add_assign(&rhs);

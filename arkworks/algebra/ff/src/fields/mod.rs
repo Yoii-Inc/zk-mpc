@@ -2,7 +2,7 @@ use crate::{
     biginteger::BigInteger,
     bytes::{FromBytes, ToBytes},
     fields::utils::k_adicity,
-    UniformRand,
+    PubUniformRand, UniformRand,
 };
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
@@ -88,6 +88,7 @@ pub trait Field:
     + Ord
     + Neg<Output = Self>
     + UniformRand
+    + PubUniformRand
     + Zeroize
     + Sized
     + Hash

@@ -201,9 +201,17 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
 
         impl<E: $bound1, PS: $bound2<E>> UniformRand for $wrap<E, PS> {
-            fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
+            fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
                 Self {
-                    val: $wrapped::rand(_rng),
+                    val: $wrapped::rand(rng),
+                }
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> PubUniformRand for $wrap<E, PS> {
+            fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+                Self {
+                    val: $wrapped::pub_rand(rng),
                 }
             }
         }

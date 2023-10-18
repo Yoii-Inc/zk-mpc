@@ -124,6 +124,12 @@ impl<G: Group, S: GroupShare<G>> UniformRand for MpcGroup<G, S> {
     }
 }
 
+impl<G: Group, S: GroupShare<G>> PubUniformRand for MpcGroup<G, S> {
+    fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+        todo!()
+    }
+}
+
 impl<G: Group, S: GroupShare<G>> Sum for MpcGroup<G, S> {
     fn sum<I: Iterator<Item = Self>>(_iter: I) -> Self {
         todo!()
