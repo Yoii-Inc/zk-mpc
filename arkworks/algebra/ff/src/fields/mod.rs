@@ -212,6 +212,12 @@ pub trait Field:
         Some(res)
     }
 
+    fn batch_product_in_place(selfs: &mut [Self], others: &[Self]) {
+        for (a, b) in ark_std::cfg_iter_mut!(selfs).zip(others.iter()) {
+            *a *= b;
+        }
+    }
+
     fn has_univariate_div_qr() -> bool {
         false
     }

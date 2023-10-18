@@ -24,6 +24,19 @@ pub enum MpcGroup<G: Group, S: GroupShare<G>> {
     Shared(S),
 }
 
+impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
+    pub fn map<TT: Group, SS: GroupShare<TT>, FT: Fn(T) -> TT, FS: Fn(S) -> SS>(
+        self,
+        ft: FT,
+        fs: FS,
+    ) -> MpcGroup<TT, SS> {
+        match self {
+            Self::Shared(s) => MpcGroup::Shared(fs(s)),
+            Self::Public(s) => MpcGroup::Public(ft(s)),
+        }
+    }
+}
+
 impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
     type Base = G;
 
@@ -132,30 +145,51 @@ impl<G: Group, S: GroupShare<G>> Neg for MpcGroup<G, S> {
 }
 
 impl<G: Group, S: GroupShare<G>> AddAssign for MpcGroup<G, S> {
-    fn add_assign(&mut self, _rhs: Self) {
-        todo!()
+    fn add_assign(&mut self, rhs: Self) {
+        self.add_assign(&rhs);
     }
 }
 
 impl<'a, G: Group, S: GroupShare<G>> AddAssign<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
-    fn add_assign(&mut self, _rhs: &'a MpcGroup<G, S>) {
-        todo!()
+    fn add_assign(&mut self, rhs: &'a MpcGroup<G, S>) {
+        match self {
+            MpcGroup::Public(a) => match rhs {
+                MpcGroup::Public(b) => {
+                    *a += b;
+                }
+                MpcGroup::Shared(b) => {
+                    let mut tmp = *b;
+                    tmp.shift(a);
+                    *self = MpcGroup::Shared(tmp);
+                }
+            },
+            MpcGroup::Shared(a) => match rhs {
+                MpcGroup::Public(b) => {
+                    a.shift(b);
+                }
+                MpcGroup::Shared(b) => {
+                    a.add(b);
+                }
+            },
+        }
     }
 }
 
 impl<G: Group, S: GroupShare<G>> Add for MpcGroup<G, S> {
     type Output = Self;
 
-    fn add(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self.add_assign(&rhs);
+        self
     }
 }
 
 impl<'a, G: Group, S: GroupShare<G>> Add<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
     type Output = Self;
 
-    fn add(self, _rhs: &'a MpcGroup<G, S>) -> Self::Output {
-        todo!()
+    fn add(mut self, rhs: &'a MpcGroup<G, S>) -> Self::Output {
+        self.add_assign(rhs);
+        self
     }
 }
 
@@ -243,10 +277,11 @@ impl<T: Group, S: GroupShare<T>> Group for MpcGroup<T, S> {
     type ScalarField = MpcField<T::ScalarField, S::FieldShare>;
 
     fn double(&self) -> Self {
-        todo!()
+        *self + self
     }
 
     fn double_in_place(&mut self) -> &mut Self {
-        todo!()
+        *self += self.clone();
+        self
     }
 }

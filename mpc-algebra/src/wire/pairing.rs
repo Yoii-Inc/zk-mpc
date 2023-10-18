@@ -23,7 +23,7 @@ use mpc_trait::MpcWire;
 
 use super::super::reveal::Reveal;
 use super::super::share::field::ExtFieldShare;
-use super::super::share::pairing::PairingShare;
+use super::super::share::pairing::{AffProjShare, PairingShare};
 use super::field::MpcField;
 use super::group::MpcGroup;
 
@@ -651,9 +651,12 @@ macro_rules! impl_aff_proj {
                 todo!()
             }
         }
+
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_pro<E, PS>> for $w_aff<E, PS> {
-            fn from(_p: $w_pro<E, PS>) -> Self {
-                todo!()
+            fn from(p: $w_pro<E, PS>) -> Self {
+                Self {
+                    val: p.val.map(|s| s.into(), PS::$g_name::sh_proj_to_aff),
+                }
             }
         }
 
@@ -723,10 +726,27 @@ macro_rules! impl_aff_proj {
                 todo!()
             }
             fn double_in_place(&mut self) -> &mut Self {
-                todo!()
+                self.val.double_in_place();
+                self
             }
-            fn add_assign_mixed(&mut self, _other: &Self::Affine) {
-                todo!()
+            fn add_assign_mixed(&mut self, other: &Self::Affine) {
+                let new_self = match (&self.val, &other.val) {
+                    (MpcGroup::Shared(a), MpcGroup::Shared(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_sh_proj_sh_aff(a.clone(), b))
+                    }
+                    (MpcGroup::Shared(a), MpcGroup::Public(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_sh_proj_pub_aff(a.clone(), b))
+                    }
+                    (MpcGroup::Public(a), MpcGroup::Shared(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_pub_proj_sh_aff(a, b.clone()))
+                    }
+                    (MpcGroup::Public(a), MpcGroup::Public(b)) => MpcGroup::Public({
+                        let mut a = a.clone();
+                        a.add_assign_mixed(b);
+                        a
+                    }),
+                };
+                self.val = new_self;
             }
         }
     };

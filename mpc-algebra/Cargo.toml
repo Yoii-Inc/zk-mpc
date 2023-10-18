@@ -10,7 +10,7 @@ ark-ec = { path = "../arkworks/algebra/ec", version = "0.3.0" }
 ark-ff = { path = "../arkworks/algebra/ff", version = "0.3.0" }
 ark-poly = { path = "../arkworks/algebra/poly", version = "0.3.0" }
 ark-serialize = { path = "../arkworks/algebra/serialize", version = "0.3.0" }
-ark-std = { path = "../arkworks/std", version = "0.3.0", features = ["std"] }
+ark-std = { path = "../arkworks/std", version = "0.3.0", features = ["std", "print-trace"] }
 
 ark-bls12-377 = { path = "../arkworks/curves/bls12_377", version = "0.3.0" }
 

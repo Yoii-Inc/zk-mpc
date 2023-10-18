@@ -1,7 +1,7 @@
 //! A univariate polynomial represented in evaluations form.
 
 use crate::{univariate::DensePolynomial, EvaluationDomain, GeneralEvaluationDomain, UVPolynomial};
-use ark_ff::{batch_inversion, FftField};
+use ark_ff::{batch_inversion, FftField, Field};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::{
     io::{Read, Write},
@@ -72,9 +72,7 @@ impl<'a, F: FftField, D: EvaluationDomain<F>> MulAssign<&'a Evaluations<F, D>>
     #[inline]
     fn mul_assign(&mut self, other: &'a Evaluations<F, D>) {
         assert_eq!(self.domain, other.domain, "domains are unequal");
-        ark_std::cfg_iter_mut!(self.evals)
-            .zip(&other.evals)
-            .for_each(|(a, b)| *a *= b);
+        <F as Field>::batch_product_in_place(&mut self.evals, &other.evals);
     }
 }
 

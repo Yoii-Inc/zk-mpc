@@ -1,9 +1,11 @@
+use derivative::Derivative;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
 use rand::Rng;
 use std::fmt::{self, Debug, Display};
 use std::io::{self, Read, Write};
 use std::iter::{Product, Sum};
+use std::marker::PhantomData;
 use std::ops::*;
 use std::str::FromStr;
 use zeroize::Zeroize;
@@ -19,13 +21,47 @@ use ark_serialize::{
 
 use crate::channel::{self, MpcSerNet};
 use crate::share::field::FieldShare;
-use crate::Reveal;
-use mpc_net::MpcNet;
+use crate::{BeaverSource, Reveal};
+use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: FieldShare<F>> {
     Public(F),
     Shared(S),
+}
+
+#[derive(Derivative)]
+#[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+pub struct DummyFieldTripleSource<F, S> {
+    _scalar: PhantomData<F>,
+    _share: PhantomData<S>,
+}
+
+impl<T: Field, S: FieldShare<T>> BeaverSource<S, S, S> for DummyFieldTripleSource<T, S> {
+    fn triple(&mut self) -> (S, S, S) {
+        (
+            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+        )
+    }
+    fn inv_pair(&mut self) -> (S, S) {
+        (
+            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+        )
+    }
+}
+
+impl<F: Field, S: FieldShare<F>> MpcField<F, S> {
+    pub fn inv(self) -> Option<Self> {
+        match self {
+            Self::Public(x) => x.inverse().map(MpcField::Public),
+            Self::Shared(x) => Some(MpcField::Shared(
+                x.inv(&mut DummyFieldTripleSource::default()),
+            )),
+        }
+    }
 }
 
 impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
@@ -70,7 +106,7 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
     #[inline]
     fn unwrap_as_public(self) -> Self::Base {
         match self {
-            Self::Shared(s) => todo!(),
+            Self::Shared(s) => s.unwrap_as_public(),
             Self::Public(s) => s,
         }
     }
@@ -302,7 +338,9 @@ impl<'a, F: Field, S: FieldShare<F>> MulAssign<&'a MpcField<F, S>> for MpcField<
                     *a *= b;
                 }
                 MpcField::Shared(b) => {
-                    todo!();
+                    let mut t = *b;
+                    t.scale(a);
+                    *self = MpcField::Shared(t);
                 }
             },
             MpcField::Shared(a) => match rhs {
@@ -311,7 +349,11 @@ impl<'a, F: Field, S: FieldShare<F>> MulAssign<&'a MpcField<F, S>> for MpcField<
                 }
                 MpcField::Shared(b) => {
                     // TODO implement correctly by using beaver triples
-                    todo!()
+
+                    let mut source = DummyFieldTripleSource::<F, S>::default();
+
+                    let t = a.mul(*b, &mut source);
+                    *self = MpcField::Shared(t);
                 }
             },
         }
@@ -359,7 +401,8 @@ impl<'a, F: Field, S: FieldShare<F>> DivAssign<&'a MpcField<F, S>> for MpcField<
                 }
                 MpcField::Shared(b) => {
                     // TODO implement correctly by using beaver triples
-                    todo!()
+                    let src = &mut DummyFieldTripleSource::default();
+                    *a = a.div(*b, src);
                 }
             },
         }
@@ -487,6 +530,14 @@ impl<F: PrimeField, S: FieldShare<F>> Into<BigUint> for MpcField<F, S> {
 }
 
 impl<F: PrimeField, S: FieldShare<F>> MpcWire for MpcField<F, S> {
+    fn publicize(&mut self) {
+        match self {
+            MpcField::Public(_) => {}
+            MpcField::Shared(s) => {
+                *self = MpcField::Public(s.open());
+            }
+        }
+    }
     fn is_shared(&self) -> bool {
         match self {
             MpcField::Shared(_) => true,
@@ -528,10 +579,7 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn inverse(&self) -> Option<Self> {
-        match self {
-            Self::Public(x) => x.inverse().map(MpcField::Public),
-            Self::Shared(x) => Some(MpcField::Shared(todo!())),
-        }
+        self.inv()
     }
 
     fn inverse_in_place(&mut self) -> Option<&mut Self> {
@@ -632,7 +680,8 @@ impl<F: PrimeField, S: FieldShare<F>> PrimeField for MpcField<F, S> {
     }
 
     fn into_repr(&self) -> <Self as PrimeField>::BigInt {
-        todo!()
+        // unimplemented!("No BigInt reprs for shared fields! (into_repr)")
+        self.unwrap_as_public().into_repr()
     }
 }
 

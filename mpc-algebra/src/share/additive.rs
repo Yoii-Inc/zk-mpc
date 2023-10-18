@@ -4,7 +4,7 @@ use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
-use ark_ec::{group::Group, PairingEngine};
+use ark_ec::{group::Group, PairingEngine, ProjectiveCurve};
 use ark_ff::{Field, FromBytes, ToBytes};
 use ark_poly::UVPolynomial;
 use ark_serialize::{
@@ -25,7 +25,7 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use super::{
     field::{ExtFieldShare, FieldShare},
     group::GroupShare,
-    pairing::PairingShare,
+    pairing::{AffProjShare, PairingShare},
 };
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -89,6 +89,10 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
 
     fn from_public(b: Self::Base) -> Self {
         todo!()
+    }
+
+    fn unwrap_as_public(self) -> Self::Base {
+        self.val
     }
 }
 
@@ -231,6 +235,10 @@ impl<G: Group> Reveal for AdditiveGroupShare<G> {
     fn from_public(b: Self::Base) -> Self {
         todo!()
     }
+
+    fn unwrap_as_public(self) -> Self::Base {
+        self.val
+    }
 }
 
 macro_rules! impl_group_basics {
@@ -296,7 +304,62 @@ impl_group_basics!(AdditiveGroupShare, Group);
 
 impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
     type FieldShare = AdditiveFieldShare<G::ScalarField>;
+
+    fn add(&mut self, other: &Self) -> &mut Self {
+        self.val += &other.val;
+        self
+    }
+
+    fn shift(&mut self, other: &G) -> &mut Self {
+        if Net::am_king() {
+            self.val += other;
+        }
+        self
+    }
 }
+
+macro_rules! groups_share {
+    ($struct_name:ident, $affine:ident, $proj:ident) => {
+        pub struct $struct_name<E: PairingEngine>(pub PhantomData<E>);
+
+        impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
+            type FrShare = AdditiveFieldShare<E::Fr>;
+            type AffineShare = AdditiveGroupShare<E::$affine>;
+            type ProjectiveShare = AdditiveGroupShare<E::$proj>;
+
+            fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
+                g.map_homo(|s| s.into())
+            }
+
+            fn sh_proj_to_aff(g: Self::ProjectiveShare) -> Self::AffineShare {
+                g.map_homo(|s| s.into())
+            }
+
+            fn add_sh_proj_sh_aff(
+                mut a: Self::ProjectiveShare,
+                o: &Self::AffineShare,
+            ) -> Self::ProjectiveShare {
+                a.val.add_assign_mixed(&o.val);
+                a
+            }
+            fn add_sh_proj_pub_aff(
+                mut a: Self::ProjectiveShare,
+                o: &E::$affine,
+            ) -> Self::ProjectiveShare {
+                if Net::am_king() {
+                    a.val.add_assign_mixed(&o);
+                }
+                a
+            }
+            fn add_pub_proj_sh_aff(_a: &E::$proj, _o: Self::AffineShare) -> Self::ProjectiveShare {
+                unimplemented!()
+            }
+        }
+    };
+}
+
+groups_share!(AdditiveG1Share, G1Affine, G1Projective);
+groups_share!(AdditiveG2Share, G2Affine, G2Projective);
 
 #[derive(Clone, Copy, Debug, Derivative)]
 #[derivative(
@@ -315,4 +378,7 @@ impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
     type G2AffineShare = AdditiveGroupShare<E::G2Affine>;
     type G1ProjectiveShare = AdditiveGroupShare<E::G1Projective>;
     type G2ProjectiveShare = AdditiveGroupShare<E::G2Projective>;
+
+    type G1 = AdditiveG1Share<E>;
+    type G2 = AdditiveG2Share<E>;
 }

@@ -4,10 +4,11 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags,
 };
+use core::panic;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-use crate::Reveal;
+use crate::{BeaverSource, Reveal};
 
 pub trait FieldShare<F: Field>:
     Clone
@@ -27,6 +28,10 @@ pub trait FieldShare<F: Field>:
     + 'static
     + Reveal<Base = F>
 {
+    fn open(&self) -> F {
+        <Self as Reveal>::reveal(*self)
+    }
+
     fn add(&mut self, other: &Self) -> &mut Self;
 
     fn sub(&mut self, other: &Self) -> &mut Self {
@@ -44,6 +49,48 @@ pub trait FieldShare<F: Field>:
     fn shift(&mut self, other: &F) -> &mut Self;
 
     fn scale(&mut self, other: &F) -> &mut Self;
+
+    fn mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
+        let (mut x, mut y, z) = source.triple();
+
+        let s = self;
+        let o = other;
+
+        let sx = {
+            let mut t = s;
+            t.add(&x).open()
+        };
+
+        let oy = {
+            let mut t = o;
+            t.add(&y).open()
+        };
+
+        let mut result = z;
+        result.sub(y.scale(&sx)).sub(x.scale(&oy)).shift(&(sx * oy));
+        #[cfg(debug_assertions)]
+        {
+            let a = s.reveal();
+            let b = o.reveal();
+            let r = result.reveal();
+            if a * b != r {
+                // println!("Bad multiplication!.\n{}\n*\n{}\n=\n{}", a, b, r);
+                panic!("Bad multiplication");
+            }
+        }
+        result
+    }
+
+    fn inv<S: BeaverSource<Self, Self, Self>>(self, source: &mut S) -> Self {
+        let (x, mut y) = source.inv_pair();
+        let xa = x.mul(self, source).open().inverse().unwrap();
+        *y.scale(&xa)
+    }
+
+    fn div<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
+        let o_inv = other.inv(source);
+        self.mul(o_inv, source)
+    }
 
     fn univariate_div_qr<'a>(
         _num: DenseOrSparsePolynomial<Self>,

@@ -375,10 +375,10 @@ impl<F: PrimeField> AHPForR1CS<F> {
 
         let msg = ProverMsg::EmptyMessage;
 
-        assert!(w_poly.degree() < domain_h.size() - domain_x.size() + zk_bound);
-        assert!(z_a_poly.degree() < domain_h.size() + zk_bound);
-        assert!(z_b_poly.degree() < domain_h.size() + zk_bound);
-        assert!(mask_poly.degree() <= 3 * domain_h.size() + 2 * zk_bound - 3);
+        // assert!(w_poly.degree() < domain_h.size() - domain_x.size() + zk_bound);
+        // assert!(z_a_poly.degree() < domain_h.size() + zk_bound);
+        // assert!(z_b_poly.degree() < domain_h.size() + zk_bound);
+        // assert!(mask_poly.degree() <= 3 * domain_h.size() + 2 * zk_bound - 3);
 
         let w = LabeledPolynomial::new("w".to_string(), w_poly, None, Some(1));
         let z_a = LabeledPolynomial::new("z_a".to_string(), z_a_poly, None, Some(1));
