@@ -32,6 +32,10 @@ pub trait FieldShare<F: Field>:
         <Self as Reveal>::reveal(*self)
     }
 
+    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
+        selfs.into_iter().map(|s| s.open()).collect()
+    }
+
     fn add(&mut self, other: &Self) -> &mut Self;
 
     fn sub(&mut self, other: &Self) -> &mut Self {
@@ -81,15 +85,70 @@ pub trait FieldShare<F: Field>:
         result
     }
 
+    fn batch_mul<S: BeaverSource<Self, Self, Self>>(
+        xs: Vec<Self>,
+        ys: Vec<Self>,
+        source: &mut S,
+    ) -> Vec<Self> {
+        let ss = xs;
+        let os = ys;
+        let (xs, ys, zs) = source.triples(ss.len());
+        // output: z - open(s + x)y - open(o + y)x + open(s + x)open(o + y)
+        //         xy - sy - xy - ox - yx + so + sy + xo + xy
+        //         so
+        let sxs = Self::batch_open(ss.into_iter().zip(xs.iter()).map(|(mut s, x)| {
+            s.add(x);
+            s
+        }));
+        let oys = Self::batch_open(os.into_iter().zip(ys.iter()).map(|(mut o, y)| {
+            o.add(y);
+            o
+        }));
+        zs.into_iter()
+            .zip(ys.into_iter())
+            .zip(xs.into_iter())
+            .enumerate()
+            .map(|(i, ((mut z, mut y), mut x))| {
+                z.sub(y.scale(&sxs[i]))
+                    .sub(x.scale(&oys[i]))
+                    .shift(&(sxs[i] * oys[i]));
+                z
+            })
+            .collect()
+    }
+
     fn inv<S: BeaverSource<Self, Self, Self>>(self, source: &mut S) -> Self {
         let (x, mut y) = source.inv_pair();
         let xa = x.mul(self, source).open().inverse().unwrap();
         *y.scale(&xa)
     }
 
+    fn batch_inv<S: BeaverSource<Self, Self, Self>>(xs: Vec<Self>, source: &mut S) -> Vec<Self> {
+        let (bs, cs) = source.inv_pairs(xs.len());
+        cs.into_iter()
+            .zip(
+                Self::batch_open(Self::batch_mul(xs, bs, source))
+                    .into_iter()
+                    .map(|i| i.inverse().unwrap()),
+            )
+            .map(|(mut c, i)| {
+                c.scale(&i);
+                c
+            })
+            .collect()
+    }
+
     fn div<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
         let o_inv = other.inv(source);
         self.mul(o_inv, source)
+    }
+
+    fn batch_div<S: BeaverSource<Self, Self, Self>>(
+        xs: Vec<Self>,
+        ys: Vec<Self>,
+        source: &mut S,
+    ) -> Vec<Self> {
+        Self::batch_mul(xs, Self::batch_inv(ys, source), source)
     }
 
     fn univariate_div_qr<'a>(

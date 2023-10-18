@@ -1,11 +1,13 @@
 use ark_marlin::{ahp::prover::*, *};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
-use ark_std::{end_timer, start_timer, test_rng};
+use ark_std::{end_timer, start_timer, test_rng, PubUniformRand};
 use blake2::Blake2s;
 use mpc_algebra::*;
 
 use crate::circuit::MyCircuit;
+
+use mpc_trait::MpcWire;
 // use mpc_algebra::honest_but_curious::*;
 // use mpc_algebra::Reveal;
 
@@ -47,15 +49,13 @@ fn comm_publicize(
 fn commit_from_mpc<'a>(
     p: ark_poly_commit::kzg10::Commitment<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
 ) -> ark_poly_commit::kzg10::Commitment<ark_bls12_377::Bls12_377> {
-    // ark_poly_commit::kzg10::Commitment(p.0.reveal())
-    todo!()
+    ark_poly_commit::kzg10::Commitment(p.0.reveal())
 }
 fn pf_from_mpc<'a>(
     pf: ark_poly_commit::kzg10::Proof<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
 ) -> ark_poly_commit::kzg10::Proof<ark_bls12_377::Bls12_377> {
     ark_poly_commit::kzg10::Proof {
-        // w: pf.w.reveal(),
-        w: todo!(),
+        w: pf.w.reveal(),
         random_v: pf.random_v.map(MpcField::reveal),
     }
 }
@@ -105,7 +105,11 @@ type MpcMarlin = Marlin<MFr, MpcMarlinKZG10, Blake2s>;
 pub fn mpc_test_prove_and_verify(n_iters: usize) {
     let rng = &mut test_rng();
 
+    // let mut a = MFr::pub_rand(rng);
+    // a.publicize();
+
     let srs = LocalMarlin::universal_setup(100, 50, 100, rng).unwrap();
+    println!("srs: {:?}", srs);
     let empty_circuit: MyCircuit<Fr> = MyCircuit { a: None, b: None };
     let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit.clone()).unwrap();
     let mpc_index_pk = IndexProverKey::from_public(index_pk);

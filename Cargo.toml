@@ -19,7 +19,7 @@ ark-mnt4-753 = { path = "arkworks/curves/mnt4_753", version = "0.3.0" }
 
 ark-groth16 = { path = "arkworks/groth16", version = "0.3.0" }
 
-ark-marlin = { path = "arkworks/marlin", version = "0.3.0" }
+ark-marlin = { path = "arkworks/marlin", version = "0.3.0", default-features = false, features = [ "std" ] }
 
 ark-poly-commit = { path = "arkworks/poly-commit", version = "0.3.0" }
 
@@ -45,6 +45,7 @@ zeroize = { version = "1", default-features = false, features = ["zeroize_derive
 
 mpc-algebra = { path = "mpc-algebra", version = "0.1.0" }
 mpc-net = { path = "mpc-net", version = "0.1.0" }
+mpc-trait = { path = "mpc-trait", version = "0.1.0" }
 
 [[bin]]
 name = "main"
@@ -54,3 +55,7 @@ path = "src/main.rs"
 [[bin]]
 name = "bin-test-marlin"
 path = "src/bin_test_marlin.rs"
+
+[[bin]]
+name = "bin-test-groth16"
+path = "src/bin_test_groth16.rs"

@@ -28,6 +28,8 @@ ark-poly = { path = "../algebra/poly", version = "^0.3.0", default-features = fa
 ark-relations = { path = "../snark/relations", version = "^0.3.0", default-features = false }
 ark-poly-commit = { path = "../poly-commit", version = "^0.3.0", default-features = false }
 
+ark-bls12-377 = { path = "../curves/bls12_377", version = "^0.3.0", default-features = false, features = [ "curve" ] }
+
 rand_chacha = { version = "0.3.0", default-features = false }
 rayon = { version = "1", optional = true }
 digest = { version = "0.9" }

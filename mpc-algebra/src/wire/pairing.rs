@@ -329,13 +329,11 @@ macro_rules! impl_pairing_mpc_wrapper {
         impl<E: $bound1, PS: $bound2<E>> MpcWire for $wrap<E, PS> {
             #[inline]
             fn publicize(&mut self) {
-                // self.val.publicize();
-                todo!()
+                self.val.publicize();
             }
             #[inline]
             fn is_shared(&self) -> bool {
-                // self.val.is_shared()
-                todo!()
+                self.val.is_shared()
             }
         }
     };
@@ -546,8 +544,7 @@ macro_rules! impl_pairing_curve_wrapper {
             type Base = E::$base;
             #[inline]
             fn reveal(self) -> Self::Base {
-                // self.val.reveal()
-                todo!()
+                self.val.reveal()
             }
             #[inline]
             fn from_public(t: Self::Base) -> Self {
@@ -581,6 +578,16 @@ macro_rules! impl_pairing_curve_wrapper {
                 //     .map(|val| Self { val })
                 //     .collect()
                 todo!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Mul<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
+            type Output = Self;
+            #[inline]
+            fn mul(self, other: MpcField<E::Fr, PS::FrShare>) -> Self::Output {
+                Self {
+                    val: self.val.mul(other),
+                }
             }
         }
 
@@ -669,8 +676,10 @@ macro_rules! impl_aff_proj {
         }
 
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_pro<E, PS> {
-            fn from(_p: $w_aff<E, PS>) -> Self {
-                todo!()
+            fn from(p: $w_aff<E, PS>) -> Self {
+                Self {
+                    val: p.val.map(|s| s.into(), PS::$g_name::sh_aff_to_proj),
+                }
             }
         }
 
@@ -704,7 +713,7 @@ macro_rules! impl_aff_proj {
                 &self,
                 _other: S,
             ) -> Self::Projective {
-                todo!()
+                unimplemented!("mul by bigint")
             }
 
             fn mul_by_cofactor_to_projective(&self) -> Self::Projective {
@@ -713,6 +722,10 @@ macro_rules! impl_aff_proj {
 
             fn mul_by_cofactor_inv(&self) -> Self {
                 todo!()
+            }
+
+            fn scalar_mul<S: Into<Self::ScalarField>>(&self, other: S) -> Self::Projective {
+                (*self * other.into()).into()
             }
         }
 
@@ -728,7 +741,7 @@ macro_rules! impl_aff_proj {
                 todo!()
             }
             fn batch_normalization(_v: &mut [Self]) {
-                todo!()
+                // todo!()
             }
             fn is_normalized(&self) -> bool {
                 todo!()

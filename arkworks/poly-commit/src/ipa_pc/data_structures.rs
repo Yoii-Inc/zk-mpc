@@ -8,6 +8,7 @@ use ark_std::{
     io::{Read, Write},
     vec,
 };
+use mpc_trait::{struct_mpc_wire_simp_impl, MpcWire};
 
 /// `UniversalParams` are the universal parameters for the inner product arg scheme.
 #[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
@@ -105,6 +106,10 @@ pub struct Commitment<G: AffineCurve> {
     /// This is `none` if the committed polynomial does not
     /// enforce a strict degree bound.
     pub shifted_comm: Option<G>,
+}
+
+impl<G: AffineCurve> MpcWire for Commitment<G> {
+    struct_mpc_wire_simp_impl!(Commitment; comm, shifted_comm);
 }
 
 impl<G: AffineCurve> PCCommitment for Commitment<G> {

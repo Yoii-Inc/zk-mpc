@@ -145,10 +145,6 @@ impl<'a, F: FftField, D: EvaluationDomain<F>> DivAssign<&'a Evaluations<F, D>>
     #[inline]
     fn div_assign(&mut self, other: &'a Evaluations<F, D>) {
         assert_eq!(self.domain, other.domain, "domains are unequal");
-        let mut other_copy = other.clone();
-        batch_inversion(other_copy.evals.as_mut_slice());
-        ark_std::cfg_iter_mut!(self.evals)
-            .zip(&other_copy.evals)
-            .for_each(|(a, b)| *a *= b);
+        <F as Field>::batch_division_in_place(&mut self.evals, &other.evals);
     }
 }

@@ -536,7 +536,7 @@ impl<F: PrimeField, S: FieldShare<F>> Into<BigUint> for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcWire for MpcField<F, S> {
+impl<F: Field, S: FieldShare<F>> MpcWire for MpcField<F, S> {
     fn publicize(&mut self) {
         match self {
             MpcField::Public(_) => {}
@@ -544,6 +544,15 @@ impl<F: PrimeField, S: FieldShare<F>> MpcWire for MpcField<F, S> {
                 *self = MpcField::Public(s.open());
             }
         }
+        debug_assert!({
+            let self_val = if let MpcField::Public(s) = self {
+                s.clone()
+            } else {
+                unreachable!()
+            };
+            super::macros::check_eq(self_val.clone());
+            true
+        })
     }
     fn is_shared(&self) -> bool {
         match self {
@@ -595,6 +604,80 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
 
     fn frobenius_map(&mut self, _power: usize) {
         todo!()
+    }
+
+    fn batch_product_in_place(selfs: &mut [Self], others: &[Self]) {
+        let selfs_shared = selfs[0].is_shared();
+        let others_shared = others[0].is_shared();
+        assert!(
+            selfs.iter().all(|s| s.is_shared() == selfs_shared),
+            "Selfs heterogenously shared!"
+        );
+        assert!(
+            others.iter().all(|s| s.is_shared() == others_shared),
+            "others heterogenously shared!"
+        );
+        if selfs_shared && others_shared {
+            let sshares = selfs
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
+            let oshares = others
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
+            let nshares = S::batch_mul(sshares, oshares, &mut DummyFieldTripleSource::default());
+            for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
+                *self_ = Self::Shared(new);
+            }
+        } else {
+            for (a, b) in ark_std::cfg_iter_mut!(selfs).zip(others.iter()) {
+                *a *= b;
+            }
+        }
+    }
+
+    fn batch_division_in_place(selfs: &mut [Self], others: &[Self]) {
+        let selfs_shared = selfs[0].is_shared();
+        let others_shared = others[0].is_shared();
+        assert!(
+            selfs.iter().all(|s| s.is_shared() == selfs_shared),
+            "Selfs heterogenously shared!"
+        );
+        assert!(
+            others.iter().all(|s| s.is_shared() == others_shared),
+            "others heterogenously shared!"
+        );
+        if selfs_shared && others_shared {
+            let sshares = selfs
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
+            let oshares = others
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
+            let nshares = S::batch_div(sshares, oshares, &mut DummyFieldTripleSource::default());
+            for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
+                *self_ = Self::Shared(new);
+            }
+        } else {
+            for (a, b) in ark_std::cfg_iter_mut!(selfs).zip(others.iter()) {
+                *a *= b;
+            }
+        }
     }
 
     fn has_univariate_div_qr() -> bool {

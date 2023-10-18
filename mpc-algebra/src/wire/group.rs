@@ -12,6 +12,7 @@ use ark_serialize::{
     CanonicalSerializeWithFlags,
 };
 use ark_serialize::{Flags, SerializationError};
+use mpc_trait::MpcWire;
 
 use crate::share::group::GroupShare;
 use crate::Reveal;
@@ -41,7 +42,12 @@ impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
     type Base = G;
 
     fn reveal(self) -> Self::Base {
-        todo!()
+        let result = match self {
+            Self::Shared(s) => s.reveal(),
+            Self::Public(s) => s,
+        };
+        super::macros::check_eq(result.clone());
+        result
     }
 
     fn from_add_shared(b: Self::Base) -> Self {
@@ -53,11 +59,14 @@ impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
     }
 }
 
-// #[derive(Copy, Clone)]
-// pub enum MpcGroupAffine<G: AffineCurve, S: GroupAffineShare<G>> {
-//     Public(G),
-//     Shared(S),
-// }
+impl<G: Group, S: GroupShare<G>> Mul<MpcField<G::ScalarField, S::FieldShare>> for MpcGroup<G, S> {
+    type Output = Self;
+    #[inline]
+    fn mul(mut self, other: MpcField<G::ScalarField, S::FieldShare>) -> Self::Output {
+        self *= &other;
+        self
+    }
+}
 
 impl<G: Group, S: GroupShare<G>> Display for MpcGroup<G, S> {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
@@ -275,6 +284,23 @@ impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::F
                     todo!()
                 }
             },
+        }
+    }
+}
+
+impl<T: Group, S: GroupShare<T>> MpcWire for MpcGroup<T, S> {
+    fn publicize(&mut self) {
+        match self {
+            MpcGroup::Public(_) => {}
+            MpcGroup::Shared(s) => {
+                *self = MpcGroup::Public(s.reveal());
+            }
+        }
+    }
+    fn is_shared(&self) -> bool {
+        match self {
+            MpcGroup::Shared(_) => true,
+            MpcGroup::Public(_) => false,
         }
     }
 }
