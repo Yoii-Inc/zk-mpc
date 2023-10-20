@@ -6,6 +6,7 @@ mod groth16;
 mod input_circuit;
 mod marlin;
 mod preprocessing;
+mod serialize;
 mod she;
 
 use ark_bls12_377::{Bls12_377, Fr, FrParameters};
@@ -16,18 +17,17 @@ use ark_marlin::*;
 use ark_mnt4_753::FqParameters;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read};
+use ark_serialize::{CanonicalDeserialize, Read};
 use ark_snark::SNARK;
 use ark_std::UniformRand;
 use blake2::Blake2s;
-use hex::ToHex;
 use serde::Deserialize;
-use serde_json::json;
-use std::fmt::Write;
 use std::fs::File;
 use std::io::Write as Otherwrite;
 
 use structopt::StructOpt;
+
+use crate::serialize::write_to_file;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
@@ -192,46 +192,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // serialize commitment
-    let mut byte = Vec::new();
+    let output_file_path = "./outputs/outputs.json";
 
-    h_x.serialize(&mut byte).unwrap();
-
-    // convert from Vec<u8> to HEX string
-    let hex_string = byte.encode_hex::<String>();
-
-    let mut prefixed_hex_string = String::new();
-    write!(prefixed_hex_string, "0x{}", hex_string).unwrap();
-
-    // create JSON object
-    let json_data = json!({ "hex_commitment": prefixed_hex_string });
-
-    let create_file_result = create_file();
-
-    match create_file_result {
-        Ok(_) => println!("The file has been successfully created."),
-        Err(e) => {
-            eprintln!("couldn't create output.json: {e}");
-            // error handling
-            return Err(Box::new(e));
-        }
-    }
-
-    let json_string = serde_json::to_string_pretty(&json_data).unwrap();
-
-    let write_result = write_data(&mut file, json_string.as_bytes());
-
-    match write_result {
-        Ok(_) => println!("The data has been successfully written."),
-        Err(e) => {
-            eprintln!("couldn't write data: {e}");
-            // error handling
-            return Err(Box::new(e));
-        }
-    }
+    write_to_file(h_x, output_file_path, "hex_commitment")?;
 
     // deserialize
-    let mut output_file = File::open("./outputs/outputs.json").expect("Failed to open file");
+    let mut output_file = File::open(output_file_path).expect("Failed to open file");
 
     let mut output_string = String::new();
     output_file
