@@ -23,6 +23,7 @@ use mpc_trait::MpcWire;
 
 use super::super::reveal::Reveal;
 use super::super::share::field::ExtFieldShare;
+use super::super::share::group::GroupShare;
 use super::super::share::pairing::{AffProjShare, PairingShare};
 use super::field::MpcField;
 use super::group::MpcGroup;
@@ -722,6 +723,71 @@ macro_rules! impl_aff_proj {
 
             fn mul_by_cofactor_inv(&self) -> Self {
                 todo!()
+            }
+
+            fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
+                let b = {
+                    assert!(bases.iter().all(|b| !b.is_shared()));
+                    let scalars_shared = scalars.first().map(|s| s.is_shared()).unwrap_or(true);
+                    assert!(scalars.iter().all(|b| scalars_shared == b.is_shared()));
+                    let bases =
+                        MpcGroup::all_public_or_shared(bases.into_iter().map(|i| i.val.clone()))
+                            .unwrap();
+                    match MpcField::all_public_or_shared(scalars.into_iter().cloned()) {
+                        Ok(pub_scalars) => {
+                            // let t = start_timer!(|| "MSM inner");
+                            let r = $w_pro {
+                                // wat?
+                                val: if true {
+                                    // let t1 = start_timer!(|| "do msm");
+                                    let r = <E::$aff as AffineCurve>::multi_scalar_mul(
+                                        &bases,
+                                        &pub_scalars,
+                                    );
+                                    // end_timer!(t1);
+                                    // let t1 = start_timer!(|| "cast");
+                                    let r = MpcGroup::Shared(
+                                        <PS::$share_proj as Reveal>::from_public(r),
+                                    );
+                                    // end_timer!(t1);
+                                    r
+                                } else {
+                                    MpcGroup::Public(<E::$aff as AffineCurve>::multi_scalar_mul(
+                                        &bases,
+                                        &pub_scalars,
+                                    ))
+                                },
+                            };
+                            // end_timer!(t);
+                            r
+                        }
+                        Err(priv_scalars) => {
+                            // let t = start_timer!(|| "MSM inner");
+                            let r = $w_pro {
+                                val: MpcGroup::Shared(PS::$g_name::sh_aff_to_proj(
+                                    <PS::$share_aff as GroupShare<E::$aff>>::multi_scale_pub_group(
+                                        &bases,
+                                        &priv_scalars,
+                                    ),
+                                )),
+                            };
+                            // end_timer!(t);
+                            r
+                        }
+                    }
+                };
+                // {
+                //     let mut pa = a;
+                //     let mut pb = b;
+                //     pa.publicize();
+                //     pb.publicize();
+                //     println!("{}\n->\n{}", a, pa);
+                //     println!("{}\n->\n{}", b, pb);
+                //     println!("Check eq!");
+                //     //assert_eq!(a, b);
+                //     assert_eq!(pa, pb);
+                // }
+                b
             }
 
             fn scalar_mul<S: Into<Self::ScalarField>>(&self, other: S) -> Self::Projective {

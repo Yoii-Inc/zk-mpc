@@ -296,6 +296,15 @@ impl<T: Group, S: GroupShare<T>> MpcWire for MpcGroup<T, S> {
                 *self = MpcGroup::Public(s.reveal());
             }
         }
+        debug_assert!({
+            let self_val = if let MpcGroup::Public(s) = self {
+                s.clone()
+            } else {
+                unreachable!()
+            };
+            super::macros::check_eq(self_val);
+            true
+        })
     }
     fn is_shared(&self) -> bool {
         match self {
@@ -315,5 +324,25 @@ impl<T: Group, S: GroupShare<T>> Group for MpcGroup<T, S> {
     fn double_in_place(&mut self) -> &mut Self {
         *self += self.clone();
         self
+    }
+}
+
+impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
+    pub fn all_public_or_shared(v: impl IntoIterator<Item = Self>) -> Result<Vec<T>, Vec<S>> {
+        let mut out_a = Vec::new();
+        let mut out_b = Vec::new();
+        for s in v {
+            match s {
+                Self::Public(x) => out_a.push(x),
+                Self::Shared(x) => out_b.push(x),
+            }
+        }
+        if out_a.len() > 0 && out_b.len() > 0 {
+            panic!("Heterogeous")
+        } else if out_b.len() > 0 {
+            Err(out_b)
+        } else {
+            Ok(out_a)
+        }
     }
 }

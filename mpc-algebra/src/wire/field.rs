@@ -62,6 +62,24 @@ impl<F: Field, S: FieldShare<F>> MpcField<F, S> {
             )),
         }
     }
+
+    pub fn all_public_or_shared(v: impl IntoIterator<Item = Self>) -> Result<Vec<F>, Vec<S>> {
+        let mut out_a = Vec::new();
+        let mut out_b = Vec::new();
+        for s in v {
+            match s {
+                Self::Public(x) => out_a.push(x),
+                Self::Shared(x) => out_b.push(x),
+            }
+        }
+        if out_a.len() > 0 && out_b.len() > 0 {
+            panic!("Heterogeous")
+        } else if out_a.len() > 0 {
+            Ok(out_a)
+        } else {
+            Err(out_b)
+        }
+    }
 }
 
 impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {

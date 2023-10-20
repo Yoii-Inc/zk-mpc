@@ -28,7 +28,7 @@ use super::{
     pairing::{AffProjShare, PairingShare},
 };
 
-#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AdditiveFieldShare<T> {
     pub val: T,
 }
@@ -137,6 +137,11 @@ macro_rules! impl_field_basics {
                 write!(f, "{}", self.val)
             }
         }
+        impl<T: $bound> Debug for $share<T> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{:?}", self.val)
+            }
+        }
         impl<T: $bound> ToBytes for $share<T> {
             fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
                 todo!()
@@ -225,15 +230,17 @@ impl<G: Group> Reveal for AdditiveGroupShare<G> {
     type Base = G;
 
     fn reveal(self) -> Self::Base {
-        todo!()
+        Net::broadcast(&self.val).into_iter().sum()
     }
 
-    fn from_add_shared(b: Self::Base) -> Self {
-        todo!()
+    fn from_add_shared(b: G) -> Self {
+        Self { val: b }
     }
 
-    fn from_public(b: Self::Base) -> Self {
-        todo!()
+    fn from_public(b: G) -> Self {
+        Self {
+            val: if Net::am_king() { b } else { G::zero() },
+        }
     }
 
     fn unwrap_as_public(self) -> Self::Base {
@@ -308,6 +315,11 @@ impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
     fn add(&mut self, other: &Self) -> &mut Self {
         self.val += &other.val;
         self
+    }
+
+    fn scale_pub_group(mut base: G, scalar: &Self::FieldShare) -> Self {
+        base *= scalar.val;
+        Self { val: base }
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {

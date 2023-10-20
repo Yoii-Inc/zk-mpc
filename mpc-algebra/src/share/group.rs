@@ -38,7 +38,22 @@ pub trait GroupShare<G: Group>:
 
     fn add(&mut self, other: &Self) -> &mut Self;
 
+    fn scale_pub_group(base: G, scalar: &Self::FieldShare) -> Self;
+
     fn shift(&mut self, other: &G) -> &mut Self;
+
+    /// Compute \sum_i (s_i * g_i)
+    /// where the s_i are shared and the g_i are public.
+    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
+        bases
+            .into_iter()
+            .zip(scalars.into_iter())
+            .map(|(g, s)| Self::scale_pub_group(g.clone(), &s))
+            .fold(Self::from_public(G::zero()), |mut acc, n| {
+                acc.add(&n);
+                acc
+            })
+    }
 }
 
 // pub trait GroupAffineShare<G: AffineCurve>:

@@ -180,9 +180,7 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, D: Digest> 
         first_comms.publicize();
         end_timer!(first_round_comm_time);
 
-        // TODO find the reason why this fails
-        // fs_rng.absorb(&to_bytes![first_comms, prover_first_msg].unwrap());
-        fs_rng.absorb(&to_bytes![prover_first_msg].unwrap());
+        fs_rng.absorb(&to_bytes![first_comms, prover_first_msg].unwrap());
 
         let (verifier_first_msg, verifier_state) =
             AHPForR1CS::verifier_first_round(index_pk.index_vk.index_info, &mut fs_rng)?;
@@ -206,9 +204,7 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, D: Digest> 
         prover_second_msg.publicize();
         second_comms.publicize();
 
-        // TODO find the reason why this fails
-        // fs_rng.absorb(&to_bytes![second_comms, prover_second_msg].unwrap());
-        fs_rng.absorb(&to_bytes![prover_second_msg].unwrap());
+        fs_rng.absorb(&to_bytes![second_comms, prover_second_msg].unwrap());
 
         let (verifier_second_msg, verifier_state) =
             AHPForR1CS::verifier_second_round(verifier_state, &mut fs_rng);
@@ -231,9 +227,7 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, D: Digest> 
         prover_third_msg.publicize();
         third_comms.publicize();
 
-        // TODO find the reason why this fails
-        // fs_rng.absorb(&to_bytes![third_comms, prover_third_msg].unwrap());
-        fs_rng.absorb(&to_bytes![prover_third_msg].unwrap());
+        fs_rng.absorb(&to_bytes![third_comms, prover_third_msg].unwrap());
 
         let verifier_state = AHPForR1CS::verifier_third_round(verifier_state, &mut fs_rng);
         // --------------------------------------------------------------------
