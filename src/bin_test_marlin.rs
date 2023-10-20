@@ -2,8 +2,8 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-mod marlin;
 mod circuit;
+mod marlin;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]

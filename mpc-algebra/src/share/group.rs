@@ -8,7 +8,6 @@ use ark_serialize::{
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::BeaverSource;
 use crate::Reveal;
 
 use super::field::FieldShare;
@@ -46,9 +45,9 @@ pub trait GroupShare<G: Group>:
     /// where the s_i are shared and the g_i are public.
     fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
         bases
-            .into_iter()
-            .zip(scalars.into_iter())
-            .map(|(g, s)| Self::scale_pub_group(g.clone(), &s))
+            .iter()
+            .zip(scalars.iter())
+            .map(|(g, s)| Self::scale_pub_group(*g, s))
             .fold(Self::from_public(G::zero()), |mut acc, n| {
                 acc.add(&n);
                 acc

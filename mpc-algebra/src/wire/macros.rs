@@ -1,6 +1,6 @@
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use crate::channel::{self, MpcSerNet};
+use crate::channel::MpcSerNet;
 use mpc_net::MpcNet;
 
 use std::fmt::Display;

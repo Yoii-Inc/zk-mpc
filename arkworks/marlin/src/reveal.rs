@@ -46,14 +46,14 @@ impl<F: Field> MpcWire for ProverMsg<F> {
     fn publicize(&mut self) {
         match self {
             ProverMsg::EmptyMessage => {}
-            ProverMsg::FieldElements(d) => todo!(),
+            ProverMsg::FieldElements(_d) => todo!(),
         }
     }
 
     fn is_shared(&self) -> bool {
         match self {
             ProverMsg::EmptyMessage => false,
-            ProverMsg::FieldElements(d) => todo!(),
+            ProverMsg::FieldElements(_d) => todo!(),
         }
     }
 }

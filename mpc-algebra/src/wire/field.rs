@@ -19,7 +19,7 @@ use ark_serialize::{
     CanonicalSerializeWithFlags,
 };
 
-use crate::channel::{self, MpcSerNet};
+// use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
 use crate::{BeaverSource, Reveal};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
@@ -72,9 +72,9 @@ impl<F: Field, S: FieldShare<F>> MpcField<F, S> {
                 Self::Shared(x) => out_b.push(x),
             }
         }
-        if out_a.len() > 0 && out_b.len() > 0 {
+        if !out_a.is_empty() & !out_b.is_empty() {
             panic!("Heterogeous")
-        } else if out_a.len() > 0 {
+        } else if !out_a.is_empty() {
             Ok(out_a)
         } else {
             Err(out_b)
@@ -90,27 +90,7 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
             Self::Shared(s) => s.reveal(),
             Self::Public(s) => s,
         };
-        // TODO Add appropriate assert
-        debug_assert!({
-            debug!("Consistency check");
-            let t = result.clone();
-            let others = mpc_net::MpcMultiNet::broadcast(&t);
-            let mut result = true;
-            for (i, other_t) in others.iter().enumerate() {
-                if &t != other_t {
-                    println!(
-                        "\nConsistency check failed\nI (party {}) have {}\nvs\n  (party {}) has  {}",
-                        mpc_net::MpcMultiNet::party_id(),
-                        t,
-                        i,
-                        other_t
-                    );
-                    result = false;
-                    break;
-                }
-            }
-            result
-        });
+        super::macros::check_eq(result);
         result
     }
     #[inline]
@@ -129,11 +109,11 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
         }
     }
     #[inline]
-    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+    fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
         todo!()
     }
     #[inline]
-    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+    fn king_share_batch<R: Rng>(_f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
         todo!()
     }
     fn init_protocol() {
@@ -147,8 +127,8 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
 impl<F: Field, S: FieldShare<F>> Display for MpcField<F, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MpcField::Public(x) => write!(f, "{} (public)", x),
-            MpcField::Shared(x) => write!(f, "{} (shared)", x),
+            MpcField::Public(x) => write!(f, "{x} (public)"),
+            MpcField::Shared(x) => write!(f, "{x} (shared)"),
         }
     }
 }
@@ -220,8 +200,7 @@ impl<F: Field, S: FieldShare<F>> UniformRand for MpcField<F, S> {
 
 impl<F: Field, S: FieldShare<F>> PubUniformRand for MpcField<F, S> {
     fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
-        let mut val = Self::Public(<F as PubUniformRand>::pub_rand(rng));
-        val
+        Self::Public(<F as PubUniformRand>::pub_rand(rng))
     }
 }
 
@@ -282,7 +261,7 @@ impl<F: Field, S: FieldShare<F>> Sum for MpcField<F, S> {
 
 impl<'a, F: Field, S: FieldShare<F>> Sum<&'a MpcField<F, S>> for MpcField<F, S> {
     fn sum<I: Iterator<Item = &'a MpcField<F, S>>>(iter: I) -> Self {
-        iter.fold(Self::zero(), |x, y| x.add(y.clone()))
+        iter.fold(Self::zero(), |x, y| x.add(*y))
     }
 }
 
@@ -416,7 +395,7 @@ impl<'a, F: Field, S: FieldShare<F>> DivAssign<&'a MpcField<F, S>> for MpcField<
                 MpcField::Public(b) => {
                     *a /= b;
                 }
-                MpcField::Shared(b) => {
+                MpcField::Shared(_b) => {
                     todo!();
                 }
             },
@@ -548,8 +527,14 @@ impl<F: Field, S: FieldShare<F>> From<BigUint> for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> Into<BigUint> for MpcField<F, S> {
-    fn into(self) -> BigUint {
+// impl<F: PrimeField, S: FieldShare<F>> Into<BigUint> for MpcField<F, S> {
+//     fn into(self) -> BigUint {
+//         todo!()
+//     }
+// }
+
+impl<F: PrimeField, S: FieldShare<F>> From<MpcField<F, S>> for BigUint {
+    fn from(_value: MpcField<F, S>) -> BigUint {
         todo!()
     }
 }
@@ -564,11 +549,11 @@ impl<F: Field, S: FieldShare<F>> MpcWire for MpcField<F, S> {
         }
         debug_assert!({
             let self_val = if let MpcField::Public(s) = self {
-                s.clone()
+                *s
             } else {
                 unreachable!()
             };
-            super::macros::check_eq(self_val.clone());
+            super::macros::check_eq(self_val);
             true
         })
     }
@@ -608,7 +593,7 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn square_in_place(&mut self) -> &mut Self {
-        *self *= self.clone();
+        *self *= *self;
         self
     }
 
@@ -639,14 +624,14 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
             let sshares = selfs
                 .iter()
                 .map(|s| match s {
-                    Self::Shared(s) => s.clone(),
+                    Self::Shared(s) => *s,
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
             let oshares = others
                 .iter()
                 .map(|s| match s {
-                    Self::Shared(s) => s.clone(),
+                    Self::Shared(s) => *s,
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
@@ -676,14 +661,14 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
             let sshares = selfs
                 .iter()
                 .map(|s| match s {
-                    Self::Shared(s) => s.clone(),
+                    Self::Shared(s) => *s,
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
             let oshares = others
                 .iter()
                 .map(|s| match s {
-                    Self::Shared(s) => s.clone(),
+                    Self::Shared(s) => *s,
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();

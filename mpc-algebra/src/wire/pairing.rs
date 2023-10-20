@@ -351,12 +351,12 @@ macro_rules! impl_ext_field_wrapper {
                 self.val.reveal()
             }
             #[inline]
-            fn from_public(t: F) -> Self {
+            fn from_public(_t: F) -> Self {
                 // Self::wrap($wrapped::from_public(t))
                 todo!()
             }
             #[inline]
-            fn from_add_shared(t: F) -> Self {
+            fn from_add_shared(_t: F) -> Self {
                 // Self::wrap($wrapped::from_add_shared(t))
                 todo!()
             }
@@ -365,17 +365,12 @@ macro_rules! impl_ext_field_wrapper {
                 self.val.unwrap_as_public()
             }
             #[inline]
-            fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-                // Self::wrap($wrapped::king_share(f, rng))
-                todo!()
+            fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
+                unimplemented!()
             }
             #[inline]
-            fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-                // $wrapped::king_share_batch(f, rng)
-                //     .into_iter()
-                //     .map(Self::wrap)
-                //     .collect()
-                todo!()
+            fn king_share_batch<R: Rng>(_f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
+                unimplemented!()
             }
         }
 
@@ -554,11 +549,8 @@ macro_rules! impl_pairing_curve_wrapper {
                 }
             }
             #[inline]
-            fn from_add_shared(t: Self::Base) -> Self {
-                Self {
-                    // val: $wrapped::from_add_shared(t),
-                    val: todo!(),
-                }
+            fn from_add_shared(_t: Self::Base) -> Self {
+                todo!()
             }
             #[inline]
             fn unwrap_as_public(self) -> Self::Base {
@@ -566,19 +558,12 @@ macro_rules! impl_pairing_curve_wrapper {
                 todo!()
             }
             #[inline]
-            fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-                Self {
-                    // val: $wrapped::king_share(f, rng),
-                    val: todo!(),
-                }
+            fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
+                unimplemented!()
             }
             #[inline]
-            fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-                // $wrapped::king_share_batch(f, rng)
-                //     .into_iter()
-                //     .map(|val| Self { val })
-                //     .collect()
-                todo!()
+            fn king_share_batch<R: Rng>(_f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
+                unimplemented!()
             }
         }
 

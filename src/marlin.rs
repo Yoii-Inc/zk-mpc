@@ -1,29 +1,20 @@
 use ark_marlin::{ahp::prover::*, *};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
-use ark_std::{end_timer, start_timer, test_rng, PubUniformRand};
+use ark_std::{end_timer, start_timer, test_rng};
 use blake2::Blake2s;
 use mpc_algebra::*;
 
 use crate::circuit::MyCircuit;
 
-use mpc_trait::MpcWire;
-// use mpc_algebra::honest_but_curious::*;
-// use mpc_algebra::Reveal;
-
-// use super::{
-//     share::{additive::*, pairing::*},
-//     // share::msm::NaiveMsm,
-//     wire::{field, group, pairing},
-// };
 pub type MpcField<F> = wire::field::MpcField<F, AdditiveFieldShare<F>>;
 // pub type MpcGroup<G> = group::MpcGroup<G, AdditiveGroupShare<G, NaiveMsm<G>>>;
-pub type MpcG1Affine<E> = wire::pairing::MpcG1Affine<E, AdditivePairingShare<E>>;
-pub type MpcG2Affine<E> = wire::pairing::MpcG2Affine<E, AdditivePairingShare<E>>;
-pub type MpcG1Projective<E> = wire::pairing::MpcG1Projective<E, AdditivePairingShare<E>>;
-pub type MpcG2Projective<E> = wire::pairing::MpcG2Projective<E, AdditivePairingShare<E>>;
-pub type MpcG1Prep<E> = wire::pairing::MpcG1Prep<E, AdditivePairingShare<E>>;
-pub type MpcG2Prep<E> = wire::pairing::MpcG2Prep<E, AdditivePairingShare<E>>;
+// pub type MpcG1Affine<E> = wire::pairing::MpcG1Affine<E, AdditivePairingShare<E>>;
+// pub type MpcG2Affine<E> = wire::pairing::MpcG2Affine<E, AdditivePairingShare<E>>;
+// pub type MpcG1Projective<E> = wire::pairing::MpcG1Projective<E, AdditivePairingShare<E>>;
+// pub type MpcG2Projective<E> = wire::pairing::MpcG2Projective<E, AdditivePairingShare<E>>;
+// pub type MpcG1Prep<E> = wire::pairing::MpcG1Prep<E, AdditivePairingShare<E>>;
+// pub type MpcG2Prep<E> = wire::pairing::MpcG2Prep<E, AdditivePairingShare<E>>;
 pub type MpcPairingEngine<E> = wire::pairing::MpcPairingEngine<E, AdditivePairingShare<E>>;
 
 fn prover_message_publicize(
@@ -105,13 +96,10 @@ type MpcMarlin = Marlin<MFr, MpcMarlinKZG10, Blake2s>;
 pub fn mpc_test_prove_and_verify(n_iters: usize) {
     let rng = &mut test_rng();
 
-    // let mut a = MFr::pub_rand(rng);
-    // a.publicize();
-
     let srs = LocalMarlin::universal_setup(100, 50, 100, rng).unwrap();
-    println!("srs: {:?}", srs);
+    println!("srs: {srs:?}");
     let empty_circuit: MyCircuit<Fr> = MyCircuit { a: None, b: None };
-    let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit.clone()).unwrap();
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit).unwrap();
     let mpc_index_pk = IndexProverKey::from_public(index_pk);
 
     for _ in 0..n_iters {
@@ -124,7 +112,7 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
         let mut c = a;
         c *= &b;
         let inputs = vec![c.reveal()];
-        println!("{}\n{}\n{}", a, b, c);
+        println!("{a}\n{b}\n{c}");
         let mpc_proof = MpcMarlin::prove(&mpc_index_pk, circ, rng).unwrap();
         let proof = pf_publicize(mpc_proof);
         let public_a = a.reveal();

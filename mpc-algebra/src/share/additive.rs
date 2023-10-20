@@ -69,10 +69,7 @@ impl<F: Field> AdditiveFieldShare<F> {
         }
     }
     fn d_poly_unshare(p: ark_poly::univariate::DensePolynomial<F>) -> DensePolynomial<Self> {
-        p.coeffs
-            .into_iter()
-            .map(|s| Self::from_add_shared(s))
-            .collect()
+        p.coeffs.into_iter().map(Self::from_add_shared).collect()
     }
 }
 
@@ -87,7 +84,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
         Self { val: b }
     }
 
-    fn from_public(b: Self::Base) -> Self {
+    fn from_public(_b: Self::Base) -> Self {
         todo!()
     }
 

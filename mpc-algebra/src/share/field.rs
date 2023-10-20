@@ -39,9 +39,9 @@ pub trait FieldShare<F: Field>:
     fn add(&mut self, other: &Self) -> &mut Self;
 
     fn sub(&mut self, other: &Self) -> &mut Self {
-        let mut t = other.clone();
+        let mut t = *other;
         t.neg();
-        t.add(&self);
+        t.add(self);
         *self = t;
         self
     }

@@ -46,11 +46,11 @@ impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
             Self::Shared(s) => s.reveal(),
             Self::Public(s) => s,
         };
-        super::macros::check_eq(result.clone());
+        super::macros::check_eq(result);
         result
     }
 
-    fn from_add_shared(b: Self::Base) -> Self {
+    fn from_add_shared(_b: Self::Base) -> Self {
         todo!()
     }
 
@@ -134,7 +134,7 @@ impl<G: Group, S: GroupShare<G>> UniformRand for MpcGroup<G, S> {
 }
 
 impl<G: Group, S: GroupShare<G>> PubUniformRand for MpcGroup<G, S> {
-    fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+    fn pub_rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
         todo!()
     }
 }
@@ -298,7 +298,7 @@ impl<T: Group, S: GroupShare<T>> MpcWire for MpcGroup<T, S> {
         }
         debug_assert!({
             let self_val = if let MpcGroup::Public(s) = self {
-                s.clone()
+                *s
             } else {
                 unreachable!()
             };
@@ -322,7 +322,7 @@ impl<T: Group, S: GroupShare<T>> Group for MpcGroup<T, S> {
     }
 
     fn double_in_place(&mut self) -> &mut Self {
-        *self += self.clone();
+        *self += *self;
         self
     }
 }
@@ -337,9 +337,9 @@ impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
                 Self::Shared(x) => out_b.push(x),
             }
         }
-        if out_a.len() > 0 && out_b.len() > 0 {
+        if !out_a.is_empty() & !out_b.is_empty() {
             panic!("Heterogeous")
-        } else if out_b.len() > 0 {
+        } else if !out_b.is_empty() {
             Err(out_b)
         } else {
             Ok(out_a)
