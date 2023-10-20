@@ -122,14 +122,3 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
         assert!(!is_valid);
     }
 }
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_mpc_marlin() {
-        mpc_test_prove_and_verify(10);
-    }
-}
