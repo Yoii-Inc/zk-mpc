@@ -14,8 +14,7 @@ ark-std = { path = "../arkworks/std", version = "0.3.0", features = ["std", "pri
 
 ark-bls12-377 = { path = "../arkworks/curves/bls12_377", version = "0.3.0" }
 
-rand = { version = "0.7", default-features = false }
-# rand = "0.8.5"
+rand = "0.8.5"
 num-bigint = { version = "0.4.3", features = ["rand"] }
 derivative = { version = "2.0", features = ["use_core"]}
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }

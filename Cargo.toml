@@ -30,8 +30,7 @@ ark-snark = { path = "arkworks/snark/snark", version = "0.3.0" }
 
 ark-std = { path = "arkworks/std", version = "0.3.0", features = ["std", "print-trace"] }
 
-rand = { version = "0.7", default-features = false }
-# rand = "0.8.5"
+rand = "0.8.5"
 rand_distr = "0.4.3"
 num-bigint = { version = "0.4.3", features = ["rand"] }
 num-integer = "0.1"

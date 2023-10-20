@@ -30,8 +30,7 @@ ark-poly-commit = { path = "../poly-commit", version = "^0.3.0", default-feature
 
 ark-bls12-377 = { path = "../curves/bls12_377", version = "^0.3.0", default-features = false, features = [ "curve" ] }
 
-rand_chacha = { version = "0.2.1", default-features = false }
-# rand_chacha = { version = "0.3.0", default-features = false }
+rand_chacha = { version = "0.3.0", default-features = false }
 rayon = { version = "1", optional = true }
 digest = { version = "0.9" }
 derivative = { version = "2", features = ["use_core"] }
