@@ -51,7 +51,6 @@ impl<N: MpcNet> MpcSerNet for N {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_sernet() {}
