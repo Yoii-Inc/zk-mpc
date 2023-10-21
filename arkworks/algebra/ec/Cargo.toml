@@ -21,6 +21,8 @@ num-traits = { version = "0.2", default-features = false }
 rayon = { version = "1", optional = true }
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
 
+mpc-trait = { path = "../../../mpc-trait" }
+
 [features]
 default = []
 std = [ "ark-std/std", "ark-ff/std", "ark-serialize/std" ]

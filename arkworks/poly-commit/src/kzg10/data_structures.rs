@@ -447,7 +447,8 @@ impl<E: PairingEngine> PreparedCommitment<E> {
 pub struct Randomness<F: PrimeField, P: UVPolynomial<F>> {
     /// For KZG10, the commitment randomness is a random polynomial.
     pub blinding_polynomial: P,
-    _field: PhantomData<F>,
+    /// Dummy
+    pub _field: PhantomData<F>,
 }
 
 impl<F: PrimeField, P: UVPolynomial<F>> Randomness<F, P> {

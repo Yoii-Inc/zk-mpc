@@ -6,7 +6,8 @@
 //! This construction achieves extractability in the algebraic group model (AGM).
 
 use crate::{BTreeMap, Error, LabeledPolynomial, PCRandomness, ToString, Vec};
-use ark_ec::msm::{FixedBaseMSM, VariableBaseMSM};
+// use ark_ec::msm::{FixedBaseMSM, VariableBaseMSM};
+use ark_ec::msm::FixedBaseMSM;
 use ark_ec::{group::Group, AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{One, PrimeField, UniformRand, Zero};
 use ark_poly::UVPolynomial;
@@ -152,11 +153,18 @@ where
             hiding_bound,
         ));
 
-        let (num_leading_zeros, plain_coeffs) =
-            skip_leading_zeros_and_convert_to_bigints(polynomial);
+        // let (num_leading_zeros, plain_coeffs) =
+        //     skip_leading_zeros_and_convert_to_bigints(polynomial);
+
+        let num_leading_zeros = 0;
+        let plain_coeffs = polynomial.coeffs();
 
         let msm_time = start_timer!(|| "MSM to compute commitment to plaintext poly");
-        let mut commitment = VariableBaseMSM::multi_scalar_mul(
+        // let mut commitment = VariableBaseMSM::multi_scalar_mul(
+        //     &powers.powers_of_g[num_leading_zeros..],
+        //     &plain_coeffs,
+        // );
+        let mut commitment = <E::G1Affine as AffineCurve>::multi_scalar_mul(
             &powers.powers_of_g[num_leading_zeros..],
             &plain_coeffs,
         );
@@ -179,10 +187,14 @@ where
             end_timer!(sample_random_poly_time);
         }
 
-        let random_ints = convert_to_bigints(&randomness.blinding_polynomial.coeffs());
+        // let random_ints = convert_to_bigints(&randomness.blinding_polynomial.coeffs());
+        let random_ints = randomness.blinding_polynomial.coeffs();
         let msm_time = start_timer!(|| "MSM to compute commitment to random poly");
+        // let random_commitment =
+        //     VariableBaseMSM::multi_scalar_mul(&powers.powers_of_gamma_g, random_ints.as_slice())
+        //         .into_affine();
         let random_commitment =
-            VariableBaseMSM::multi_scalar_mul(&powers.powers_of_gamma_g, random_ints.as_slice())
+            <E::G1Affine as AffineCurve>::multi_scalar_mul(&powers.powers_of_gamma_g, random_ints)
                 .into_affine();
         end_timer!(msm_time);
 
@@ -230,11 +242,18 @@ where
         hiding_witness_polynomial: Option<&P>,
     ) -> Result<Proof<E>, Error> {
         Self::check_degree_is_too_large(witness_polynomial.degree(), powers.size())?;
-        let (num_leading_zeros, witness_coeffs) =
-            skip_leading_zeros_and_convert_to_bigints(witness_polynomial);
+        // let (num_leading_zeros, witness_coeffs) =
+        //     skip_leading_zeros_and_convert_to_bigints(witness_polynomial);
+
+        let num_leading_zeros = 0;
+        let witness_coeffs = witness_polynomial.coeffs();
 
         let witness_comm_time = start_timer!(|| "Computing commitment to witness polynomial");
-        let mut w = VariableBaseMSM::multi_scalar_mul(
+        // let mut w = VariableBaseMSM::multi_scalar_mul(
+        //     &powers.powers_of_g[num_leading_zeros..],
+        //     &witness_coeffs,
+        // );
+        let mut w = <E::G1Affine as AffineCurve>::multi_scalar_mul(
             &powers.powers_of_g[num_leading_zeros..],
             &witness_coeffs,
         );
@@ -246,10 +265,17 @@ where
             let blinding_evaluation = blinding_p.evaluate(&point);
             end_timer!(blinding_eval_time);
 
-            let random_witness_coeffs = convert_to_bigints(&hiding_witness_polynomial.coeffs());
+            // let random_witness_coeffs = convert_to_bigints(&hiding_witness_polynomial.coeffs());
+
+            let random_witness_coeffs = hiding_witness_polynomial.coeffs();
+
             let witness_comm_time =
                 start_timer!(|| "Computing commitment to random witness polynomial");
-            w += &VariableBaseMSM::multi_scalar_mul(
+            // w += &VariableBaseMSM::multi_scalar_mul(
+            //     &powers.powers_of_gamma_g,
+            //     &random_witness_coeffs,
+            // );
+            w += <E::G1Affine as AffineCurve>::multi_scalar_mul(
                 &powers.powers_of_gamma_g,
                 &random_witness_coeffs,
             );

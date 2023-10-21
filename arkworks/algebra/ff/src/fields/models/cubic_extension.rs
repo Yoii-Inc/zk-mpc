@@ -10,6 +10,7 @@ use ark_std::{
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
     vec::Vec,
 };
+use mpc_trait::MpcWire;
 
 use num_traits::{One, Zero};
 use zeroize::Zeroize;
@@ -22,7 +23,7 @@ use ark_std::rand::{
 use crate::{
     bytes::{FromBytes, ToBytes},
     fields::{Field, PrimeField},
-    ToConstraintField, UniformRand,
+    PubUniformRand, ToConstraintField, UniformRand,
 };
 
 pub trait CubicExtParameters: 'static + Send + Sync {
@@ -95,7 +96,8 @@ impl<P: CubicExtParameters> CubicExtField<P> {
         self.c2.mul_assign(value);
     }
 
-    /// Calculate the norm of an element with respect to the base field `P::BaseField`.
+    /// Calculate the norm of an element with respect to the base field
+    /// `P::BaseField`.
     pub fn norm(&self) -> P::BaseField {
         let mut self_to_p = *self;
         self_to_p.frobenius_map(1);
@@ -136,6 +138,8 @@ impl<P: CubicExtParameters> One for CubicExtField<P> {
         self.c0.is_one() && self.c1.is_zero() && self.c2.is_zero()
     }
 }
+
+impl<P: CubicExtParameters> MpcWire for CubicExtField<P> {}
 
 impl<P: CubicExtParameters> Field for CubicExtField<P> {
     type BasePrimeField = P::BasePrimeField;
@@ -450,6 +454,8 @@ impl<P: CubicExtParameters> Distribution<CubicExtField<P>> for Standard {
         )
     }
 }
+
+impl<P: CubicExtParameters> PubUniformRand for CubicExtField<P> {}
 
 impl<'a, P: CubicExtParameters> Add<&'a CubicExtField<P>> for CubicExtField<P> {
     type Output = Self;

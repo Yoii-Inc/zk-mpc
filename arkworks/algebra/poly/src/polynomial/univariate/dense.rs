@@ -1,13 +1,14 @@
 //! A dense univariate polynomial represented in coefficient form.
-use crate::univariate::DenseOrSparsePolynomial;
-use crate::{univariate::SparsePolynomial, Polynomial, UVPolynomial};
-use crate::{EvaluationDomain, Evaluations, GeneralEvaluationDomain};
-use ark_ff::{FftField, Field, Zero};
+use crate::{
+    univariate::{DenseOrSparsePolynomial, SparsePolynomial},
+    EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial,
+};
+use ark_ff::{poly_stub, FftField, Field, Zero};
 use ark_serialize::*;
-use ark_std::rand::Rng;
 use ark_std::{
     fmt,
     ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign},
+    rand::Rng,
     vec::Vec,
 };
 
@@ -21,6 +22,18 @@ use rayon::prelude::*;
 pub struct DensePolynomial<F: Field> {
     /// The coefficient of `x^i` is stored at location `i` in `self.coeffs`.
     pub coeffs: Vec<F>,
+}
+
+impl<F: Field> From<DensePolynomial<F>> for poly_stub::DensePolynomial<F> {
+    fn from(p: DensePolynomial<F>) -> Self {
+        Self { coeffs: p.coeffs }
+    }
+}
+
+impl<F: Field> From<poly_stub::DensePolynomial<F>> for DensePolynomial<F> {
+    fn from(p: poly_stub::DensePolynomial<F>) -> Self {
+        Self { coeffs: p.coeffs }
+    }
 }
 
 impl<F: Field> Polynomial<F> for DensePolynomial<F> {
@@ -59,6 +72,16 @@ impl<F: Field> DensePolynomial<F> {
         poly_coeffs
             .iter()
             .rfold(F::zero(), move |result, coeff| result * point + coeff)
+    }
+
+    pub fn is_shared(&self) -> bool {
+        let first_shared = self.coeffs.last().map(|c| c.is_shared()).unwrap_or(false);
+        for c in &self.coeffs {
+            if c.is_shared() != first_shared {
+                panic!("Inconsistent sharing in {:?}", self);
+            }
+        }
+        first_shared
     }
 
     #[cfg(not(feature = "parallel"))]
@@ -574,8 +597,7 @@ impl<F: Field> Zero for DensePolynomial<F> {
 
 #[cfg(test)]
 mod tests {
-    use crate::polynomial::univariate::*;
-    use crate::{EvaluationDomain, GeneralEvaluationDomain};
+    use crate::{polynomial::univariate::*, EvaluationDomain, GeneralEvaluationDomain};
     use ark_ff::{Field, One, UniformRand, Zero};
     use ark_std::{rand::Rng, test_rng};
     use ark_test_curves::bls12_381::Fr;

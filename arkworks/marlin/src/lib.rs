@@ -44,6 +44,7 @@ macro_rules! eprintln {
 /// Implements a Fiat-Shamir based Rng that allows one to incrementally update
 /// the seed based on new messages in the proof transcript.
 pub mod rng;
+use mpc_trait::MpcWire;
 use rng::FiatShamirRng;
 
 mod error;
@@ -56,6 +57,8 @@ pub use data_structures::*;
 pub mod ahp;
 pub use ahp::AHPForR1CS;
 use ahp::EvaluationsProvider;
+
+pub mod reveal;
 
 #[cfg(test)]
 mod test;
@@ -163,16 +166,18 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, D: Digest> 
         // --------------------------------------------------------------------
         // First round
 
-        let (prover_first_msg, prover_first_oracles, prover_state) =
+        let (mut prover_first_msg, prover_first_oracles, prover_state) =
             AHPForR1CS::prover_first_round(prover_init_state, zk_rng)?;
+        prover_first_msg.publicize();
 
         let first_round_comm_time = start_timer!(|| "Committing to first round polys");
-        let (first_comms, first_comm_rands) = PC::commit(
+        let (mut first_comms, first_comm_rands) = PC::commit(
             &index_pk.committer_key,
             prover_first_oracles.iter(),
             Some(zk_rng),
         )
         .map_err(Error::from_pc_err)?;
+        first_comms.publicize();
         end_timer!(first_round_comm_time);
 
         fs_rng.absorb(&to_bytes![first_comms, prover_first_msg].unwrap());
@@ -184,17 +189,20 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, D: Digest> 
         // --------------------------------------------------------------------
         // Second round
 
-        let (prover_second_msg, prover_second_oracles, prover_state) =
+        let (mut prover_second_msg, prover_second_oracles, prover_state) =
             AHPForR1CS::prover_second_round(&verifier_first_msg, prover_state, zk_rng);
 
         let second_round_comm_time = start_timer!(|| "Committing to second round polys");
-        let (second_comms, second_comm_rands) = PC::commit(
+        let (mut second_comms, second_comm_rands) = PC::commit(
             &index_pk.committer_key,
             prover_second_oracles.iter(),
             Some(zk_rng),
         )
         .map_err(Error::from_pc_err)?;
         end_timer!(second_round_comm_time);
+
+        prover_second_msg.publicize();
+        second_comms.publicize();
 
         fs_rng.absorb(&to_bytes![second_comms, prover_second_msg].unwrap());
 
@@ -204,17 +212,20 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, D: Digest> 
 
         // --------------------------------------------------------------------
         // Third round
-        let (prover_third_msg, prover_third_oracles) =
+        let (mut prover_third_msg, prover_third_oracles) =
             AHPForR1CS::prover_third_round(&verifier_second_msg, prover_state, zk_rng)?;
 
         let third_round_comm_time = start_timer!(|| "Committing to third round polys");
-        let (third_comms, third_comm_rands) = PC::commit(
+        let (mut third_comms, third_comm_rands) = PC::commit(
             &index_pk.committer_key,
             prover_third_oracles.iter(),
             Some(zk_rng),
         )
         .map_err(Error::from_pc_err)?;
         end_timer!(third_round_comm_time);
+
+        prover_third_msg.publicize();
+        third_comms.publicize();
 
         fs_rng.absorb(&to_bytes![third_comms, prover_third_msg].unwrap());
 
@@ -281,7 +292,8 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, D: Digest> 
         }
 
         evaluations.sort_by(|a, b| a.0.cmp(&b.0));
-        let evaluations = evaluations.into_iter().map(|x| x.1).collect::<Vec<F>>();
+        let mut evaluations = evaluations.into_iter().map(|x| x.1).collect::<Vec<F>>();
+        evaluations.iter_mut().for_each(|e| e.publicize());
         end_timer!(eval_time);
 
         fs_rng.absorb(&evaluations);

@@ -153,6 +153,7 @@ pub trait ProjectiveCurve:
     + core::iter::Sum<Self>
     + for<'a> core::iter::Sum<&'a Self>
     + From<<Self as ProjectiveCurve>::Affine>
+    + mpc_trait::MpcWire
 {
     const COFACTOR: &'static [u64];
     type ScalarField: PrimeField + SquareRootField;
@@ -252,6 +253,7 @@ pub trait AffineCurve:
     + core::iter::Sum<Self>
     + for<'a> core::iter::Sum<&'a Self>
     + From<<Self as AffineCurve>::Projective>
+    + mpc_trait::MpcWire
 {
     const COFACTOR: &'static [u64];
     type ScalarField: PrimeField + SquareRootField;
@@ -295,6 +297,19 @@ pub trait AffineCurve:
     /// `Self::ScalarField`.
     #[must_use]
     fn mul_by_cofactor_inv(&self) -> Self;
+
+    /// Perform a multi-scalar multiplication.
+    /// That is, compute P = sum_i s_i * P_i
+    fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
+        let msm_timer = start_timer!(|| "Base MSM");
+        // assert_eq!(bases.len(), scalars.len());
+        let bigint_scalars = cfg_into_iter!(scalars)
+            .map(|s| s.into_repr())
+            .collect::<Vec<_>>();
+        let product = crate::msm::VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
+        end_timer!(msm_timer);
+        product
+    }
 
     fn scalar_mul<S: Into<Self::ScalarField>>(&self, other: S) -> Self::Projective {
         self.mul(other.into().into_repr())

@@ -6,6 +6,7 @@ use std::iter::{Product, Sum};
 use std::marker::PhantomData;
 use std::ops::*;
 
+use rand::Rng;
 use zeroize::Zeroize;
 
 use ark_ec::group::Group;
@@ -18,8 +19,12 @@ use ark_serialize::{
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
 
+use mpc_trait::MpcWire;
+
+use super::super::reveal::Reveal;
 use super::super::share::field::ExtFieldShare;
-use super::super::share::pairing::PairingShare;
+use super::super::share::group::GroupShare;
+use super::super::share::pairing::{AffProjShare, PairingShare};
 use super::field::MpcField;
 use super::group::MpcGroup;
 
@@ -141,14 +146,14 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
 macro_rules! impl_pairing_mpc_wrapper {
     ($wrapped:ident, $bound1:ident, $bound2:ident, $base:ident, $share:ident, $wrap:ident) => {
         impl<E: $bound1, PS: $bound2<E>> Display for $wrap<E, PS> {
-            fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-                todo!()
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.val)
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> ToBytes for $wrap<E, PS> {
-            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
-                todo!()
+            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+                self.val.write(writer)
             }
         }
 
@@ -159,8 +164,8 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
 
         impl<E: $bound1, PS: $bound2<E>> CanonicalSerialize for $wrap<E, PS> {
-            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
-                todo!()
+            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+                self.val.serialize(writer)
             }
 
             fn serialized_size(&self) -> usize {
@@ -197,64 +202,78 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
 
         impl<E: $bound1, PS: $bound2<E>> UniformRand for $wrap<E, PS> {
-            fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
-                todo!()
+            fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+                Self {
+                    val: $wrapped::rand(rng),
+                }
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> PubUniformRand for $wrap<E, PS> {
+            fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+                Self {
+                    val: $wrapped::pub_rand(rng),
+                }
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> AddAssign for $wrap<E, PS> {
-            fn add_assign(&mut self, _rhs: Self) {
-                todo!()
+            fn add_assign(&mut self, rhs: Self) {
+                self.add_assign(&rhs)
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> AddAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
-            fn add_assign(&mut self, _rhs: &'a $wrap<E, PS>) {
-                todo!()
+            fn add_assign(&mut self, rhs: &'a $wrap<E, PS>) {
+                self.val += &rhs.val;
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> Add for $wrap<E, PS> {
             type Output = Self;
 
-            fn add(self, _rhs: Self) -> Self::Output {
-                todo!()
+            fn add(mut self, rhs: Self) -> Self::Output {
+                self.add_assign(&rhs);
+                self
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> Add<&'a $wrap<E, PS>> for $wrap<E, PS> {
             type Output = Self;
 
-            fn add(self, _rhs: &'a $wrap<E, PS>) -> Self::Output {
-                todo!()
+            fn add(mut self, rhs: &'a $wrap<E, PS>) -> Self::Output {
+                self.add_assign(rhs);
+                self
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> SubAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
-            fn sub_assign(&mut self, _rhs: &'a $wrap<E, PS>) {
-                todo!()
+            fn sub_assign(&mut self, rhs: &'a $wrap<E, PS>) {
+                self.val -= &rhs.val;
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> SubAssign for $wrap<E, PS> {
-            fn sub_assign(&mut self, _rhs: Self) {
-                todo!()
+            fn sub_assign(&mut self, rhs: Self) {
+                self.sub_assign(&rhs)
             }
         }
 
         impl<E: $bound1, PS: $bound2<E>> Sub for $wrap<E, PS> {
             type Output = Self;
 
-            fn sub(self, _rhs: Self) -> Self::Output {
-                todo!()
+            fn sub(mut self, rhs: Self) -> Self::Output {
+                self.sub_assign(&rhs);
+                self
             }
         }
 
         impl<'a, E: $bound1, PS: $bound2<E>> Sub<&'a $wrap<E, PS>> for $wrap<E, PS> {
             type Output = Self;
 
-            fn sub(self, _rhs: &'a $wrap<E, PS>) -> Self::Output {
-                todo!()
+            fn sub(mut self, rhs: &'a $wrap<E, PS>) -> Self::Output {
+                self.sub_assign(rhs);
+                self
             }
         }
 
@@ -286,7 +305,9 @@ macro_rules! impl_pairing_mpc_wrapper {
 
         impl<E: $bound1, PS: $bound2<E>> Zero for $wrap<E, PS> {
             fn zero() -> Self {
-                todo!()
+                Self {
+                    val: $wrapped::zero(),
+                }
             }
 
             fn is_zero(&self) -> bool {
@@ -305,12 +326,53 @@ macro_rules! impl_pairing_mpc_wrapper {
                 todo!()
             }
         }
+
+        impl<E: $bound1, PS: $bound2<E>> MpcWire for $wrap<E, PS> {
+            #[inline]
+            fn publicize(&mut self) {
+                self.val.publicize();
+            }
+            #[inline]
+            fn is_shared(&self) -> bool {
+                self.val.is_shared()
+            }
+        }
     };
 }
 
 macro_rules! impl_ext_field_wrapper {
     ($wrapped:ident, $wrap:ident) => {
         impl_pairing_mpc_wrapper!($wrapped, Field, ExtFieldShare, BasePrimeField, Ext, $wrap);
+
+        impl<F: Field, S: ExtFieldShare<F>> Reveal for $wrap<F, S> {
+            type Base = F;
+            #[inline]
+            fn reveal(self) -> F {
+                self.val.reveal()
+            }
+            #[inline]
+            fn from_public(_t: F) -> Self {
+                // Self::wrap($wrapped::from_public(t))
+                todo!()
+            }
+            #[inline]
+            fn from_add_shared(_t: F) -> Self {
+                // Self::wrap($wrapped::from_add_shared(t))
+                todo!()
+            }
+            #[inline]
+            fn unwrap_as_public(self) -> Self::Base {
+                self.val.unwrap_as_public()
+            }
+            #[inline]
+            fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
+                unimplemented!()
+            }
+            #[inline]
+            fn king_share_batch<R: Rng>(_f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
+                unimplemented!()
+            }
+        }
 
         impl<'a, F: Field, S: ExtFieldShare<F>> MulAssign<&'a $wrap<F, S>> for $wrap<F, S> {
             fn mul_assign(&mut self, _rhs: &'a $wrap<F, S>) {
@@ -474,6 +536,47 @@ macro_rules! impl_pairing_curve_wrapper {
     ($wrapped:ident, $bound1:ident, $bound2:ident, $base:ident, $share:ident, $wrap:ident) => {
         impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);
 
+        impl<E: $bound1, PS: $bound2<E>> Reveal for $wrap<E, PS> {
+            type Base = E::$base;
+            #[inline]
+            fn reveal(self) -> Self::Base {
+                self.val.reveal()
+            }
+            #[inline]
+            fn from_public(t: Self::Base) -> Self {
+                Self {
+                    val: $wrapped::from_public(t),
+                }
+            }
+            #[inline]
+            fn from_add_shared(_t: Self::Base) -> Self {
+                todo!()
+            }
+            #[inline]
+            fn unwrap_as_public(self) -> Self::Base {
+                // self.val.unwrap_as_public()
+                todo!()
+            }
+            #[inline]
+            fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
+                unimplemented!()
+            }
+            #[inline]
+            fn king_share_batch<R: Rng>(_f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
+                unimplemented!()
+            }
+        }
+
+        impl<E: $bound1, PS: $bound2<E>> Mul<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
+            type Output = Self;
+            #[inline]
+            fn mul(self, other: MpcField<E::Fr, PS::FrShare>) -> Self::Output {
+                Self {
+                    val: self.val.mul(other),
+                }
+            }
+        }
+
         impl<E: $bound1, PS: $bound2<E>> MulAssign<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
             fn mul_assign(&mut self, _rhs: MpcField<E::Fr, PS::FrShare>) {
                 todo!()
@@ -519,6 +622,25 @@ impl_ext_field_wrapper!(MpcField, MpcExtField);
 
 macro_rules! impl_aff_proj {
     ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $g_name:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident, $share_proj:ident) => {
+        impl<E: PairingEngine, PS: PairingShare<E>> Reveal for $w_prep<E, PS> {
+            type Base = E::$prep;
+            #[inline]
+            fn reveal(self) -> E::$prep {
+                self.val
+            }
+            #[inline]
+            fn from_public(g: E::$prep) -> Self {
+                Self {
+                    val: g,
+                    _phantom: PhantomData::default(),
+                }
+            }
+            #[inline]
+            fn from_add_shared(_g: E::$prep) -> Self {
+                panic!("Cannot add share a prepared curve")
+            }
+        }
+
         impl<E: PairingEngine, PS: PairingShare<E>> Group for $w_aff<E, PS> {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
 
@@ -530,15 +652,20 @@ macro_rules! impl_aff_proj {
                 todo!()
             }
         }
+
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_pro<E, PS>> for $w_aff<E, PS> {
-            fn from(_p: $w_pro<E, PS>) -> Self {
-                todo!()
+            fn from(p: $w_pro<E, PS>) -> Self {
+                Self {
+                    val: p.val.map(|s| s.into(), PS::$g_name::sh_proj_to_aff),
+                }
             }
         }
 
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_pro<E, PS> {
-            fn from(_p: $w_aff<E, PS>) -> Self {
-                todo!()
+            fn from(p: $w_aff<E, PS>) -> Self {
+                Self {
+                    val: p.val.map(|s| s.into(), PS::$g_name::sh_aff_to_proj),
+                }
             }
         }
 
@@ -572,7 +699,7 @@ macro_rules! impl_aff_proj {
                 &self,
                 _other: S,
             ) -> Self::Projective {
-                todo!()
+                unimplemented!("mul by bigint")
             }
 
             fn mul_by_cofactor_to_projective(&self) -> Self::Projective {
@@ -581,6 +708,75 @@ macro_rules! impl_aff_proj {
 
             fn mul_by_cofactor_inv(&self) -> Self {
                 todo!()
+            }
+
+            fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
+                let b = {
+                    assert!(bases.iter().all(|b| !b.is_shared()));
+                    let scalars_shared = scalars.first().map(|s| s.is_shared()).unwrap_or(true);
+                    assert!(scalars.iter().all(|b| scalars_shared == b.is_shared()));
+                    let bases =
+                        MpcGroup::all_public_or_shared(bases.into_iter().map(|i| i.val.clone()))
+                            .unwrap();
+                    match MpcField::all_public_or_shared(scalars.into_iter().cloned()) {
+                        Ok(pub_scalars) => {
+                            // let t = start_timer!(|| "MSM inner");
+                            let r = $w_pro {
+                                // wat?
+                                val: if true {
+                                    // let t1 = start_timer!(|| "do msm");
+                                    let r = <E::$aff as AffineCurve>::multi_scalar_mul(
+                                        &bases,
+                                        &pub_scalars,
+                                    );
+                                    // end_timer!(t1);
+                                    // let t1 = start_timer!(|| "cast");
+                                    let r = MpcGroup::Shared(
+                                        <PS::$share_proj as Reveal>::from_public(r),
+                                    );
+                                    // end_timer!(t1);
+                                    r
+                                } else {
+                                    MpcGroup::Public(<E::$aff as AffineCurve>::multi_scalar_mul(
+                                        &bases,
+                                        &pub_scalars,
+                                    ))
+                                },
+                            };
+                            // end_timer!(t);
+                            r
+                        }
+                        Err(priv_scalars) => {
+                            // let t = start_timer!(|| "MSM inner");
+                            let r = $w_pro {
+                                val: MpcGroup::Shared(PS::$g_name::sh_aff_to_proj(
+                                    <PS::$share_aff as GroupShare<E::$aff>>::multi_scale_pub_group(
+                                        &bases,
+                                        &priv_scalars,
+                                    ),
+                                )),
+                            };
+                            // end_timer!(t);
+                            r
+                        }
+                    }
+                };
+                // {
+                //     let mut pa = a;
+                //     let mut pb = b;
+                //     pa.publicize();
+                //     pb.publicize();
+                //     println!("{}\n->\n{}", a, pa);
+                //     println!("{}\n->\n{}", b, pb);
+                //     println!("Check eq!");
+                //     //assert_eq!(a, b);
+                //     assert_eq!(pa, pb);
+                // }
+                b
+            }
+
+            fn scalar_mul<S: Into<Self::ScalarField>>(&self, other: S) -> Self::Projective {
+                (*self * other.into()).into()
             }
         }
 
@@ -596,16 +792,33 @@ macro_rules! impl_aff_proj {
                 todo!()
             }
             fn batch_normalization(_v: &mut [Self]) {
-                todo!()
+                // todo!()
             }
             fn is_normalized(&self) -> bool {
                 todo!()
             }
             fn double_in_place(&mut self) -> &mut Self {
-                todo!()
+                self.val.double_in_place();
+                self
             }
-            fn add_assign_mixed(&mut self, _other: &Self::Affine) {
-                todo!()
+            fn add_assign_mixed(&mut self, other: &Self::Affine) {
+                let new_self = match (&self.val, &other.val) {
+                    (MpcGroup::Shared(a), MpcGroup::Shared(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_sh_proj_sh_aff(a.clone(), b))
+                    }
+                    (MpcGroup::Shared(a), MpcGroup::Public(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_sh_proj_pub_aff(a.clone(), b))
+                    }
+                    (MpcGroup::Public(a), MpcGroup::Shared(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_pub_proj_sh_aff(a, b.clone()))
+                    }
+                    (MpcGroup::Public(a), MpcGroup::Public(b)) => MpcGroup::Public({
+                        let mut a = a.clone();
+                        a.add_assign_mixed(b);
+                        a
+                    }),
+                };
+                self.val = new_self;
             }
         }
     };

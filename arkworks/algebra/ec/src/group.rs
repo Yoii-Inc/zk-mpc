@@ -1,3 +1,4 @@
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use core::{
     fmt::{Debug, Display},
     hash::Hash,
@@ -38,6 +39,8 @@ pub trait Group:
     + for<'a> SubAssign<&'a Self>
     + core::iter::Sum<Self>
     + for<'a> core::iter::Sum<&'a Self>
+    + CanonicalSerialize
+    + CanonicalDeserialize
 {
     type ScalarField: PrimeField;
 

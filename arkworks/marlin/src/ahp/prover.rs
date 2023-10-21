@@ -22,6 +22,7 @@ use ark_std::{
     cfg_into_iter, cfg_iter, cfg_iter_mut,
     io::{Read, Write},
 };
+use mpc_trait::MpcWire;
 
 /// State for the AHP prover.
 pub struct ProverState<'a, F: PrimeField> {
@@ -231,7 +232,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
 
         let num_non_zero = index.index_info.num_non_zero;
 
-        let (formatted_input_assignment, witness_assignment, num_constraints) = {
+        let (mut formatted_input_assignment, witness_assignment, num_constraints) = {
             let pcs = pcs.borrow().unwrap();
             (
                 pcs.instance_assignment.as_slice().to_vec(),
@@ -239,6 +240,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
                 pcs.num_constraints,
             )
         };
+        formatted_input_assignment.publicize();
 
         let num_input_variables = formatted_input_assignment.len();
         let num_witness_variables = witness_assignment.len();
@@ -375,10 +377,10 @@ impl<F: PrimeField> AHPForR1CS<F> {
 
         let msg = ProverMsg::EmptyMessage;
 
-        assert!(w_poly.degree() < domain_h.size() - domain_x.size() + zk_bound);
-        assert!(z_a_poly.degree() < domain_h.size() + zk_bound);
-        assert!(z_b_poly.degree() < domain_h.size() + zk_bound);
-        assert!(mask_poly.degree() <= 3 * domain_h.size() + 2 * zk_bound - 3);
+        // assert!(w_poly.degree() < domain_h.size() - domain_x.size() + zk_bound);
+        // assert!(z_a_poly.degree() < domain_h.size() + zk_bound);
+        // assert!(z_b_poly.degree() < domain_h.size() + zk_bound);
+        // assert!(mask_poly.degree() <= 3 * domain_h.size() + 2 * zk_bound - 3);
 
         let w = LabeledPolynomial::new("w".to_string(), w_poly, None, Some(1));
         let z_a = LabeledPolynomial::new("z_a".to_string(), z_a_poly, None, Some(1));

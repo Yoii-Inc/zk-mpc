@@ -4,10 +4,17 @@ use rand::{
     Rng,
 };
 
+use mpc_trait::MpcWire;
 pub use rand;
 
 pub trait UniformRand: Sized {
     fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
+}
+
+pub trait PubUniformRand: Sized + MpcWire + UniformRand {
+    fn pub_rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+        <Self as UniformRand>::rand(rng)
+    }
 }
 
 impl<T> UniformRand for T

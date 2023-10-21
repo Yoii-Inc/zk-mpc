@@ -10,6 +10,7 @@ use ark_std::{
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
     vec::Vec,
 };
+use mpc_trait::MpcWire;
 
 use num_traits::{One, Zero};
 use zeroize::Zeroize;
@@ -22,12 +23,13 @@ use ark_std::rand::{
 use crate::{
     bytes::{FromBytes, ToBytes},
     fields::{Field, LegendreSymbol, PrimeField, SquareRootField},
-    ToConstraintField, UniformRand,
+    PubUniformRand, ToConstraintField, UniformRand,
 };
 
 /// Defines a Quadratic extension field from a quadratic non-residue.
 pub trait QuadExtParameters: 'static + Send + Sync + Sized {
-    /// The prime field that this quadratic extension is eventually an extension of.
+    /// The prime field that this quadratic extension is eventually an extension
+    /// of.
     type BasePrimeField: PrimeField;
     /// The base field that this field is a quadratic extension of.
     type BaseField: Field<BasePrimeField = Self::BasePrimeField>;
@@ -63,8 +65,8 @@ pub trait QuadExtParameters: 'static + Send + Sync + Sized {
         *x + Self::mul_base_field_by_nonresidue(y)
     }
 
-    /// A specializable method for computing x + mul_base_field_by_nonresidue(y) + y
-    /// This allows for optimizations when the non-residue is not -1.
+    /// A specializable method for computing x + mul_base_field_by_nonresidue(y)
+    /// + y This allows for optimizations when the non-residue is not -1.
     #[inline(always)]
     fn add_and_mul_base_field_by_nonresidue_plus_one(
         x: &Self::BaseField,
@@ -148,12 +150,14 @@ impl<P: QuadExtParameters> QuadExtField<P> {
         }
     }
 
-    /// This is only to be used when the element is *known* to be in the cyclotomic subgroup.
+    /// This is only to be used when the element is *known* to be in the
+    /// cyclotomic subgroup.
     pub fn conjugate(&mut self) {
         self.c1 = -self.c1;
     }
 
-    /// This is only to be used when the element is *known* to be in the cyclotomic subgroup.
+    /// This is only to be used when the element is *known* to be in the
+    /// cyclotomic subgroup.
     pub fn cyclotomic_exp(&self, exponent: impl AsRef<[u64]>) -> Self {
         P::cyclotomic_exp(self, exponent)
     }
@@ -194,6 +198,8 @@ impl<P: QuadExtParameters> One for QuadExtField<P> {
         self.c0.is_one() && self.c1.is_zero()
     }
 }
+
+impl<P: QuadExtParameters> MpcWire for QuadExtField<P> {}
 
 impl<P: QuadExtParameters> Field for QuadExtField<P> {
     type BasePrimeField = P::BasePrimeField;
@@ -291,9 +297,9 @@ impl<P: QuadExtParameters> Field for QuadExtField<P> {
             // result.c1 = 2 * c0 * c1
             self.c1 = v2.double();
             // result.c0 = (v0) + ((beta + 1) * v2)
-            // result.c0 = (c0^2 - beta * c0 * c1 - c0 * c1 + beta * c1^2) + ((beta + 1) c0 * c1)
-            // result.c0 = (c0^2 - beta * c0 * c1 + beta * c1^2) + (beta * c0 * c1)
-            // result.c0 = c0^2 + beta * c1^2
+            // result.c0 = (c0^2 - beta * c0 * c1 - c0 * c1 + beta * c1^2) + ((beta + 1) c0
+            // * c1) result.c0 = (c0^2 - beta * c0 * c1 + beta * c1^2) + (beta *
+            // c0 * c1) result.c0 = c0^2 + beta * c1^2
             self.c0 = P::add_and_mul_base_field_by_nonresidue_plus_one(&v0, &v2);
 
             self
@@ -559,6 +565,8 @@ impl<P: QuadExtParameters> Distribution<QuadExtField<P>> for Standard {
         QuadExtField::new(UniformRand::rand(rng), UniformRand::rand(rng))
     }
 }
+
+impl<P: QuadExtParameters> PubUniformRand for QuadExtField<P> {}
 
 impl<'a, P: QuadExtParameters> Add<&'a QuadExtField<P>> for QuadExtField<P> {
     type Output = Self;

@@ -9,8 +9,7 @@
 
 use ark_ff::FftField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::rand::Rng;
-use ark_std::{fmt, hash, vec::Vec};
+use ark_std::{fmt, hash, rand::Rng, vec::Vec};
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -35,10 +34,18 @@ pub trait EvaluationDomain<F: FftField>:
     type Elements: Iterator<Item = F> + Sized;
 
     /// Sample an element that is *not* in the domain.
-    fn sample_element_outside_domain<R: Rng>(&self, rng: &mut R) -> F {
-        let mut t = F::rand(rng);
+    fn sample_element_outside_domain<R: Rng>(&self, rng: &mut R, public_rng: bool) -> F {
+        let mut t = if public_rng {
+            F::pub_rand(rng)
+        } else {
+            F::rand(rng)
+        };
         while self.evaluate_vanishing_polynomial(t).is_zero() {
-            t = F::rand(rng);
+            t = if public_rng {
+                F::pub_rand(rng)
+            } else {
+                F::rand(rng)
+            };
         }
         t
     }

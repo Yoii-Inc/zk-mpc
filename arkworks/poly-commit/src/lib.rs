@@ -55,6 +55,8 @@ pub mod marlin;
 /// checker.
 pub mod optional_rng;
 
+pub mod reveal;
+
 #[cfg(not(feature = "std"))]
 macro_rules! eprintln {
     () => {};

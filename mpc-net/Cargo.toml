@@ -1,0 +1,16 @@
+[package]
+name = "mpc-net"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ark-std = { path = "../arkworks/std", version = "0.3.0", features = ["std"] }
+lazy_static = "1.4.0"
+log = "0.4.20"
+rayon = "1.8.0"
+
+[dev-dependencies]
+env_logger = "0.10.0"
+structopt = "0.3.26"

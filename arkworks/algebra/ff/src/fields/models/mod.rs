@@ -6,6 +6,7 @@ use ark_std::{
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
     str::FromStr,
 };
+use mpc_trait::MpcWire;
 use num_traits::{One, Zero};
 
 use crate::{

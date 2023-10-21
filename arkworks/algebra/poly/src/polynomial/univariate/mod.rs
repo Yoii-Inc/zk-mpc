@@ -1,7 +1,7 @@
 //! Work with sparse and dense polynomials.
 
 use crate::{EvaluationDomain, Evaluations, Polynomial, UVPolynomial};
-use ark_ff::{FftField, Field, Zero};
+use ark_ff::{poly_stub, FftField, Field, Zero};
 use ark_std::{borrow::Cow, convert::TryInto, vec::Vec};
 use DenseOrSparsePolynomial::*;
 
@@ -18,6 +18,30 @@ pub enum DenseOrSparsePolynomial<'a, F: Field> {
     SPolynomial(Cow<'a, SparsePolynomial<F>>),
     /// Represents the case where `self` is a dense polynomial
     DPolynomial(Cow<'a, DensePolynomial<F>>),
+}
+
+impl<'a, F: Field> From<DenseOrSparsePolynomial<'a, F>>
+    for poly_stub::DenseOrSparsePolynomial<'a, F>
+{
+    fn from(p: DenseOrSparsePolynomial<'a, F>) -> Self {
+        use DenseOrSparsePolynomial::*;
+        match p {
+            SPolynomial(s) => Self::SPolynomial(Cow::Owned(s.into_owned().into())),
+            DPolynomial(s) => Self::DPolynomial(Cow::Owned(s.into_owned().into())),
+        }
+    }
+}
+
+impl<'a, F: Field> From<poly_stub::DenseOrSparsePolynomial<'a, F>>
+    for DenseOrSparsePolynomial<'a, F>
+{
+    fn from(p: poly_stub::DenseOrSparsePolynomial<'a, F>) -> Self {
+        use poly_stub::DenseOrSparsePolynomial::*;
+        match p {
+            SPolynomial(s) => Self::SPolynomial(Cow::Owned(s.into_owned().into())),
+            DPolynomial(s) => Self::DPolynomial(Cow::Owned(s.into_owned().into())),
+        }
+    }
 }
 
 impl<'a, F: 'a + Field> From<DensePolynomial<F>> for DenseOrSparsePolynomial<'a, F> {
@@ -65,6 +89,13 @@ impl<'a, F: 'a + Field> TryInto<SparsePolynomial<F>> for DenseOrSparsePolynomial
 }
 
 impl<'a, F: Field> DenseOrSparsePolynomial<'a, F> {
+    fn is_shared(&self) -> bool {
+        match self {
+            DPolynomial(x) => x.is_shared(),
+            SPolynomial(x) => x.is_shared(),
+        }
+    }
+
     /// Checks if the given polynomial is zero.
     pub fn is_zero(&self) -> bool {
         match self {
@@ -103,31 +134,40 @@ impl<'a, F: Field> DenseOrSparsePolynomial<'a, F> {
         &self,
         divisor: &Self,
     ) -> Option<(DensePolynomial<F>, DensePolynomial<F>)> {
-        if self.is_zero() {
-            Some((DensePolynomial::zero(), DensePolynomial::zero()))
-        } else if divisor.is_zero() {
-            panic!("Dividing by zero polynomial")
-        } else if self.degree() < divisor.degree() {
-            Some((DensePolynomial::zero(), self.clone().into()))
+        let self_ = self.clone();
+        assert!(!divisor.is_shared());
+        let dividend_shared = self_.is_shared();
+        if dividend_shared {
+            assert!(F::has_univariate_div_qr(), "No poly share division alg");
+            F::univariate_div_qr(self.clone().into(), divisor.clone().into())
+                .map(|(a, b)| (a.into(), b.into()))
         } else {
-            // Now we know that self.degree() >= divisor.degree();
-            let mut quotient = vec![F::zero(); self.degree() - divisor.degree() + 1];
-            let mut remainder: DensePolynomial<F> = self.clone().into();
-            // Can unwrap here because we know self is not zero.
-            let divisor_leading_inv = divisor.leading_coefficient().unwrap().inverse().unwrap();
-            while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
-                let cur_q_coeff = *remainder.coeffs.last().unwrap() * divisor_leading_inv;
-                let cur_q_degree = remainder.degree() - divisor.degree();
-                quotient[cur_q_degree] = cur_q_coeff;
+            if self.is_zero() {
+                Some((DensePolynomial::zero(), DensePolynomial::zero()))
+            } else if divisor.is_zero() {
+                panic!("Dividing by zero polynomial")
+            } else if self.degree() < divisor.degree() {
+                Some((DensePolynomial::zero(), self.clone().into()))
+            } else {
+                // Now we know that self.degree() >= divisor.degree();
+                let mut quotient = vec![F::zero(); self.degree() - divisor.degree() + 1];
+                let mut remainder: DensePolynomial<F> = self.clone().into();
+                // Can unwrap here because we know self is not zero.
+                let divisor_leading_inv = divisor.leading_coefficient().unwrap().inverse().unwrap();
+                while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
+                    let cur_q_coeff = *remainder.coeffs.last().unwrap() * divisor_leading_inv;
+                    let cur_q_degree = remainder.degree() - divisor.degree();
+                    quotient[cur_q_degree] = cur_q_coeff;
 
-                for (i, div_coeff) in divisor.iter_with_index() {
-                    remainder[cur_q_degree + i] -= &(cur_q_coeff * div_coeff);
+                    for (i, div_coeff) in divisor.iter_with_index() {
+                        remainder[cur_q_degree + i] -= &(cur_q_coeff * div_coeff);
+                    }
+                    while let Some(true) = remainder.coeffs.last().map(|c| c.is_zero()) {
+                        remainder.coeffs.pop();
+                    }
                 }
-                while let Some(true) = remainder.coeffs.last().map(|c| c.is_zero()) {
-                    remainder.coeffs.pop();
-                }
+                Some((DensePolynomial::from_coefficients_vec(quotient), remainder))
             }
-            Some((DensePolynomial::from_coefficients_vec(quotient), remainder))
         }
     }
 }
@@ -147,18 +187,18 @@ impl<'a, F: 'a + FftField> DenseOrSparsePolynomial<'a, F> {
             SPolynomial(Cow::Borrowed(s)) => {
                 let evals = domain.elements().map(|elem| s.evaluate(&elem)).collect();
                 Evaluations::from_vec_and_domain(evals, domain)
-            }
+            },
             SPolynomial(Cow::Owned(s)) => {
                 let evals = domain.elements().map(|elem| s.evaluate(&elem)).collect();
                 Evaluations::from_vec_and_domain(evals, domain)
-            }
+            },
             DPolynomial(Cow::Borrowed(d)) => {
                 Evaluations::from_vec_and_domain(domain.fft(&d.coeffs), domain)
-            }
+            },
             DPolynomial(Cow::Owned(mut d)) => {
                 domain.fft_in_place(&mut d.coeffs);
                 Evaluations::from_vec_and_domain(d.coeffs, domain)
-            }
+            },
         }
     }
 }

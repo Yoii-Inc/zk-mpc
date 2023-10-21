@@ -276,7 +276,7 @@ where
             Ok(ge) => {
                 let ge: TEAffine<P> = ge.into();
                 (Ok(ge.x), Ok(ge.y))
-            }
+            },
             _ => (
                 Err(SynthesisError::AssignmentMissing),
                 Err(SynthesisError::AssignmentMissing),
@@ -335,7 +335,7 @@ where
                 .iter()
                 .zip(segment_powers.borrow())
             {
-                let base_power = base_power.borrow();
+                let base_power = base_power;
                 let mut acc_power = *base_power;
                 let mut coords = vec![];
                 for _ in 0..4 {
@@ -654,7 +654,7 @@ where
                     ge.enforce_equal(&ge)?;
                     Ok(ge)
                 }
-            }
+            },
         }
     }
 }

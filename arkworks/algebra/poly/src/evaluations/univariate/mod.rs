@@ -1,8 +1,7 @@
 //! A univariate polynomial represented in evaluations form.
 
-use crate::univariate::DensePolynomial;
-use crate::{EvaluationDomain, GeneralEvaluationDomain, UVPolynomial};
-use ark_ff::{batch_inversion, FftField};
+use crate::{univariate::DensePolynomial, EvaluationDomain, GeneralEvaluationDomain, UVPolynomial};
+use ark_ff::{batch_inversion, FftField, Field};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::{
     io::{Read, Write},
@@ -19,7 +18,7 @@ pub struct Evaluations<F: FftField, D: EvaluationDomain<F> = GeneralEvaluationDo
     /// The evaluations of a polynomial over the domain `D`
     pub evals: Vec<F>,
     #[doc(hidden)]
-    domain: D,
+    pub domain: D,
 }
 
 impl<F: FftField, D: EvaluationDomain<F>> Evaluations<F, D> {
@@ -73,9 +72,7 @@ impl<'a, F: FftField, D: EvaluationDomain<F>> MulAssign<&'a Evaluations<F, D>>
     #[inline]
     fn mul_assign(&mut self, other: &'a Evaluations<F, D>) {
         assert_eq!(self.domain, other.domain, "domains are unequal");
-        ark_std::cfg_iter_mut!(self.evals)
-            .zip(&other.evals)
-            .for_each(|(a, b)| *a *= b);
+        <F as Field>::batch_product_in_place(&mut self.evals, &other.evals);
     }
 }
 
@@ -148,10 +145,6 @@ impl<'a, F: FftField, D: EvaluationDomain<F>> DivAssign<&'a Evaluations<F, D>>
     #[inline]
     fn div_assign(&mut self, other: &'a Evaluations<F, D>) {
         assert_eq!(self.domain, other.domain, "domains are unequal");
-        let mut other_copy = other.clone();
-        batch_inversion(other_copy.evals.as_mut_slice());
-        ark_std::cfg_iter_mut!(self.evals)
-            .zip(&other_copy.evals)
-            .for_each(|(a, b)| *a *= b);
+        <F as Field>::batch_division_in_place(&mut self.evals, &other.evals);
     }
 }

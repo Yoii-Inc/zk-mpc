@@ -191,6 +191,7 @@ impl<'a, P: Parameters> AddAssign<&'a Self> for GroupAffine<P> {
         *self = s_proj.into();
     }
 }
+impl<P: Parameters> mpc_trait::MpcWire for GroupAffine<P> {}
 
 impl<P: Parameters> AffineCurve for GroupAffine<P> {
     const COFACTOR: &'static [u64] = P::COFACTOR;
@@ -496,6 +497,8 @@ impl<P: Parameters> Zero for GroupProjective<P> {
         self.z.is_zero()
     }
 }
+
+impl<P: Parameters> mpc_trait::MpcWire for GroupProjective<P> {}
 
 impl<P: Parameters> ProjectiveCurve for GroupProjective<P> {
     const COFACTOR: &'static [u64] = P::COFACTOR;
