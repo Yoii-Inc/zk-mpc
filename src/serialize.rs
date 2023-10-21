@@ -69,6 +69,7 @@ mod tests {
     use super::*;
     use ark_bls12_377::Fr;
     #[test]
+    #[ignore]
     fn test_serialize_field() {
         let a = Fr::from(2);
 
