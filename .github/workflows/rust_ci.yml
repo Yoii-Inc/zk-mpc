@@ -14,7 +14,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
+        toolchain: stable
         override: true
 
     - name: Check formatting
@@ -32,7 +32,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
+        toolchain: stable
         override: true
 
     - name: Run tests
@@ -50,7 +50,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
+        toolchain: stable
         override: true
 
     - name: Run cargo fix and check for changes
