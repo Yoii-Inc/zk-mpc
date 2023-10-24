@@ -14,6 +14,9 @@ use ark_crypto_primitives::{
 };
 
 use ark_ed_on_bls12_377::{constraints::EdwardsVar, EdwardsParameters};
+use mpc_algebra::{
+    AdditiveFieldShare, MpcEdwardsParameters, MpcEdwardsProjective, MpcEdwardsVar, MpcField,
+};
 
 pub type JubJub = ark_ed_on_bls12_377::EdwardsProjective;
 
@@ -137,6 +140,94 @@ impl ConstraintSynthesizer<Fr> for PedersenComsCircuit {
 
             circuit.generate_constraints(cs.clone())?;
         }
+        Ok(())
+    }
+}
+
+type MFr = MpcField<Fr, AdditiveFieldShare<Fr>>;
+pub type MpcJubJub = MpcEdwardsProjective;
+pub type MpcPedersenComScheme = Commitment<MpcJubJub, Window>;
+pub type MpcPedersenParam = <MpcPedersenComScheme as CommitmentScheme>::Parameters;
+pub type MpcPedersenRandomness = Randomness<MpcJubJub>;
+pub type MpcPedersenCommitment = <MpcPedersenComScheme as CommitmentScheme>::Output;
+
+pub type MpcPedersenComSchemeVar = CommGadget<MpcJubJub, MpcEdwardsVar, Window>;
+pub type MpcPedersenParamVar<ConstraintF> =
+    <MpcPedersenComSchemeVar as CommitmentGadget<MpcPedersenComScheme, ConstraintF>>::ParametersVar;
+pub type MpcPedersenRandomnessVar<ConstraintF> =
+    <MpcPedersenComSchemeVar as CommitmentGadget<MpcPedersenComScheme, ConstraintF>>::RandomnessVar;
+pub type MpcPedersenCommitmentVar<ConstraintF> =
+    AffineVar<MpcEdwardsParameters, FpVar<ConstraintF>>;
+
+#[derive(Clone)]
+pub struct MpcPedersenComCircuit {
+    pub param: MpcPedersenParam,
+    pub input: MFr,
+    pub open: MpcPedersenRandomness,
+    pub commit: MpcPedersenCommitment,
+}
+
+impl ConstraintSynthesizer<MFr> for MpcPedersenComCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<MFr>) -> Result<(), SynthesisError> {
+        #[cfg(debug_assertions)]
+        println!("is setup mode?: {}", cs.is_in_setup_mode());
+        let _cs_no = cs.num_constraints();
+
+        // step 1. Allocate Parameters for perdersen commitment
+        let param_var =
+            MpcPedersenParamVar::new_input(ark_relations::ns!(cs, "gadget_parameters"), || {
+                Ok(&self.param)
+            })
+            .unwrap();
+        let _cs_no = cs.num_constraints() - _cs_no;
+        #[cfg(debug_assertions)]
+        println!("cs for parameters: {}", _cs_no);
+        let _cs_no = cs.num_constraints();
+
+        // step 2. Allocate inputs
+        let input_var = FpVar::new_witness(cs.clone(), || Ok(self.input))?;
+        let input_var_byte = input_var.to_bytes()?;
+
+        let _cs_no = cs.num_constraints() - _cs_no;
+        #[cfg(debug_assertions)]
+        println!("cs for account: {}", _cs_no);
+        let _cs_no = cs.num_constraints();
+
+        // step 3. Allocate the opening
+        let open_var = MpcPedersenRandomnessVar::new_witness(
+            ark_relations::ns!(cs, "gadget_randomness"),
+            || Ok(&self.open),
+        )
+        .unwrap();
+
+        let _cs_no = cs.num_constraints() - _cs_no;
+        #[cfg(debug_assertions)]
+        println!("cs for opening: {}", _cs_no);
+        let _cs_no = cs.num_constraints();
+
+        // step 4. Allocate the output
+        let result_var =
+            MpcPedersenComSchemeVar::commit(&param_var, &input_var_byte, &open_var).unwrap();
+
+        let _cs_no = cs.num_constraints() - _cs_no;
+        #[cfg(debug_assertions)]
+        println!("cs for commitment: {}", _cs_no);
+        let _cs_no = cs.num_constraints();
+
+        // circuit to compare the commited value with supplied value
+        let commitment_var2 = MpcPedersenCommitmentVar::new_input(
+            ark_relations::ns!(cs, "gadget_commitment"),
+            || Ok(self.commit),
+        )
+        .unwrap();
+        result_var.enforce_equal(&commitment_var2).unwrap();
+
+        let _cs_no = cs.num_constraints() - _cs_no;
+        #[cfg(debug_assertions)]
+        println!("cs for comparison: {}", _cs_no);
+
+        #[cfg(debug_assertions)]
+        println!("total cs for Commitment: {}", cs.num_constraints());
         Ok(())
     }
 }
