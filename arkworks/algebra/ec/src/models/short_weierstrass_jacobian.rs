@@ -13,7 +13,7 @@ use ark_std::{
 use ark_ff::{
     bytes::{FromBytes, ToBytes},
     fields::{BitIteratorBE, Field, PrimeField, SquareRootField},
-    ToConstraintField, UniformRand,
+    PubUniformRand, ToConstraintField, UniformRand,
 };
 
 use crate::{models::SWModelParameters as Parameters, AffineCurve, ProjectiveCurve};
@@ -352,6 +352,8 @@ impl<'a, P: Parameters> core::iter::Sum<&'a Self> for GroupAffine<P> {
     }
 }
 
+impl<P: Parameters> PubUniformRand for GroupAffine<P> {}
+
 mod group_impl {
     use super::*;
     use crate::group::Group;
@@ -432,6 +434,8 @@ impl<P: Parameters> Distribution<GroupProjective<P>> for Standard {
         }
     }
 }
+
+impl<P: Parameters> PubUniformRand for GroupProjective<P> {}
 
 impl<P: Parameters> ToBytes for GroupProjective<P> {
     #[inline]
