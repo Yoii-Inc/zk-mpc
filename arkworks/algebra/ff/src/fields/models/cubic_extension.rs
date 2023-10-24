@@ -23,7 +23,7 @@ use ark_std::rand::{
 use crate::{
     bytes::{FromBytes, ToBytes},
     fields::{Field, PrimeField},
-    PubUniformRand, ToConstraintField, UniformRand,
+    ToConstraintField, UniformRand,
 };
 
 pub trait CubicExtParameters: 'static + Send + Sync {
@@ -454,8 +454,6 @@ impl<P: CubicExtParameters> Distribution<CubicExtField<P>> for Standard {
         )
     }
 }
-
-impl<P: CubicExtParameters> PubUniformRand for CubicExtField<P> {}
 
 impl<'a, P: CubicExtParameters> Add<&'a CubicExtField<P>> for CubicExtField<P> {
     type Output = Self;

@@ -18,8 +18,6 @@ rayon = { version = "1", optional = true }
 colored = { version = "2", optional = true }
 num-traits = { version = "0.2", default-features = false }
 
-mpc-trait = {path = "../../mpc-trait" }
-
 [features]
 default = [ "std" ]
 std = []
