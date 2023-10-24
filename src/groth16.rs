@@ -5,7 +5,7 @@ mod tests {
     use ark_snark::SNARK;
     use ark_std::UniformRand;
 
-    use super::super::circuit::MyCircuit;
+    use super::super::circuits::circuit::MyCircuit;
 
     #[test]
     fn test_single() {

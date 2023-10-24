@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
 mod algebra;
-mod circuit;
+mod circuits;
 mod groth16;
-mod input_circuit;
 mod marlin;
 mod preprocessing;
 mod serialize;
@@ -27,6 +26,7 @@ use std::io::Write as Otherwrite;
 
 use structopt::StructOpt;
 
+use crate::circuits::*;
 use crate::serialize::write_to_file;
 
 #[derive(Debug, StructOpt)]
@@ -142,10 +142,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let upper_bound = Fr::from(7);
 
     // // Pedersen commitment
-    let params = input_circuit::PedersenComScheme::setup(&mut rng).unwrap();
-    let randomness = input_circuit::PedersenRandomness::rand(&mut rng);
+    let params = PedersenComScheme::setup(&mut rng).unwrap();
+    let randomness = PedersenRandomness::rand(&mut rng);
     let x_bytes = x.into_repr().to_bytes_le();
-    let h_x = input_circuit::PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
+    let h_x = PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
 
     let circuit = input_circuit::MySecretInputCircuit::new(
         x,
@@ -215,7 +215,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
-    let deserialized_h_x: input_circuit::PedersenCommitment =
+    let deserialized_h_x: PedersenCommitment =
         ark_ec::models::twisted_edwards_extended::GroupAffine::deserialize(reader).unwrap();
 
     assert_eq!(h_x, deserialized_h_x);

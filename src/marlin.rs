@@ -5,7 +5,7 @@ use ark_std::{end_timer, start_timer, test_rng};
 use blake2::Blake2s;
 use mpc_algebra::*;
 
-use crate::circuit::MyCircuit;
+use crate::circuits::circuit::MyCircuit;
 
 pub type MpcField<F> = wire::field::MpcField<F, AdditiveFieldShare<F>>;
 // pub type MpcGroup<G> = group::MpcGroup<G, AdditiveGroupShare<G, NaiveMsm<G>>>;
