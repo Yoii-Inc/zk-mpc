@@ -54,7 +54,7 @@ pub trait FieldShare<F: Field>:
 
     fn scale(&mut self, other: &F) -> &mut Self;
 
-    fn mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
+    fn beaver_mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
         let (mut x, mut y, z) = source.triple();
 
         let s = self;
@@ -119,7 +119,7 @@ pub trait FieldShare<F: Field>:
 
     fn inv<S: BeaverSource<Self, Self, Self>>(self, source: &mut S) -> Self {
         let (x, mut y) = source.inv_pair();
-        let xa = x.mul(self, source).open().inverse().unwrap();
+        let xa = x.beaver_mul(self, source).open().inverse().unwrap();
         *y.scale(&xa)
     }
 
@@ -138,9 +138,9 @@ pub trait FieldShare<F: Field>:
             .collect()
     }
 
-    fn div<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
+    fn beaver_div<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
         let o_inv = other.inv(source);
-        self.mul(o_inv, source)
+        self.beaver_mul(o_inv, source)
     }
 
     fn batch_div<S: BeaverSource<Self, Self, Self>>(
