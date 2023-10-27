@@ -356,7 +356,7 @@ impl<'a, F: Field, S: FieldShare<F>> MulAssign<&'a MpcField<F, S>> for MpcField<
 
                     let mut source = DummyFieldTripleSource::<F, S>::default();
 
-                    let t = a.mul(*b, &mut source);
+                    let t = a.beaver_mul(*b, &mut source);
                     *self = MpcField::Shared(t);
                 }
             },
@@ -406,7 +406,7 @@ impl<'a, F: Field, S: FieldShare<F>> DivAssign<&'a MpcField<F, S>> for MpcField<
                 MpcField::Shared(b) => {
                     // TODO implement correctly by using beaver triples
                     let src = &mut DummyFieldTripleSource::default();
-                    *a = a.div(*b, src);
+                    *a = a.beaver_div(*b, src);
                 }
             },
         }
