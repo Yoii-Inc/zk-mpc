@@ -1,11 +1,13 @@
+use ark_crypto_primitives::CommitmentScheme;
+use ark_ff::{BigInteger, PrimeField};
 use ark_marlin::{ahp::prover::*, *};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
-use ark_std::{end_timer, start_timer, test_rng};
+use ark_std::{end_timer, start_timer, test_rng, UniformRand};
 use blake2::Blake2s;
 use mpc_algebra::*;
 
-use crate::circuits::circuit::MyCircuit;
+use crate::circuits::{circuit::MyCircuit, LocalOrMPC, PedersenComCircuit};
 
 pub type MpcField<F> = wire::field::MpcField<F, AdditiveFieldShare<F>>;
 // pub type MpcGroup<G> = group::MpcGroup<G, AdditiveGroupShare<G, NaiveMsm<G>>>;
@@ -119,6 +121,54 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
         let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
         assert!(is_valid);
         let is_valid = LocalMarlin::verify(&index_vk, &[public_a], &proof, rng).unwrap();
+        assert!(!is_valid);
+    }
+}
+
+pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
+    let rng = &mut test_rng();
+
+    let srs = LocalMarlin::universal_setup(100, 50, 100, rng).unwrap();
+    println!("srs: {srs:?}");
+    let empty_circuit: PedersenComCircuit<Fr> = PedersenComCircuit {
+        param: None,
+        input: None,
+        open: None,
+        commit: None,
+    };
+
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit).unwrap();
+    let mpc_index_pk = IndexProverKey::from_public(index_pk);
+
+    for _ in 0..n_iters {
+        // generate the setup parameters
+        let x = MFr::Public(Fr::from(4));
+
+        // Pedersen commitment
+        let params = <MFr as LocalOrMPC<MFr>>::PedersenComScheme::setup(rng).unwrap();
+        let randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng);
+        let x_bytes = x.unwrap_as_public().into_repr().to_bytes_le();
+        let h_x =
+            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness)
+                .unwrap();
+
+        let circuit = PedersenComCircuit {
+            param: Some(params.clone()),
+            input: Some(x),
+            open: Some(randomness.clone()),
+            commit: Some(h_x),
+        };
+        let inputs = vec![h_x.reveal()];
+        // let invalid_inputs = None;
+
+        // prove
+        let mpc_proof = MpcMarlin::prove(&mpc_index_pk, circuit, rng).unwrap();
+        let proof = pf_publicize(mpc_proof);
+
+        // verify
+        let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
+        assert!(is_valid);
+        let is_valid = LocalMarlin::verify(&index_vk, &invalid_inputs, &proof, rng).unwrap();
         assert!(!is_valid);
     }
 }
