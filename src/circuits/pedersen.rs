@@ -95,8 +95,8 @@ impl LocalOrMPC<MFr> for MFr {
     type PedersenCommitmentVar = AffineVar<MpcEdwardsParameters, FpVar<MFr>>;
 }
 
-pub const PERDERSON_WINDOW_SIZE: usize = 100;
-pub const PERDERSON_WINDOW_NUM: usize = 256;
+pub const PERDERSON_WINDOW_SIZE: usize = 8;
+pub const PERDERSON_WINDOW_NUM: usize = 32;
 
 #[derive(Clone)]
 pub struct Window;
@@ -123,8 +123,7 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for PedersenComCirc
         let param_var =
             F::PedersenParamVar::new_input(ark_relations::ns!(cs, "gadget_parameters"), || {
                 self.param.ok_or(SynthesisError::AssignmentMissing)
-            })
-            .unwrap();
+            })?;
         let _cs_no = cs.num_constraints() - _cs_no;
         #[cfg(debug_assertions)]
         println!("cs for parameters: {}", _cs_no);
@@ -145,8 +144,7 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for PedersenComCirc
         let open_var = F::PedersenRandomnessVar::new_witness(
             ark_relations::ns!(cs, "gadget_randomness"),
             || self.open.ok_or(SynthesisError::AssignmentMissing),
-        )
-        .unwrap();
+        )?;
 
         let _cs_no = cs.num_constraints() - _cs_no;
         #[cfg(debug_assertions)]
@@ -154,8 +152,7 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for PedersenComCirc
         let _cs_no = cs.num_constraints();
 
         // step 4. Allocate the output
-        let result_var =
-            F::PedersenComSchemeVar::commit(&param_var, &input_var_byte, &open_var).unwrap();
+        let result_var = F::PedersenComSchemeVar::commit(&param_var, &input_var_byte, &open_var)?;
 
         let _cs_no = cs.num_constraints() - _cs_no;
         #[cfg(debug_assertions)]
@@ -166,9 +163,8 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for PedersenComCirc
         let commitment_var2 = F::PedersenCommitmentVar::new_input(
             ark_relations::ns!(cs, "gadget_commitment"),
             || self.commit.ok_or(SynthesisError::AssignmentMissing),
-        )
-        .unwrap();
-        result_var.enforce_equal(&commitment_var2).unwrap();
+        )?;
+        result_var.enforce_equal(&commitment_var2)?;
 
         let _cs_no = cs.num_constraints() - _cs_no;
         #[cfg(debug_assertions)]

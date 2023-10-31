@@ -4,7 +4,11 @@ use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisE
 
 use std::cmp::Ordering;
 
-use super::{PedersenComCircuit, PedersenCommitment, PedersenParam, PedersenRandomness};
+use super::{LocalOrMPC, PedersenComCircuit};
+
+type PedersenCommitment = <Fr as LocalOrMPC<Fr>>::PedersenCommitment;
+type PedersenParam = <Fr as LocalOrMPC<Fr>>::PedersenParam;
+type PedersenRandomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness;
 
 #[derive(Clone)]
 pub struct MySecretInputCircuit {
@@ -59,10 +63,10 @@ impl MySecretInputCircuit {
 
     fn verify_commitment(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         let x_com_circuit = PedersenComCircuit {
-            param: self.params.clone().unwrap(),
-            input: self.x.unwrap(),
-            open: self.randomness.clone().unwrap(),
-            commit: self.h_x.unwrap(),
+            param: self.params.clone(),
+            input: self.x,
+            open: self.randomness.clone(),
+            commit: self.h_x,
         };
 
         x_com_circuit.generate_constraints(cs.clone())?;
@@ -94,7 +98,7 @@ mod tests {
     use ark_std::UniformRand;
     use blake2::Blake2s;
 
-    use crate::circuits::PedersenComScheme;
+    type PedersenComScheme = <Fr as LocalOrMPC<Fr>>::PedersenComScheme;
 
     use super::*;
 

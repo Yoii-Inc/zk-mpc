@@ -168,8 +168,8 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
             open: Some(randomness.clone()),
             commit: Some(h_x),
         };
-        let inputs = vec![h_x.reveal()];
-        // let invalid_inputs = None;
+        let inputs = vec![h_x.x.reveal(), h_x.y.reveal()];
+        let invalid_inputs = vec![h_x.y.reveal(), h_x.x.reveal()];
 
         // prove
         let mpc_proof = MpcMarlin::prove(&mpc_index_pk, circuit, rng).unwrap();
