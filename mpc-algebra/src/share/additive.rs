@@ -15,7 +15,7 @@ use ark_std::UniformRand;
 use derivative::Derivative;
 
 use crate::reveal::Reveal;
-use crate::{DenseOrSparsePolynomial, DensePolynomial, SparsePolynomial};
+use crate::{DenseOrSparsePolynomial, DensePolynomial, Msm, SparsePolynomial};
 
 use crate::channel::MpcSerNet;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
@@ -219,11 +219,12 @@ impl<F: Field> ExtFieldShare<F> for MulExtFieldShare<F> {
     Ord(bound = "T: Ord"),
     Hash(bound = "T: Hash")
 )]
-pub struct AdditiveGroupShare<T> {
+pub struct AdditiveGroupShare<T, M> {
     pub val: T,
+    _phants: PhantomData<M>,
 }
 
-impl<G: Group> Reveal for AdditiveGroupShare<G> {
+impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
     type Base = G;
 
     fn reveal(self) -> Self::Base {
@@ -231,12 +232,16 @@ impl<G: Group> Reveal for AdditiveGroupShare<G> {
     }
 
     fn from_add_shared(b: G) -> Self {
-        Self { val: b }
+        Self {
+            val: b,
+            _phants: PhantomData,
+        }
     }
 
     fn from_public(b: G) -> Self {
         Self {
             val: if Net::am_king() { b } else { G::zero() },
+            _phants: PhantomData,
         }
     }
 
@@ -247,22 +252,22 @@ impl<G: Group> Reveal for AdditiveGroupShare<G> {
 
 macro_rules! impl_group_basics {
     ($share:ident, $bound:ident) => {
-        impl<T: $bound> Debug for $share<T> {
+        impl<T: $bound, M> Debug for $share<T, M> {
             fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 todo!()
             }
         }
-        impl<T: $bound> ToBytes for $share<T> {
+        impl<T: $bound, M> ToBytes for $share<T, M> {
             fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
                 todo!()
             }
         }
-        impl<T: $bound> FromBytes for $share<T> {
+        impl<T: $bound, M> FromBytes for $share<T, M> {
             fn read<R: Read>(_reader: R) -> io::Result<Self> {
                 todo!()
             }
         }
-        impl<T: $bound> CanonicalSerialize for $share<T> {
+        impl<T: $bound, M> CanonicalSerialize for $share<T, M> {
             fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
                 todo!()
             }
@@ -271,7 +276,7 @@ macro_rules! impl_group_basics {
                 todo!()
             }
         }
-        impl<T: $bound> CanonicalSerializeWithFlags for $share<T> {
+        impl<T: $bound, M> CanonicalSerializeWithFlags for $share<T, M> {
             fn serialize_with_flags<W: Write, Fl: Flags>(
                 &self,
                 _writer: W,
@@ -284,19 +289,19 @@ macro_rules! impl_group_basics {
                 todo!()
             }
         }
-        impl<T: $bound> CanonicalDeserialize for $share<T> {
+        impl<T: $bound, M> CanonicalDeserialize for $share<T, M> {
             fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
                 todo!()
             }
         }
-        impl<T: $bound> CanonicalDeserializeWithFlags for $share<T> {
+        impl<T: $bound, M> CanonicalDeserializeWithFlags for $share<T, M> {
             fn deserialize_with_flags<R: Read, Fl: Flags>(
                 _reader: R,
             ) -> Result<(Self, Fl), SerializationError> {
                 todo!()
             }
         }
-        impl<T: $bound> UniformRand for $share<T> {
+        impl<T: $bound, M> UniformRand for $share<T, M> {
             fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
                 todo!()
             }
@@ -306,7 +311,7 @@ macro_rules! impl_group_basics {
 
 impl_group_basics!(AdditiveGroupShare, Group);
 
-impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
+impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G, M> {
     type FieldShare = AdditiveFieldShare<G::ScalarField>;
 
     fn add(&mut self, other: &Self) -> &mut Self {
@@ -316,7 +321,10 @@ impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
 
     fn scale_pub_group(mut base: G, scalar: &Self::FieldShare) -> Self {
         base *= scalar.val;
-        Self { val: base }
+        Self {
+            val: base,
+            _phants: PhantomData::default(),
+        }
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {
@@ -333,8 +341,9 @@ macro_rules! groups_share {
 
         impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
             type FrShare = AdditiveFieldShare<E::Fr>;
-            type AffineShare = AdditiveGroupShare<E::$affine>;
-            type ProjectiveShare = AdditiveGroupShare<E::$proj>;
+            type AffineShare = AdditiveGroupShare<E::$affine, super::msm::AffineMsm<E::$affine>>;
+            type ProjectiveShare =
+                AdditiveGroupShare<E::$proj, super::msm::ProjectiveMsm<E::$proj>>;
 
             fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
                 g.map_homo(|s| s.into())
@@ -383,10 +392,12 @@ impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
     type FqeShare = AdditiveExtFieldShare<E::Fqe>;
     // Not a typo. We want a multiplicative subgroup.
     type FqkShare = MulExtFieldShare<E::Fqk>;
-    type G1AffineShare = AdditiveGroupShare<E::G1Affine>;
-    type G2AffineShare = AdditiveGroupShare<E::G2Affine>;
-    type G1ProjectiveShare = AdditiveGroupShare<E::G1Projective>;
-    type G2ProjectiveShare = AdditiveGroupShare<E::G2Projective>;
+    type G1AffineShare = AdditiveGroupShare<E::G1Affine, super::msm::AffineMsm<E::G1Affine>>;
+    type G2AffineShare = AdditiveGroupShare<E::G2Affine, super::msm::AffineMsm<E::G2Affine>>;
+    type G1ProjectiveShare =
+        AdditiveGroupShare<E::G1Projective, super::msm::ProjectiveMsm<E::G1Projective>>;
+    type G2ProjectiveShare =
+        AdditiveGroupShare<E::G2Projective, super::msm::ProjectiveMsm<E::G2Projective>>;
 
     type G1 = AdditiveG1Share<E>;
     type G2 = AdditiveG2Share<E>;
