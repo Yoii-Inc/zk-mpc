@@ -21,7 +21,7 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::{BeaverSource, Reveal};
+use crate::{AdditiveFieldShare, BeaverSource, Reveal};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -568,6 +568,10 @@ impl<F: Field, S: FieldShare<F>> MpcWire for MpcField<F, S> {
 impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     type BasePrimeField = Self;
 
+    fn characteristic() -> &'static [u64] {
+        F::characteristic()
+    }
+
     fn extension_degree() -> u64 {
         todo!()
     }
@@ -577,11 +581,12 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn double(&self) -> Self {
-        todo!()
+        Self::Public(F::from(2u8)) * self
     }
 
     fn double_in_place(&mut self) -> &mut Self {
-        todo!()
+        *self *= Self::Public(F::from(2u8));
+        self
     }
 
     fn from_random_bytes_with_flags<Fl: ark_serialize::Flags>(_bytes: &[u8]) -> Option<(Self, Fl)> {
@@ -589,7 +594,7 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn square(&self) -> Self {
-        todo!()
+        self.clone() * self
     }
 
     fn square_in_place(&mut self) -> &mut Self {
@@ -778,13 +783,34 @@ impl<F: PrimeField, S: FieldShare<F>> PrimeField for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> SquareRootField for MpcField<F, S> {
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> SquareRootField for MpcField<F, S> {
     fn legendre(&self) -> ark_ff::LegendreSymbol {
         todo!()
     }
 
     fn sqrt(&self) -> Option<Self> {
-        todo!()
+        // todo!()
+        // TODO implement correctly.
+
+        let is_shared = self.is_shared();
+        let val = self.unwrap_as_public();
+
+        match val.sqrt() {
+            Some(sqrt) => {
+                if is_shared {
+                    Some(Self::from_add_shared(sqrt))
+                } else {
+                    Some(Self::from_public(sqrt))
+                }
+            }
+            None => None,
+        }
+
+        // if is_shared {
+        //     Some(Self::from_add_shared(sqrt.unwrap()))
+        // } else {
+        //     Some(Self::from_public(sqrt.unwrap()))
+        // }
     }
 
     fn sqrt_in_place(&mut self) -> Option<&mut Self> {

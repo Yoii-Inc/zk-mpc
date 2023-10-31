@@ -3,7 +3,8 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_marlin::{ahp::prover::*, *};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
-use ark_std::{end_timer, start_timer, test_rng, UniformRand};
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
+use ark_std::{end_timer, start_timer, test_rng, PubUniformRand, UniformRand};
 use blake2::Blake2s;
 use mpc_algebra::*;
 
@@ -128,13 +129,22 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
 pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
     let rng = &mut test_rng();
 
-    let srs = LocalMarlin::universal_setup(100, 50, 100, rng).unwrap();
-    println!("srs: {srs:?}");
-    let empty_circuit: PedersenComCircuit<Fr> = PedersenComCircuit {
-        param: None,
-        input: None,
-        open: None,
-        commit: None,
+    let srs = LocalMarlin::universal_setup(50000, 250, 300, rng).unwrap();
+
+    let x = Fr::from(4);
+
+    // Pedersen commitment
+    let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+    let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
+    let x_bytes = x.into_repr().to_bytes_le();
+    let h_x =
+        <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
+
+    let empty_circuit = PedersenComCircuit {
+        param: Some(params.clone()),
+        input: Some(x),
+        open: Some(randomness.clone()),
+        commit: Some(h_x),
     };
 
     let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit).unwrap();
@@ -146,7 +156,7 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
 
         // Pedersen commitment
         let params = <MFr as LocalOrMPC<MFr>>::PedersenComScheme::setup(rng).unwrap();
-        let randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng);
+        let randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::pub_rand(rng);
         let x_bytes = x.unwrap_as_public().into_repr().to_bytes_le();
         let h_x =
             <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness)
