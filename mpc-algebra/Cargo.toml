@@ -14,6 +14,7 @@ ark-std = { path = "../arkworks/std", version = "0.3.0", features = ["std", "pri
 ark-r1cs-std = { path = "../arkworks/r1cs-std", version = "0.3.0", default-features = false, optional = true }
 
 ark-bls12-377 = { path = "../arkworks/curves/bls12_377", version = "0.3.0" }
+ark-ed-on-bls12-377 = { path = "../arkworks/curves/ed_on_bls12_377", version = "0.3.0" }
 
 rand = "0.8.5"
 num-bigint = { version = "0.4.3", features = ["rand"] }

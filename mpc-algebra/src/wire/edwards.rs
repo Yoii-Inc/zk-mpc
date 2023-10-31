@@ -2,16 +2,16 @@ use ark_ec::{
     twisted_edwards_extended::GroupProjective, ModelParameters, MontgomeryModelParameters,
     TEModelParameters,
 };
-use ark_ff::{field_new, BigInteger256, BigInteger384};
+use ark_ff::{field_new, BigInteger256};
 
 use ark_r1cs_std::{fields::fp::FpVar, groups::curves::twisted_edwards::AffineVar};
 
 use crate::{AdditiveFieldShare, MpcField};
 
 // Scalar for ed
-type Fr = MpcField<ark_bls12_377::Fq, AdditiveFieldShare<ark_bls12_377::Fq>>;
+type Fr = MpcField<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>;
 
-impl From<Fr> for BigInteger384 {
+impl From<Fr> for BigInteger256 {
     fn from(f: Fr) -> Self {
         todo!()
     }
@@ -91,21 +91,12 @@ impl Fr {
     pub const fn const_from_str(
         limbs: &[u64],
         is_positive: bool,
-        r2: BigInteger384,
-        modulus: BigInteger384,
+        r2: BigInteger256,
+        modulus: BigInteger256,
         inv: u64,
     ) -> Self {
-        todo!()
-    }
-
-    #[inline]
-    pub(crate) const fn const_from_repr(
-        repr: BigInteger384,
-        r2: BigInteger384,
-        modulus: BigInteger384,
-        inv: u64,
-    ) -> Self {
-        todo!()
+        let val = ark_ed_on_bls12_377::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
+        Self::Public(val)
     }
 }
 
@@ -122,36 +113,8 @@ impl Fq {
         modulus: BigInteger256,
         inv: u64,
     ) -> Self {
-        let mut repr = BigInteger256([0; 4]);
-        let mut i = 0;
-        while i < limbs.len() {
-            repr.0[i] = limbs[i];
-            i += 1;
-        }
-        let res = Self::const_from_repr(repr, r2, modulus, inv);
-        if is_positive {
-            res
-        } else {
-            //res.const_neg(modulus)
-            todo!()
-        }
-    }
-
-    #[inline]
-    pub(crate) const fn const_from_repr(
-        repr: BigInteger256,
-        r2: BigInteger256,
-        modulus: BigInteger256,
-        inv: u64,
-    ) -> Self {
-        let mut r = Self::Public(ark_bls12_377::Fr::new(repr));
-        // if r.const_is_zero() {
-        //     r
-        // } else {
-        //     r = r.const_mul(&$Fp(r2, PhantomData), modulus, inv);
-        //     r
-        // }
-        r
+        let val = ark_bls12_377::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
+        Self::Public(val)
     }
 }
 
