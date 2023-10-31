@@ -134,8 +134,8 @@ impl<G: Group, S: GroupShare<G>> UniformRand for MpcGroup<G, S> {
 }
 
 impl<G: Group, S: GroupShare<G>> PubUniformRand for MpcGroup<G, S> {
-    fn pub_rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
-        todo!()
+    fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+        Self::Public(<G as PubUniformRand>::pub_rand(rng))
     }
 }
 
