@@ -127,47 +127,60 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
 }
 
 pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
+    // setup
     let rng = &mut test_rng();
 
-    let srs = LocalMarlin::universal_setup(50000, 250, 300, rng).unwrap();
-
-    let x = Fr::from(4);
+    let srs = LocalMarlin::universal_setup(50000, 50, 100, rng).unwrap();
 
     // Pedersen commitment
+    //// commom parameter
     let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
-    let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
+
+    //// input
+    let x = Fr::from(4);
     let x_bytes = x.into_repr().to_bytes_le();
-    let h_x =
+
+    //// randomness
+    let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
+
+    //// commitment
+    let h_x_local =
         <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
 
     let empty_circuit = PedersenComCircuit {
         param: Some(params.clone()),
         input: Some(x),
         open: Some(randomness.clone()),
-        commit: Some(h_x),
+        commit: Some(h_x_local),
     };
 
     let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit).unwrap();
     let mpc_index_pk = IndexProverKey::from_public(index_pk);
 
     for _ in 0..n_iters {
-        // generate the setup parameters
-        let x = MFr::Public(Fr::from(4));
-
         // Pedersen commitment
-        let params = <MFr as LocalOrMPC<MFr>>::PedersenComScheme::setup(rng).unwrap();
+        //// commom parameter
+        let mpc_params = params.to_mpc();
+
+        //// input
+        let x = MFr::pub_rand(rng);
+        let x_bytes = x.into_repr().to_bytes_le();
+
+        //// randomness
         let randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::pub_rand(rng);
-        let x_bytes = x.unwrap_as_public().into_repr().to_bytes_le();
+
+        //// commitment
         let h_x =
-            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness)
+            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&mpc_params, &x_bytes, &randomness)
                 .unwrap();
 
         let circuit = PedersenComCircuit {
-            param: Some(params.clone()),
+            param: Some(mpc_params.clone()),
             input: Some(x),
             open: Some(randomness.clone()),
             commit: Some(h_x),
         };
+
         let inputs = vec![h_x.x.reveal(), h_x.y.reveal()];
         let invalid_inputs = vec![h_x.y.reveal(), h_x.x.reveal()];
 
