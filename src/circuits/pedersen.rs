@@ -95,8 +95,8 @@ impl LocalOrMPC<MFr> for MFr {
     type PedersenCommitmentVar = AffineVar<MpcEdwardsParameters, FpVar<MFr>>;
 }
 
-pub const PERDERSON_WINDOW_SIZE: usize = 8;
-pub const PERDERSON_WINDOW_NUM: usize = 32;
+pub const PERDERSON_WINDOW_SIZE: usize = 256;
+pub const PERDERSON_WINDOW_NUM: usize = 1;
 
 #[derive(Clone)]
 pub struct Window;
