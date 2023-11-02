@@ -12,6 +12,7 @@ ark-poly = { path = "../arkworks/algebra/poly", version = "0.3.0" }
 ark-serialize = { path = "../arkworks/algebra/serialize", version = "0.3.0" }
 ark-std = { path = "../arkworks/std", version = "0.3.0", features = ["std", "print-trace"] }
 ark-r1cs-std = { path = "../arkworks/r1cs-std", version = "0.3.0", default-features = false, optional = true }
+ark-crypto-primitives = { path = "../arkworks/crypto-primitives", version = "0.3.0" }
 
 ark-bls12-377 = { path = "../arkworks/curves/bls12_377", version = "0.3.0" }
 ark-ed-on-bls12-377 = { path = "../arkworks/curves/ed_on_bls12_377", version = "0.3.0" }

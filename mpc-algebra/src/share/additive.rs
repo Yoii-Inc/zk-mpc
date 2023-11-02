@@ -84,8 +84,10 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
         Self { val: b }
     }
 
-    fn from_public(_b: Self::Base) -> Self {
-        todo!()
+    fn from_public(f: Self::Base) -> Self {
+        Self {
+            val: if Net::am_king() { f } else { F::zero() },
+        }
     }
 
     fn unwrap_as_public(self) -> Self::Base {
@@ -94,6 +96,13 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
 }
 
 impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
+    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
+        let self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
+        let all_vals = Net::broadcast(&self_vec);
+        (0..self_vec.len())
+            .map(|i| all_vals.iter().map(|v| &v[i]).sum())
+            .collect()
+    }
     fn add(&mut self, other: &Self) -> &mut Self {
         self.val += &other.val;
         self
@@ -140,8 +149,8 @@ macro_rules! impl_field_basics {
             }
         }
         impl<T: $bound> ToBytes for $share<T> {
-            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
-                todo!()
+            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+                self.val.write(writer)
             }
         }
         impl<T: $bound> FromBytes for $share<T> {
@@ -332,6 +341,11 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
             self.val += other;
         }
         self
+    }
+
+    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
+        let scalars: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.val.clone()).collect();
+        Self::from_add_shared(M::msm(bases, &scalars))
     }
 }
 

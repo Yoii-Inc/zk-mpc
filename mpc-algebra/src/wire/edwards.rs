@@ -2,11 +2,12 @@ use ark_ec::{
     twisted_edwards_extended::GroupProjective, ModelParameters, MontgomeryModelParameters,
     TEModelParameters,
 };
+use ark_ed_on_bls12_377::{EdwardsParameters, EdwardsProjective};
 use ark_ff::{field_new, BigInteger256};
 
 use ark_r1cs_std::{fields::fp::FpVar, groups::curves::twisted_edwards::AffineVar};
 
-use crate::{AdditiveFieldShare, MpcField};
+use crate::{AdditiveFieldShare, MpcField, Reveal};
 
 // Scalar for ed
 type Fr = MpcField<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>;
@@ -120,3 +121,118 @@ impl Fq {
 
 pub type FqVar = FpVar<Fq>;
 pub type MpcEdwardsVar = AffineVar<MpcEdwardsParameters, FqVar>;
+
+pub trait ToLocal {
+    type Local;
+
+    // lift objects to local
+    fn to_local(&self) -> Self::Local;
+}
+
+pub trait ToMPC {
+    type MPC;
+
+    // lift objects to MPC
+    fn to_mpc(&self) -> Self::MPC;
+}
+
+impl ToLocal for GroupProjective<MpcEdwardsParameters> {
+    type Local = GroupProjective<ark_ed_on_bls12_377::EdwardsParameters>;
+    fn to_local(&self) -> GroupProjective<ark_ed_on_bls12_377::EdwardsParameters> {
+        let x = self.x.unwrap_as_public();
+        let y = self.y.unwrap_as_public();
+        let t = self.t.unwrap_as_public();
+        let z = self.z.unwrap_as_public();
+        GroupProjective::new(x, y, t, z)
+    }
+}
+use ark_crypto_primitives::commitment::pedersen::{Parameters, Randomness};
+
+impl ToLocal for Parameters<MpcEdwardsProjective> {
+    type Local = Parameters<ark_ed_on_bls12_377::EdwardsProjective>;
+
+    fn to_local(&self) -> Self::Local {
+        let randomness_generator = self
+            .randomness_generator
+            .iter()
+            .map(|x| x.to_local())
+            .collect::<Vec<_>>();
+        let generators = self
+            .generators
+            .iter()
+            .map(|vec_g| vec_g.iter().map(|g| g.to_local()).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+
+        Self::Local {
+            randomness_generator,
+            generators,
+        }
+    }
+}
+
+impl Reveal for MpcEdwardsProjective {
+    type Base = EdwardsProjective;
+
+    fn reveal(self) -> Self::Base {
+        let GroupProjective { x, y, t, z, .. } = self;
+        Self::Base::new(x.reveal(), y.reveal(), t.reveal(), z.reveal())
+    }
+
+    fn from_add_shared(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+
+    fn from_public(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+}
+
+impl Reveal for Randomness<MpcEdwardsProjective> {
+    type Base = Randomness<EdwardsProjective>;
+
+    fn reveal(self) -> Self::Base {
+        let Randomness(r) = self;
+        Randomness(r.reveal())
+    }
+
+    fn from_add_shared(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+
+    fn from_public(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+}
+
+impl ToMPC for GroupProjective<EdwardsParameters> {
+    type MPC = GroupProjective<MpcEdwardsParameters>;
+    fn to_mpc(&self) -> Self::MPC {
+        let x = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(self.x);
+        let y = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(self.y);
+        let t = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(self.t);
+        let z = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(self.z);
+        GroupProjective::new(x, y, t, z)
+    }
+}
+
+impl ToMPC for Parameters<EdwardsProjective> {
+    type MPC = Parameters<MpcEdwardsProjective>;
+
+    fn to_mpc(&self) -> Self::MPC {
+        let randomness_generator = self
+            .randomness_generator
+            .iter()
+            .map(|x| x.to_mpc())
+            .collect::<Vec<_>>();
+        let generators = self
+            .generators
+            .iter()
+            .map(|vec_g| vec_g.iter().map(|g| g.to_mpc()).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+
+        Self::MPC {
+            randomness_generator,
+            generators,
+        }
+    }
+}

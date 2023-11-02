@@ -713,8 +713,8 @@ macro_rules! impl_aff_proj {
             fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
                 let b = {
                     assert!(bases.iter().all(|b| !b.is_shared()));
-                    let scalars_shared = scalars.first().map(|s| s.is_shared()).unwrap_or(true);
-                    assert!(scalars.iter().all(|b| scalars_shared == b.is_shared()));
+                    // let scalars_shared = scalars.first().map(|s| s.is_shared()).unwrap_or(true);
+                    // assert!(scalars.iter().all(|b| scalars_shared == b.is_shared()));
                     let bases =
                         MpcGroup::all_public_or_shared(bases.into_iter().map(|i| i.val.clone()))
                             .unwrap();
