@@ -175,3 +175,90 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for PedersenComCirc
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ark_ff::BigInteger;
+    use ark_std::{test_rng, UniformRand};
+
+    type MFr = mpc_algebra::MpcField<Fr, mpc_algebra::AdditiveFieldShare<Fr>>;
+
+    #[test]
+    fn additivity_test_local() {
+        let rng = &mut test_rng();
+
+        let a = Fr::rand(rng);
+
+        let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
+        let randomness_a = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::rand(rng);
+
+        let a_bytes = a.into_repr().to_bytes_le();
+
+        let h_a =
+            <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &a_bytes, &randomness_a)
+                .unwrap();
+
+        let b = Fr::rand(rng);
+
+        let randomness_b = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::rand(rng);
+
+        let b_bytes = b.into_repr().to_bytes_le();
+
+        let h_b =
+            <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &b_bytes, &randomness_b)
+                .unwrap();
+
+        let sum = a + b;
+
+        let randomness = Randomness(randomness_a.0 + randomness_b.0);
+
+        let bytes = sum.into_repr().to_bytes_le();
+
+        let h_sum = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &bytes, &randomness)
+            .unwrap();
+
+        assert_eq!(h_a + h_b, h_sum)
+    }
+
+    #[test]
+    fn additivity_test_mpc() {
+        let rng = &mut test_rng();
+
+        let a = MFr::rand(rng);
+
+        let params = <MFr as LocalOrMPC<MFr>>::PedersenComScheme::setup(rng).unwrap();
+
+        let randomness_a = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng);
+
+        let a_bytes = a.into_repr().to_bytes_le();
+
+        let h_a =
+            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&params, &a_bytes, &randomness_a)
+                .unwrap();
+
+        let b = MFr::rand(rng);
+
+        let randomness_b = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng);
+
+        let b_bytes = b.into_repr().to_bytes_le();
+
+        let h_b =
+            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&params, &b_bytes, &randomness_b)
+                .unwrap();
+
+        let sum = a + b;
+
+        let randomness = Randomness(randomness_a.0 + randomness_b.0);
+
+        let bytes = sum.into_repr().to_bytes_le();
+
+        let h_sum =
+            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&params, &bytes, &randomness)
+                .unwrap();
+
+        assert_eq!(h_a + h_b, h_sum)
+    }
+}
