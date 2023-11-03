@@ -189,7 +189,7 @@ mod tests {
     fn additivity_test_local() {
         let rng = &mut test_rng();
 
-        let a = Fr::rand(rng);
+        let a = Fr::from(3);
 
         let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
@@ -201,7 +201,7 @@ mod tests {
             <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &a_bytes, &randomness_a)
                 .unwrap();
 
-        let b = Fr::rand(rng);
+        let b = Fr::from(4);
 
         let randomness_b = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::rand(rng);
 
@@ -211,6 +211,7 @@ mod tests {
             <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &b_bytes, &randomness_b)
                 .unwrap();
 
+        // Note: Do not exceed the modulus. break additivity
         let sum = a + b;
 
         let randomness = Randomness(randomness_a.0 + randomness_b.0);
@@ -227,7 +228,7 @@ mod tests {
     fn additivity_test_mpc() {
         let rng = &mut test_rng();
 
-        let a = MFr::rand(rng);
+        let a = MFr::Public(Fr::from(3));
 
         let params = <MFr as LocalOrMPC<MFr>>::PedersenComScheme::setup(rng).unwrap();
 
@@ -239,7 +240,7 @@ mod tests {
             <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&params, &a_bytes, &randomness_a)
                 .unwrap();
 
-        let b = MFr::rand(rng);
+        let b = MFr::Public(Fr::from(4));
 
         let randomness_b = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng);
 

@@ -5,7 +5,7 @@ mod tests {
     use ark_snark::SNARK;
     use ark_std::UniformRand;
 
-    use super::super::circuits::circuit::MyCircuit;
+    use super::super::circuits::circuit::MySimpleCircuit;
 
     #[test]
     fn test_single() {
@@ -17,7 +17,7 @@ mod tests {
         let mut c = a;
         c *= b;
 
-        let circuit = MyCircuit::<Fr> {
+        let circuit = MySimpleCircuit::<Fr> {
             a: Some(a),
             b: Some(b),
         };

@@ -159,7 +159,7 @@ mod tests {
     fn test_marlin() {
         let mut rng = rand::thread_rng();
 
-        let universal_srs = MarlinLocal::universal_setup(50000, 250, 300, &mut rng).unwrap();
+        let universal_srs = MarlinLocal::universal_setup(10000, 50, 100, &mut rng).unwrap();
 
         // generate the setup parameters
         let x = Fr::from(4);
