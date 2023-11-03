@@ -28,11 +28,11 @@ cargo build
 
 run(by groth16):
 ```
-cargo run groth16 ./inputs/inputs.json
+cargo run --bin main groth16 ./inputs/inputs.json
 ```
 or run(by marlin):
 ```
-cargo run marlin ./inputs/inputs.json
+cargo run --bin main marlin ./inputs/inputs.json
 ```
 
 ## Tests
