@@ -91,11 +91,11 @@ pub fn pf_publicize(
 type Fr = ark_bls12_377::Fr;
 type E = ark_bls12_377::Bls12_377;
 type ME = MpcPairingEngine<ark_bls12_377::Bls12_377>;
-type MFr = MpcField<Fr>;
+pub type MFr = MpcField<Fr>;
 type MpcMarlinKZG10 = MarlinKZG10<ME, DensePolynomial<MFr>>;
 type LocalMarlinKZG10 = MarlinKZG10<E, DensePolynomial<Fr>>;
-type LocalMarlin = Marlin<Fr, LocalMarlinKZG10, Blake2s>;
-type MpcMarlin = Marlin<MFr, MpcMarlinKZG10, Blake2s>;
+pub type LocalMarlin = Marlin<Fr, LocalMarlinKZG10, Blake2s>;
+pub type MpcMarlin = Marlin<MFr, MpcMarlinKZG10, Blake2s>;
 
 pub fn mpc_test_prove_and_verify(n_iters: usize) {
     let n = 2;
