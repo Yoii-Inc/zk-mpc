@@ -7,6 +7,7 @@ use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
 use ark_std::{end_timer, start_timer, test_rng, PubUniformRand, UniformRand};
 use blake2::Blake2s;
 use mpc_algebra::*;
+use mpc_net::{MpcMultiNet, MpcNet};
 
 use crate::circuits::{circuit::MyCircuit, LocalOrMPC, PedersenComCircuit};
 
@@ -269,5 +270,80 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
         assert!(is_valid);
         let is_valid = LocalMarlin::verify(&index_vk, &invalid_inputs, &proof, rng).unwrap();
         assert!(!is_valid);
+    }
+}
+
+pub fn mpc_test_each_commit(n_iters: usize) {
+    // setup
+    let rng = &mut test_rng();
+
+    let srs = LocalMarlin::universal_setup(5000, 50, 100, rng).unwrap();
+
+    // Pedersen commitment
+    //// commom parameter
+    let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
+    //// input(parent)
+    let mut share_x = [Fr::from(3), Fr::from(8), Fr::from(20)];
+    let x: Fr = share_x.iter().sum();
+    let x_bytes = x.into_repr().to_bytes_le();
+
+    //// randomness(parent)
+    let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::default();
+
+    //// commitment(parent)
+    let h_x_local =
+        <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
+
+    let empty_circuit = PedersenComCircuit {
+        param: Some(params.clone()),
+        input: Some(x),
+        open: Some(randomness.clone()),
+        commit: Some(h_x_local),
+    };
+
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit).unwrap();
+
+    for _ in 0..n_iters {
+        // Pedersen commitment
+        //// input(child)
+        let n = MpcMultiNet::party_id();
+        let commitment = {
+            // println!("party id is: {}", n);
+
+            let x = share_x[n];
+            let x_bytes = x.into_repr().to_bytes_le();
+
+            //// randomness
+            let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::default();
+
+            //// commitment
+            let h_x =
+                <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness)
+                    .unwrap();
+
+            let circuit = PedersenComCircuit {
+                param: Some(params.clone()),
+                input: Some(x),
+                open: Some(randomness.clone()),
+                commit: Some(h_x),
+            };
+
+            let inputs = vec![h_x.x, h_x.y];
+            let invalid_inputs = vec![h_x.y, h_x.x];
+
+            // prove
+            let proof = LocalMarlin::prove(&index_pk, circuit, rng).unwrap();
+
+            // verify
+            let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
+            assert!(is_valid);
+            let is_valid = LocalMarlin::verify(&index_vk, &invalid_inputs, &proof, rng).unwrap();
+            assert!(!is_valid);
+
+            h_x
+        };
+
+        assert_eq!(h_x_local, commitment.reveal());
     }
 }

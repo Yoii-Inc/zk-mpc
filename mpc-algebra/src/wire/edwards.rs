@@ -1,6 +1,6 @@
 use ark_ec::{
-    twisted_edwards_extended::GroupProjective, ModelParameters, MontgomeryModelParameters,
-    TEModelParameters,
+    twisted_edwards_extended::{GroupAffine, GroupProjective},
+    ModelParameters, MontgomeryModelParameters, TEModelParameters,
 };
 use ark_ed_on_bls12_377::{EdwardsParameters, EdwardsProjective};
 use ark_ff::{field_new, BigInteger256};
@@ -9,6 +9,8 @@ use ark_r1cs_std::{fields::fp::FpVar, groups::curves::twisted_edwards::AffineVar
 
 use crate::{AdditiveFieldShare, MpcField, Reveal};
 
+use crate::channel::MpcSerNet;
+use mpc_net::MpcMultiNet as Net;
 // Scalar for ed
 type Fr = MpcField<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>;
 
@@ -234,5 +236,23 @@ impl ToMPC for Parameters<EdwardsProjective> {
             randomness_generator,
             generators,
         }
+    }
+}
+
+impl Reveal for GroupAffine<EdwardsParameters> {
+    type Base = GroupAffine<EdwardsParameters>;
+
+    fn reveal(self) -> Self::Base {
+        Net::broadcast(&self)
+            .into_iter()
+            .fold(Self::Base::default(), |acc, x| acc + x)
+    }
+
+    fn from_add_shared(b: Self::Base) -> Self {
+        b
+    }
+
+    fn from_public(_b: Self::Base) -> Self {
+        unimplemented!()
     }
 }
