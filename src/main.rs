@@ -195,7 +195,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let output_file_path = "./outputs/outputs.json";
 
-    write_to_file(h_x, output_file_path, "hex_commitment")?;
+    write_to_file(vec![("hex_commitment".to_string(), h_x)], output_file_path)?;
 
     // deserialize
     let mut output_file = File::open(output_file_path).expect("Failed to open file");

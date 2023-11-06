@@ -18,24 +18,10 @@ fn write_data(file: &mut File, data: &[u8]) -> Result<(), std::io::Error> {
 }
 
 pub fn write_to_file<T: CanonicalSerialize>(
-    data: T,
+    datas: Vec<(String, T)>,
     file_path: &str,
-    variable_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // serialize commitment
-    let mut byte = Vec::new();
-
-    data.serialize(&mut byte).unwrap();
-
-    // convert from Vec<u8> to HEX string
-    let hex_string = byte.encode_hex::<String>();
-
-    let mut prefixed_hex_string = String::new();
-    write!(prefixed_hex_string, "0x{}", hex_string).unwrap();
-
-    // create JSON object
-    let json_data = json!({ variable_name: prefixed_hex_string });
-
+    // crate file
     let create_file_result = create_file(file_path);
 
     match create_file_result {
@@ -48,6 +34,27 @@ pub fn write_to_file<T: CanonicalSerialize>(
     }
 
     let mut file = create_file_result.unwrap();
+
+    // create JSON object
+    let processed_data = datas
+        .iter()
+        .map(|(variable_name, data)| {
+            // serialize data
+            let mut byte = Vec::new();
+            data.serialize(&mut byte).unwrap();
+
+            // convert from Vec<u8> to HEX string
+            let hex_string = byte.encode_hex::<String>();
+
+            let mut prefixed_hex_string = String::new();
+            write!(prefixed_hex_string, "0x{}", hex_string).unwrap();
+
+            let value: Value = prefixed_hex_string.into();
+            (variable_name, value)
+        })
+        .collect::<Vec<_>>();
+
+    let json_data: Value = processed_data.into_iter().collect();
 
     let json_string = serde_json::to_string_pretty(&json_data).unwrap();
 
