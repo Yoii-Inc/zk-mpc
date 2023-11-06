@@ -25,6 +25,7 @@ use ark_std::{
     hash::Hash,
     ops::{Add, AddAssign, MulAssign, Neg, Sub, SubAssign},
     vec::Vec,
+    PubUniformRand,
 };
 use num_traits::Zero;
 use zeroize::Zeroize;
@@ -138,6 +139,7 @@ pub trait ProjectiveCurve:
     + Debug
     + Display
     + UniformRand
+    + PubUniformRand
     + Zeroize
     + Zero
     + Neg<Output = Self>

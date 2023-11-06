@@ -4,6 +4,8 @@ pub mod field;
 pub use field::*;
 pub mod group;
 pub use group::*;
+pub mod msm;
+pub use msm::*;
 pub mod pairing;
 pub use pairing::*;
 

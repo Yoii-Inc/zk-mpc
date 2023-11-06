@@ -21,7 +21,7 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::{BeaverSource, Reveal};
+use crate::{AdditiveFieldShare, BeaverSource, Reveal};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -66,14 +66,22 @@ impl<F: Field, S: FieldShare<F>> MpcField<F, S> {
     pub fn all_public_or_shared(v: impl IntoIterator<Item = Self>) -> Result<Vec<F>, Vec<S>> {
         let mut out_a = Vec::new();
         let mut out_b = Vec::new();
+        let mut force_shared = Vec::new();
         for s in v {
             match s {
-                Self::Public(x) => out_a.push(x),
-                Self::Shared(x) => out_b.push(x),
+                Self::Public(x) => {
+                    out_a.push(x);
+                    force_shared.push(S::from_public(x));
+                }
+                Self::Shared(x) => {
+                    out_b.push(x);
+                    force_shared.push(x)
+                }
             }
         }
         if !out_a.is_empty() & !out_b.is_empty() {
-            panic!("Heterogeous")
+            // panic!("Heterogeous")
+            Err(force_shared)
         } else if !out_a.is_empty() {
             Ok(out_a)
         } else {
@@ -137,7 +145,7 @@ impl<F: Field, S: FieldShare<F>> ToBytes for MpcField<F, S> {
     fn write<W: ark_serialize::Write>(&self, writer: W) -> io::Result<()> {
         match self {
             Self::Public(v) => v.write(writer),
-            Self::Shared(_) => unimplemented!("write share: {}", self),
+            Self::Shared(v) => v.write(writer),
         }
     }
 }
@@ -167,10 +175,13 @@ impl<F: Field, S: FieldShare<F>> CanonicalSerialize for MpcField<F, S> {
 impl<F: Field, S: FieldShare<F>> CanonicalSerializeWithFlags for MpcField<F, S> {
     fn serialize_with_flags<W: Write, Fl: ark_serialize::Flags>(
         &self,
-        _writer: W,
-        _flags: Fl,
+        writer: W,
+        flags: Fl,
     ) -> Result<(), ark_serialize::SerializationError> {
-        todo!()
+        match self {
+            Self::Public(v) => v.serialize_with_flags(writer, flags),
+            Self::Shared(_) => unimplemented!("serialize_with_flag share: {}", self),
+        }
     }
 
     fn serialized_size_with_flags<Fl: ark_serialize::Flags>(&self) -> usize {
@@ -568,6 +579,10 @@ impl<F: Field, S: FieldShare<F>> MpcWire for MpcField<F, S> {
 impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     type BasePrimeField = Self;
 
+    fn characteristic() -> &'static [u64] {
+        F::characteristic()
+    }
+
     fn extension_degree() -> u64 {
         todo!()
     }
@@ -577,11 +592,12 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn double(&self) -> Self {
-        todo!()
+        Self::Public(F::from(2u8)) * self
     }
 
     fn double_in_place(&mut self) -> &mut Self {
-        todo!()
+        *self *= Self::Public(F::from(2u8));
+        self
     }
 
     fn from_random_bytes_with_flags<Fl: ark_serialize::Flags>(_bytes: &[u8]) -> Option<(Self, Fl)> {
@@ -589,7 +605,7 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn square(&self) -> Self {
-        todo!()
+        self.clone() * self
     }
 
     fn square_in_place(&mut self) -> &mut Self {
@@ -778,13 +794,34 @@ impl<F: PrimeField, S: FieldShare<F>> PrimeField for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> SquareRootField for MpcField<F, S> {
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> SquareRootField for MpcField<F, S> {
     fn legendre(&self) -> ark_ff::LegendreSymbol {
         todo!()
     }
 
     fn sqrt(&self) -> Option<Self> {
-        todo!()
+        // todo!()
+        // TODO implement correctly.
+
+        let is_shared = self.is_shared();
+        let val = self.unwrap_as_public();
+
+        match val.sqrt() {
+            Some(sqrt) => {
+                if is_shared {
+                    Some(Self::from_add_shared(sqrt))
+                } else {
+                    Some(Self::from_public(sqrt))
+                }
+            }
+            None => None,
+        }
+
+        // if is_shared {
+        //     Some(Self::from_add_shared(sqrt.unwrap()))
+        // } else {
+        //     Some(Self::from_public(sqrt.unwrap()))
+        // }
     }
 
     fn sqrt_in_place(&mut self) -> Option<&mut Self> {

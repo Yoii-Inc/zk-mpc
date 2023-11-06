@@ -2,7 +2,7 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-mod circuit;
+mod circuits;
 mod groth16;
 
 #[derive(Debug, StructOpt)]

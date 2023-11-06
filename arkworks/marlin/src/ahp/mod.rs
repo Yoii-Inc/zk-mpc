@@ -178,7 +178,12 @@ impl<F: PrimeField> AHPForR1CS<F> {
                 (-beta * g_1_at_beta, LCTerm::One),
             ],
         );
-        debug_assert!(evals.get_lc_eval(&outer_sumcheck, beta)?.is_zero());
+        #[cfg(debug_assertions)]
+        {
+            let mut e = evals.get_lc_eval(&outer_sumcheck, beta)?;
+            e.publicize();
+            debug_assert!(e.is_zero(), "Evaluation of lc is\n{}\n, not zero", e);
+        }
 
         linear_combinations.push(z_b);
         linear_combinations.push(g_1);
@@ -244,7 +249,11 @@ impl<F: PrimeField> AHPForR1CS<F> {
 
         a.label = "inner_sumcheck".into();
         let inner_sumcheck = a;
-        debug_assert!(evals.get_lc_eval(&inner_sumcheck, gamma)?.is_zero());
+        debug_assert!({
+            let mut e = evals.get_lc_eval(&inner_sumcheck, gamma)?;
+            e.publicize();
+            e.is_zero()
+        });
 
         linear_combinations.push(g_2);
         linear_combinations.push(a_denom);

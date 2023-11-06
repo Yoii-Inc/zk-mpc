@@ -1,4 +1,5 @@
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_std::PubUniformRand;
 use core::{
     fmt::{Debug, Display},
     hash::Hash,
@@ -27,6 +28,7 @@ pub trait Group:
     + Hash
     + Neg<Output = Self>
     + UniformRand
+    + PubUniformRand
     + Zero
     + Add<Self, Output = Self>
     + Sub<Self, Output = Self>

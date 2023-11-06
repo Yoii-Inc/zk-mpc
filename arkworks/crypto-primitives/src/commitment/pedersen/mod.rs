@@ -4,7 +4,8 @@ use ark_ff::{bytes::ToBytes, BitIteratorLE, Field, FpParameters, PrimeField, ToC
 use ark_std::io::{Result as IoResult, Write};
 use ark_std::marker::PhantomData;
 use ark_std::rand::Rng;
-use ark_std::UniformRand;
+use ark_std::{PubUniformRand, UniformRand};
+use mpc_trait::MpcWire;
 
 use super::CommitmentScheme;
 
@@ -33,6 +34,15 @@ impl<C: ProjectiveCurve> UniformRand for Randomness<C> {
     #[inline]
     fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
         Randomness(UniformRand::rand(rng))
+    }
+}
+
+impl<C: ProjectiveCurve> MpcWire for Randomness<C> {}
+
+impl<C: ProjectiveCurve> PubUniformRand for Randomness<C> {
+    #[inline]
+    fn pub_rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+        Randomness(PubUniformRand::pub_rand(rng))
     }
 }
 

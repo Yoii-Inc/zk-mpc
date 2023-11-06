@@ -23,7 +23,7 @@ use zeroize::Zeroize;
 use ark_ff::{
     bytes::{FromBytes, ToBytes},
     fields::{BitIteratorBE, Field, PrimeField, SquareRootField},
-    ToConstraintField, UniformRand,
+    PubUniformRand, ToConstraintField, UniformRand,
 };
 
 #[cfg(feature = "parallel")]
@@ -269,6 +269,8 @@ impl<P: Parameters> Distribution<GroupAffine<P>> for Standard {
     }
 }
 
+impl<P: Parameters> PubUniformRand for GroupAffine<P> {}
+
 mod group_impl {
     use super::*;
     use crate::group::Group;
@@ -356,6 +358,20 @@ impl<P: Parameters> Distribution<GroupProjective<P>> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> GroupProjective<P> {
         loop {
             let x = P::BaseField::rand(rng);
+            let greatest = rng.gen();
+
+            if let Some(p) = GroupAffine::get_point_from_x(x, greatest) {
+                return p.scale_by_cofactor();
+            }
+        }
+    }
+}
+
+impl<P: Parameters> PubUniformRand for GroupProjective<P> {
+    #[inline]
+    fn pub_rand<R: Rng + ?Sized>(rng: &mut R) -> GroupProjective<P> {
+        loop {
+            let x = P::BaseField::pub_rand(rng);
             let greatest = rng.gen();
 
             if let Some(p) = GroupAffine::get_point_from_x(x, greatest) {
