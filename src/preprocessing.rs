@@ -834,7 +834,7 @@ pub fn pair(
 
     // step 1
     let r_vec: Vec<Plaintexts> = (0..n)
-        .map(|_| Plaintexts::rand(she_params, &mut rng))
+        .map(|_| Plaintexts::restricted_rand(she_params, &mut rng))
         .collect();
 
     // step 2

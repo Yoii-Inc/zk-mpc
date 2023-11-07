@@ -39,9 +39,9 @@ impl<C: ProjectiveCurve, W: Window> CRH<C, W> {
         generators_powers
     }
 
-    pub fn generator_powers<R: Rng>(num_powers: usize, rng: &mut R) -> Vec<C> {
+    pub fn generator_powers<R: Rng>(num_powers: usize, _rng: &mut R) -> Vec<C> {
         let mut cur_gen_powers = Vec::with_capacity(num_powers);
-        let mut base = C::pub_rand(rng);
+        let mut base = C::prime_subgroup_generator();
         for _ in 0..num_powers {
             cur_gen_powers.push(base);
             base.double_in_place();

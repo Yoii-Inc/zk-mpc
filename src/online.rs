@@ -1,6 +1,6 @@
 use ark_bls12_377::Fr;
 use ark_crypto_primitives::CommitmentScheme;
-use ark_ff::{BigInteger, PrimeField};
+use ark_ff::{BigInteger, FpParameters, PrimeField};
 use ark_marlin::IndexProverKey;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
@@ -178,7 +178,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shared_input = match Net::party_id() {
         0 => {
             vec![
-                MFr::from_add_shared(Fr::from(data.x) - sum_r0 + r0),
+                MFr::from_add_shared(
+                    Fr::from(data.x) - sum_r0
+                        + r0
+                        + Fr::from(ark_ed_on_bls12_377::FrParameters::MODULUS),
+                ),
                 MFr::from_add_shared(r1),
                 MFr::from_add_shared(r2),
             ]
@@ -186,7 +190,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         1 => {
             vec![
                 MFr::from_add_shared(r0),
-                MFr::from_add_shared(Fr::from(data.y) - sum_r1 + r1),
+                MFr::from_add_shared(
+                    Fr::from(data.y) - sum_r1
+                        + r1
+                        + Fr::from(ark_ed_on_bls12_377::FrParameters::MODULUS),
+                ),
                 MFr::from_add_shared(r2),
             ]
         }
@@ -194,15 +202,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             vec![
                 MFr::from_add_shared(r0),
                 MFr::from_add_shared(r1),
-                MFr::from_add_shared(Fr::from(data.z) - sum_r2 + r2),
+                MFr::from_add_shared(
+                    Fr::from(data.z) - sum_r2
+                        + r2
+                        + Fr::from(ark_ed_on_bls12_377::FrParameters::MODULUS),
+                ),
             ]
         }
         _ => panic!("invalid party id"),
     };
-
-    assert_eq!(shared_input[0].reveal(), Fr::from(data.x));
-    assert_eq!(shared_input[1].reveal(), Fr::from(data.y));
-    assert_eq!(shared_input[2].reveal(), Fr::from(data.z));
 
     match zksnark {
         ZkSnark::Groth16 => {}

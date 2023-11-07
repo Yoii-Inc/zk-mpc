@@ -28,6 +28,16 @@ impl Plaintexts {
         Plaintexts { vals: res }
     }
 
+    pub fn restricted_rand<T: Rng>(params: &SHEParameters, rng: &mut T) -> Plaintexts {
+        let upper_bound = 1000000000;
+        let lower_bound = 100000;
+
+        let res = (0..params.s)
+            .map(|_| Plaintext::from(rng.gen_range(lower_bound..upper_bound)))
+            .collect();
+        Plaintexts { vals: res }
+    }
+
     pub fn encode(&self, params: &SHEParameters) -> Encodedtext {
         let remainders = self.vals.clone();
         let moduli = cyclotomic_moduli(params.s);
