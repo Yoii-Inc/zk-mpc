@@ -4,6 +4,7 @@
         "./Cargo.toml",
         "./mpc-algebra/Cargo.toml",
         "./mpc-net/Cargo.toml",
+        "./mpc-trait/Cargo.toml",
         "./arkworks/marlin/Cargo.toml",
         "./arkworks/poly-commit/Cargo.toml"
     ]
