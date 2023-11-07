@@ -27,7 +27,7 @@ use std::io::Write as Otherwrite;
 use structopt::StructOpt;
 
 use crate::circuits::*;
-use crate::serialize::write_to_file;
+use crate::serialize::{write_r, write_to_file};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
@@ -127,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let e_alpha = she::Ciphertext::rand(&pk, &mut rng, &she_parameters);
 
-    let (_r_bracket, _r_angle) =
+    let (r_bracket, r_angle) =
         preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
     // // triple phase
@@ -220,5 +220,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ark_ec::models::twisted_edwards_extended::GroupAffine::deserialize(reader).unwrap();
 
     assert_eq!(h_x, deserialized_h_x);
+
+    // save to file
+    // <r>, [r] for input share
+    write_r(3, r_angle, r_bracket).unwrap();
+
     Ok(())
 }

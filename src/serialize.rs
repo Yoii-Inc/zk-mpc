@@ -1,9 +1,11 @@
 use ark_serialize::CanonicalSerialize;
 use hex::ToHex;
-use serde_json::json;
+use serde_json::Value;
 use std::{fmt::Write, fs::File};
 
 use std::io::Write as Otherwrite;
+
+use crate::preprocessing::{AngleShares, BracketShares};
 
 // exanple: file_path = "./outputs/serialized_result.json"
 fn create_file(file_path: &str) -> Result<File, std::io::Error> {
@@ -68,6 +70,53 @@ pub fn write_to_file<T: CanonicalSerialize>(
             return Err(Box::new(e));
         }
     }
+    Ok(())
+}
+
+pub fn write_r(
+    peer_num: usize,
+    r_angle: AngleShares,
+    r_bracket: BracketShares,
+) -> Result<(), std::io::Error> {
+    // TODO: Implement logic to handle variable `required_num` by filling or truncating the data as necessary.
+    let required_num = 3;
+
+    // separation
+    let separated_angles = r_angle.separetion();
+    let separated_brackets = r_bracket.separetion();
+
+    // check length
+    assert!(separated_angles[0].0.len() == required_num);
+    assert!(separated_brackets[0].0.len() == required_num);
+
+    // write
+    for i in 0..peer_num {
+        let output_file_path = format!("./outputs/{}/online_setup.json", i);
+
+        let mut write_datas = Vec::new();
+
+        for j in 0..required_num {
+            write_datas.push((
+                format!("r{}_angle_public_modifier", j),
+                separated_angles[i].0[j],
+            ));
+            write_datas.push((format!("r{}_angle_share", j), separated_angles[i].1[j]));
+            write_datas.push((format!("r{}_angle_mac", j), separated_angles[i].2[j]));
+
+            write_datas.push((format!("r{}_bracket_share", j), separated_brackets[i].0[j]));
+
+            write_datas.push((format!("r{}_bracket_mac", j), separated_brackets[i].1 .0[j]));
+            for k in 0..peer_num {
+                write_datas.push((
+                    format!("r{}_bracket_mac_{}", j, k),
+                    separated_brackets[i].1 .1[k][j],
+                ));
+            }
+        }
+
+        write_to_file(write_datas, &output_file_path).unwrap();
+    }
+
     Ok(())
 }
 
