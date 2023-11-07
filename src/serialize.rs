@@ -122,13 +122,57 @@ pub fn write_r(
 
 #[cfg(test)]
 mod tests {
+    use crate::{preprocessing, she};
+
     use super::*;
-    use ark_bls12_377::Fr;
+    use ark_bls12_377::{Fr, FrParameters};
+    use ark_ff::FpParameters;
+    use ark_mnt4_753::FqParameters;
     #[test]
     #[ignore]
     fn test_serialize_field() {
         let a = Fr::from(2);
+        let b = Fr::from(3);
 
-        write_to_file(a, "./outputs/serialized_result.json", "test").unwrap();
+        let datas = vec![("test".to_string(), a), ("test".to_string(), b)];
+
+        write_to_file(datas, "./outputs/serialized_result.json").unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn test_write_r() {
+        // preprocessing
+        let mut rng = rand::thread_rng();
+        // // initialize phase
+        let zkpopk_parameters = preprocessing::zkpopk::Parameters::new(
+            1,
+            3,
+            std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+            1,
+            9,
+            2,
+        );
+
+        let she_parameters = she::SHEParameters::new(
+            zkpopk_parameters.get_n(),
+            zkpopk_parameters.get_n(),
+            FrParameters::MODULUS.into(),
+            FqParameters::MODULUS.into(),
+            3.2,
+        );
+
+        let _bracket_diag_alpha = preprocessing::initialize(&zkpopk_parameters, &she_parameters);
+
+        // // pair phase
+        let sk = she::SecretKey::generate(&she_parameters, &mut rng);
+        let pk = sk.public_key_gen(&she_parameters, &mut rng);
+
+        let e_alpha = she::Ciphertext::rand(&pk, &mut rng, &she_parameters);
+
+        let (r_bracket, r_angle) =
+            preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
+
+        write_r(3, r_angle, r_bracket).unwrap();
     }
 }
