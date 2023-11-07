@@ -544,6 +544,22 @@ pub struct AngleShares {
     mac: Vec<Plaintexts>,
 }
 
+impl AngleShares {
+    pub fn separetion(&self) -> Vec<(Vec<Plaintext>, Vec<Plaintext>, Vec<Plaintext>)> {
+        let peer_num = self.share.len();
+
+        let mut result = Vec::new();
+        for peer in 0..peer_num {
+            result.push((
+                self.clone().public_modifier.vals,
+                self.share[peer].clone().vals,
+                self.mac[peer].clone().vals,
+            ));
+        }
+        result
+    }
+}
+
 impl Add<Plaintexts> for AngleShares {
     type Output = AngleShares;
     fn add(self, rhs: Plaintexts) -> Self::Output {
@@ -597,6 +613,29 @@ fn verify_angle_share(angle_share: &AngleShares, alpha: &Plaintexts) -> bool {
 pub struct BracketShares {
     share: Vec<Plaintexts>,
     mac: Vec<(Plaintexts, Vec<Plaintexts>)>,
+}
+
+impl BracketShares {
+    pub fn separetion(&self) -> Vec<(Vec<Plaintext>, (Vec<Plaintext>, Vec<Vec<Plaintext>>))> {
+        let peer_num = self.share.len();
+
+        let mut result = Vec::new();
+        for peer in 0..peer_num {
+            result.push((
+                self.share[peer].clone().vals,
+                (
+                    self.mac[peer].clone().0.vals,
+                    self.mac[peer]
+                        .clone()
+                        .1
+                        .iter()
+                        .map(|x| x.clone().vals)
+                        .collect(),
+                ),
+            ));
+        }
+        result
+    }
 }
 
 fn bracket(
