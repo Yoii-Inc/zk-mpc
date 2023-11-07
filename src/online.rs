@@ -2,7 +2,7 @@ use ark_bls12_377::Fr;
 use ark_crypto_primitives::CommitmentScheme;
 use ark_ff::{BigInteger, PrimeField};
 use ark_marlin::IndexProverKey;
-use ark_serialize::Read;
+use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
 
 use mpc_algebra::Reveal;
@@ -38,6 +38,34 @@ struct ArgInput {
     x: u128,
     y: u128,
     z: u128,
+}
+
+#[derive(Debug, Deserialize)]
+struct PairPhase {
+    r0_angle_mac: String,
+    r0_angle_public_modifier: String,
+    r0_angle_share: String,
+    r0_bracket_mac: String,
+    r0_bracket_mac_0: String,
+    r0_bracket_mac_1: String,
+    r0_bracket_mac_2: String,
+    r0_bracket_share: String,
+    r1_angle_mac: String,
+    r1_angle_public_modifier: String,
+    r1_angle_share: String,
+    r1_bracket_mac: String,
+    r1_bracket_mac_0: String,
+    r1_bracket_mac_1: String,
+    r1_bracket_mac_2: String,
+    r1_bracket_share: String,
+    r2_angle_mac: String,
+    r2_angle_public_modifier: String,
+    r2_angle_share: String,
+    r2_bracket_mac: String,
+    r2_bracket_mac_0: String,
+    r2_bracket_mac_1: String,
+    r2_bracket_mac_2: String,
+    r2_bracket_share: String,
 }
 
 enum ZkSnark {
@@ -89,30 +117,92 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // online calculation
 
     // TODO: Separate the following part in preprocessing.
+
+    // load pair phase data
+    // deserialize
+    let online_setup_file_path = format!("./outputs/{}/online_setup.json", opt.id);
+    let mut online_setup_file = File::open(online_setup_file_path).expect("Failed to open file");
+
+    let mut output_string = String::new();
+    online_setup_file
+        .read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let output_data: PairPhase = serde_json::from_str(&output_string).unwrap();
+
+    let (r0, r1, r2) = {
+        let remove_prefix_string =
+            if let Some(stripped) = output_data.r0_angle_share.strip_prefix("0x") {
+                stripped.to_string()
+            } else {
+                output_data.r0_angle_share.clone()
+            };
+
+        let remove_prefix_string1 =
+            if let Some(stripped) = output_data.r0_angle_share.strip_prefix("0x") {
+                stripped.to_string()
+            } else {
+                output_data.r1_angle_share.clone()
+            };
+
+        let remove_prefix_string2 =
+            if let Some(stripped) = output_data.r0_angle_share.strip_prefix("0x") {
+                stripped.to_string()
+            } else {
+                output_data.r2_angle_share.clone()
+            };
+
+        let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+        let deserialized_r0_angle_share: Fr = Fr::deserialize(reader).unwrap();
+
+        let reader: &[u8] = &hex::decode(remove_prefix_string1).unwrap();
+
+        let deserialized_r1_angle_share: Fr = Fr::deserialize(reader).unwrap();
+
+        let reader: &[u8] = &hex::decode(remove_prefix_string2).unwrap();
+
+        let deserialized_r2_angle_share: Fr = Fr::deserialize(reader).unwrap();
+
+        (
+            deserialized_r0_angle_share,
+            deserialized_r1_angle_share,
+            deserialized_r2_angle_share,
+        )
+    };
+
+    let sum_r0 = MFr::from_add_shared(r0).reveal();
+    let sum_r1 = MFr::from_add_shared(r1).reveal();
+    let sum_r2 = MFr::from_add_shared(r2).reveal();
+
     let shared_input = match Net::party_id() {
         0 => {
             vec![
-                MFr::from_add_shared(Fr::from(data.x)),
-                MFr::from_add_shared(Fr::from(0)),
-                MFr::from_add_shared(Fr::from(0)),
+                MFr::from_add_shared(Fr::from(data.x) - sum_r0 + r0),
+                MFr::from_add_shared(r1),
+                MFr::from_add_shared(r2),
             ]
         }
         1 => {
             vec![
-                MFr::from_add_shared(Fr::from(0)),
-                MFr::from_add_shared(Fr::from(data.y)),
-                MFr::from_add_shared(Fr::from(0)),
+                MFr::from_add_shared(r0),
+                MFr::from_add_shared(Fr::from(data.y) - sum_r1 + r1),
+                MFr::from_add_shared(r2),
             ]
         }
         2 => {
             vec![
-                MFr::from_add_shared(Fr::from(0)),
-                MFr::from_add_shared(Fr::from(0)),
-                MFr::from_add_shared(Fr::from(data.z)),
+                MFr::from_add_shared(r0),
+                MFr::from_add_shared(r1),
+                MFr::from_add_shared(Fr::from(data.z) - sum_r2 + r2),
             ]
         }
         _ => panic!("invalid party id"),
     };
+
+    assert_eq!(shared_input[0].reveal(), Fr::from(data.x));
+    assert_eq!(shared_input[1].reveal(), Fr::from(data.y));
+    assert_eq!(shared_input[2].reveal(), Fr::from(data.z));
 
     match zksnark {
         ZkSnark::Groth16 => {}
