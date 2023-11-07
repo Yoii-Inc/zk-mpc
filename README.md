@@ -26,6 +26,13 @@ and build:
 cargo build
 ```
 
+setup input file
+```
+
+cp ./inputs/inputs-template.json ./inputs/inputs.json
+```
+
+### Preprocessing phase
 run(by groth16):
 ```
 cargo run --bin main groth16 ./inputs/inputs.json
@@ -33,6 +40,20 @@ cargo run --bin main groth16 ./inputs/inputs.json
 or run(by marlin):
 ```
 cargo run --bin main marlin ./inputs/inputs.json
+```
+
+### Online phase
+setup output folder
+```
+mkdir ./outputs
+mkdir ./outputs/0
+mkdir ./outputs/1
+mkdir ./outputs/2
+```
+
+run online phase
+```
+./run_online.zsh
 ```
 
 ## Tests
@@ -132,6 +153,9 @@ impl MySecretInputCircuit {
 ```
 
 See [this](https://github.com/arkworks-rs/r1cs-tutorial/) to learn more about how to specify constraints.
+
+### how to specify mpc calculation
+online mpc calculations are specified in circuits/circuit.rs. Defaultly, MySimpleCircuit is used. Constraints is specified in same way as input_circuit.rs.
 
 ## Technical Details
 ### Generating secret sharing of inputs and ZKP verification
