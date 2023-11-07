@@ -104,10 +104,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // // initialize phase
     let zkpopk_parameters = preprocessing::zkpopk::Parameters::new(
         1,
-        2,
+        3,
         std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
         1,
-        6,
+        9,
         2,
     );
 
