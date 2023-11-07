@@ -55,7 +55,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
         let domain_k = GeneralEvaluationDomain::new(index_info.num_non_zero)
             .ok_or(SynthesisError::PolynomialDegreeTooLarge)?;
 
-        let alpha = domain_h.sample_element_outside_domain(rng, true);
+        let alpha = domain_h.sample_element_outside_domain(rng);
         let eta_a = F::rand(rng);
         let eta_b = F::rand(rng);
         let eta_c = F::rand(rng);
@@ -83,7 +83,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
         mut state: VerifierState<F>,
         rng: &mut R,
     ) -> (VerifierSecondMsg<F>, VerifierState<F>) {
-        let beta = state.domain_h.sample_element_outside_domain(rng, true);
+        let beta = state.domain_h.sample_element_outside_domain(rng);
         let msg = VerifierSecondMsg { beta };
         state.second_round_msg = Some(msg);
 
