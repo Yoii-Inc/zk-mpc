@@ -28,6 +28,20 @@ impl Plaintexts {
         Plaintexts { vals: res }
     }
 
+    pub fn restricted_rand<T: Rng>(params: &SHEParameters, rng: &mut T) -> Plaintexts {
+        // TODO: make this more general
+        // currently:
+        // Lower Bound > maximum value of possible secret input (approximately 10,000 in this case) * number of participants
+        // Upper Bound * number of participants < period of the ScalarField of edwards_bls12_377 (≒10^75)
+        let upper_bound = 1000000000;
+        let lower_bound = 100000;
+
+        let res = (0..params.s)
+            .map(|_| Plaintext::from(rng.gen_range(lower_bound..upper_bound)))
+            .collect();
+        Plaintexts { vals: res }
+    }
+
     pub fn encode(&self, params: &SHEParameters) -> Encodedtext {
         let remainders = self.vals.clone();
         let moduli = cyclotomic_moduli(params.s);
