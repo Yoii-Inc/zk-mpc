@@ -157,6 +157,19 @@ See [this](https://github.com/arkworks-rs/r1cs-tutorial/) to learn more about ho
 ### how to specify mpc calculation
 online mpc calculations are specified in circuits/circuit.rs. Defaultly, MySimpleCircuit is used. Constraints is specified in same way as input_circuit.rs.
 
+
+## Example - Werewolf
+Initialize werewolf game. The following command initializes the game with 3 players. Game files are generated in `werewolf/` directory.
+```
+./run_werewolf.zsh init 3
+```
+
+Run the game. The following command runs the game in the night phase.
+The command is written in Default zsh file, that player allocated `fortune teller` get whether next player is werewolf or not and outputs the result to e.g. `werewolf/0/divination_result.json`.
+```
+./run_werewolf.zsh night
+```
+
 ## Technical Details
 ### Generating secret sharing of inputs and ZKP verification
 
