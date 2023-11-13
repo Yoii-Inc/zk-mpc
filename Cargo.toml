@@ -63,3 +63,7 @@ path = "src/bin_test_groth16.rs"
 [[bin]]
 name = "online"
 path = "src/online.rs"
+
+[[bin]]
+name = "bin-werewolf"
+path = "src/bin_werewolf.rs"
