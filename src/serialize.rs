@@ -75,6 +75,7 @@ pub fn write_to_file<T: CanonicalSerialize>(
 
 pub fn write_r(
     peer_num: usize,
+    dir_name: &str,
     r_angle: AngleShares,
     r_bracket: BracketShares,
 ) -> Result<(), std::io::Error> {
@@ -91,7 +92,7 @@ pub fn write_r(
 
     // write
     for i in 0..peer_num {
-        let output_file_path = format!("./outputs/{}/online_setup.json", i);
+        let output_file_path = format!("./{}/{}/online_setup.json", dir_name, i);
 
         let mut write_datas = Vec::new();
 
@@ -173,6 +174,6 @@ mod tests {
         let (r_bracket, r_angle) =
             preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
-        write_r(3, r_angle, r_bracket).unwrap();
+        write_r(3, "outputs", r_angle, r_bracket).unwrap();
     }
 }

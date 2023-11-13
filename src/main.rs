@@ -223,7 +223,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // save to file
     // <r>, [r] for input share
-    write_r(3, r_angle, r_bracket).unwrap();
+    write_r(3, "outputs", r_angle, r_bracket).unwrap();
 
     Ok(())
 }
