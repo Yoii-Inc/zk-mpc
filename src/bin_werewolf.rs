@@ -1,4 +1,8 @@
-use serialize::write_to_file;
+use ark_bls12_377::FrParameters;
+use ark_ff::FpParameters;
+use ark_mnt4_753::FqParameters;
+
+use serialize::{write_r, write_to_file};
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 
@@ -38,10 +42,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Init mode");
             // initialize werewolf game
             initialize_game(&opt)?;
+
+            // preprocessing MPC
+            preprocessing_mpc(&opt)?;
         }
         "preprocessing" => {
             println!("Preprocessing mode");
-            // preprocessing MPC
 
             // preprocessing calculation of werewolf game
         }
@@ -92,6 +98,51 @@ fn initialize_game(opt: &Opt) -> Result<(), std::io::Error> {
 
         write_to_file(datas, &file_path).unwrap();
     }
+
+    Ok(())
+}
+
+fn preprocessing_mpc(opt: &Opt) -> Result<(), std::io::Error> {
+    // let opt = Opt::from_args();
+
+    // preprocessing
+    let mut rng = rand::thread_rng();
+    // // initialize phase
+    let zkpopk_parameters = preprocessing::zkpopk::Parameters::new(
+        1,
+        3,
+        std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
+        1,
+        9,
+        2,
+    );
+
+    let she_parameters = she::SHEParameters::new(
+        zkpopk_parameters.get_n(),
+        zkpopk_parameters.get_n(),
+        FrParameters::MODULUS.into(),
+        FqParameters::MODULUS.into(),
+        3.2,
+    );
+
+    let _bracket_diag_alpha = preprocessing::initialize(&zkpopk_parameters, &she_parameters);
+
+    // // pair phase
+    let sk = she::SecretKey::generate(&she_parameters, &mut rng);
+    let pk = sk.public_key_gen(&she_parameters, &mut rng);
+
+    let e_alpha = she::Ciphertext::rand(&pk, &mut rng, &she_parameters);
+
+    let (r_bracket, r_angle) =
+        preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
+
+    // // triple phase
+    let (_a_angle, _b_angle, _c_angle) =
+        preprocessing::triple(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
+
+    // save to file
+    // <r>, [r] for input share
+    write_r(opt.num_players.unwrap(), "werewolf", r_angle, r_bracket).unwrap();
 
     Ok(())
 }
