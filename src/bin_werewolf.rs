@@ -2,10 +2,18 @@ use ark_bls12_377::FrParameters;
 use ark_ff::FpParameters;
 use ark_mnt4_753::FqParameters;
 
+use ark_serialize::{CanonicalDeserialize, Read};
+use serde::Deserialize;
 use serialize::{write_r, write_to_file};
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 
+use mpc_net::{MpcMultiNet as Net, MpcNet};
+
+mod marlin;
+use marlin::*;
+
+mod circuits;
 mod preprocessing;
 mod serialize;
 mod she;
@@ -48,12 +56,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         "preprocessing" => {
             println!("Preprocessing mode");
-
             // preprocessing calculation of werewolf game
+
+            preprocessing_werewolf(&opt)?;
         }
         "night" => {
             println!("Night mode");
             // run the night phase
+            night_werewolf(&opt)?;
         }
         _ => {
             Err(std::io::Error::new(
@@ -145,4 +155,70 @@ fn preprocessing_mpc(opt: &Opt) -> Result<(), std::io::Error> {
     write_r(opt.num_players.unwrap(), "werewolf", r_angle, r_bracket).unwrap();
 
     Ok(())
+}
+
+fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
+    // init
+    Net::init_from_file(
+        opt.input.clone().unwrap().to_str().unwrap(),
+        opt.id.unwrap(),
+    );
+    Ok(())
+}
+
+fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
+    // init
+    Net::init_from_file(
+        opt.input.clone().unwrap().to_str().unwrap(),
+        opt.id.unwrap(),
+    );
+
+    let self_role = get_my_role();
+
+    println!("My role is {:?}", self_role);
+    Ok(())
+}
+
+#[derive(Debug)]
+enum Roles {
+    FortuneTeller,
+    Werewolf,
+    Villager,
+}
+
+#[derive(Debug, Deserialize)]
+struct Role {
+    role: String,
+}
+
+fn get_my_role() -> Roles {
+    let id = Net::party_id();
+
+    println!("id is {:?}", id);
+
+    // read role.json
+    let file_path = format!("./werewolf/{}/role.json", id);
+    let mut file = File::open(file_path).unwrap();
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let data: Role = serde_json::from_str(&output_string).unwrap();
+
+    let remove_prefix_string = if let Some(stripped) = data.role.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        data.role.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+    let deserialized_role = <String as CanonicalDeserialize>::deserialize(reader).unwrap();
+
+    match deserialized_role.as_str() {
+        "FortuneTeller" => Roles::FortuneTeller,
+        "Werewolf" => Roles::Werewolf,
+        "Villager" => Roles::Villager,
+        _ => panic!("Invalid role"),
+    }
 }
