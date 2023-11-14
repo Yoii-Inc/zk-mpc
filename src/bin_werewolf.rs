@@ -1,8 +1,14 @@
-use ark_bls12_377::FrParameters;
+use ark_bls12_377::{Fr, FrParameters};
+use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
+use ark_ec::AffineCurve;
 use ark_ff::FpParameters;
 use ark_mnt4_753::FqParameters;
-
 use ark_serialize::{CanonicalDeserialize, Read};
+use ark_std::test_rng;
+use ark_std::One;
+use ark_std::UniformRand;
+
+use circuits::{DivinationCircuit, ElGamalPlaintext, ElGamalRandomness, ElGamalScheme};
 use serde::Deserialize;
 use serialize::{write_r, write_to_file};
 use std::{fs::File, path::PathBuf};
@@ -175,6 +181,13 @@ fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
 
     let self_role = get_my_role();
 
+    match self_role {
+        Roles::FortuneTeller => {
+            divination(&opt);
+        }
+        _ => {}
+    }
+
     println!("My role is {:?}", self_role);
     Ok(())
 }
@@ -221,4 +234,78 @@ fn get_my_role() -> Roles {
         "Villager" => Roles::Villager,
         _ => panic!("Invalid role"),
     }
+}
+
+fn divination(opt: &Opt) -> Result<(), std::io::Error> {
+    let target_id = opt.target.unwrap();
+
+    let is_werewolf_vec = vec![Fr::from(0), Fr::from(1), Fr::from(0)];
+
+    // collaborative proof
+    let rng = &mut test_rng();
+
+    let srs = LocalMarlin::universal_setup(10000, 50, 100, rng).expect("Failed to setup");
+
+    // input parameters
+    let elgamal_params = ElGamalScheme::setup(rng).unwrap();
+
+    let (pk, sk) = ElGamalScheme::keygen(&elgamal_params, rng).unwrap();
+
+    let message = match is_werewolf_vec[target_id].is_one() {
+        true => ElGamalPlaintext::prime_subgroup_generator(),
+        false => ElGamalPlaintext::default(),
+    };
+
+    let randomness = ElGamalRandomness::rand(rng);
+
+    let output = ElGamalScheme::encrypt(&elgamal_params, &pk, &message, &randomness).unwrap();
+
+    let divination_circuit = DivinationCircuit::<Fr> {
+        is_werewolf: Some(is_werewolf_vec),
+        target_player_id: Some(target_id),
+        param: elgamal_params.clone(),
+        pub_key: pk,
+        randomness,
+        output,
+    };
+
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, divination_circuit.clone()).unwrap();
+
+    let inputs = [elgamal_params.generator, pk, output.0, output.1]
+        .iter()
+        .flat_map(|point| vec![point.x, point.y])
+        .collect::<Vec<_>>();
+
+    // prove
+    let proof = LocalMarlin::prove(&index_pk, divination_circuit, rng).unwrap();
+
+    // verify
+    let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
+    assert!(is_valid);
+
+    // save to file
+    if Net::party_id() == 0 {
+        let divination_result = ElGamalScheme::decrypt(&elgamal_params, &sk, &output).unwrap();
+
+        let mut divination_result_bool = false;
+
+        if divination_result == ElGamalPlaintext::prime_subgroup_generator() {
+            println!("Player {} is werewolf", target_id);
+            divination_result_bool = true;
+        } else {
+            println!("Player {} is villager", target_id);
+        }
+        let datas = vec![
+            ("player_id".to_string(), target_id),
+            ("is_werewolf".to_string(), divination_result_bool as usize),
+        ];
+
+        write_to_file(
+            datas,
+            format!("./werewolf/{}/divination_result.json", Net::party_id()).as_str(),
+        )
+        .unwrap();
+    }
+
+    Ok(())
 }
