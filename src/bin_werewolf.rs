@@ -8,7 +8,10 @@ use ark_std::test_rng;
 use ark_std::One;
 use ark_std::UniformRand;
 
-use circuits::{DivinationCircuit, ElGamalPlaintext, ElGamalRandomness, ElGamalScheme};
+use circuits::{
+    DivinationCircuit, ElGamalPlaintext, ElGamalPubKey, ElGamalRandomness, ElGamalScheme,
+    KeyPublicizeCircuit,
+};
 use serde::Deserialize;
 use serialize::{write_r, write_to_file};
 use std::{fs::File, path::PathBuf};
@@ -169,6 +172,62 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
         opt.input.clone().unwrap().to_str().unwrap(),
         opt.id.unwrap(),
     );
+
+    // dummmy input
+    let mut pub_key_or_dummy = vec![
+        ElGamalPubKey::default(),
+        ElGamalPubKey::default(),
+        ElGamalPubKey::default(),
+    ];
+
+    // collaborative proof
+    let rng = &mut test_rng();
+
+    let srs = LocalMarlin::universal_setup(10000, 50, 100, rng).expect("Failed to setup");
+
+    // input parameters
+    let elgamal_params = ElGamalScheme::setup(rng).unwrap();
+
+    let (pk, sk) = ElGamalScheme::keygen(&elgamal_params, rng).unwrap();
+
+    // let fortune_teller_pk = pk;
+
+    pub_key_or_dummy[0] = pk;
+
+    let key_publicize_circuit = KeyPublicizeCircuit::<Fr> {
+        pub_key_or_dummy,
+        _field: std::marker::PhantomData,
+    };
+
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, key_publicize_circuit.clone()).unwrap();
+
+    let inputs = [pk]
+        .iter()
+        .flat_map(|point| vec![point.x, point.y])
+        .collect::<Vec<_>>();
+
+    // prove
+    let proof = LocalMarlin::prove(&index_pk, key_publicize_circuit, rng).unwrap();
+
+    // verify
+    let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
+    assert!(is_valid);
+
+    // save to file
+    if Net::party_id() == 0 {
+        let datas = vec![("public_key".to_string(), pk)];
+
+        write_to_file(datas, "./werewolf/fortune_teller_key.json").unwrap();
+
+        let secret_data = vec![("secret_key".to_string(), sk.0)];
+
+        write_to_file(
+            secret_data,
+            format!("./werewolf/{}/secret_key.json", Net::party_id()).as_str(),
+        )
+        .unwrap();
+    }
+
     Ok(())
 }
 
