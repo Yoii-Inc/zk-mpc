@@ -2,16 +2,16 @@ use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::AffineCurve;
 use ark_ff::FpParameters;
+use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
 use ark_std::One;
 use ark_std::UniformRand;
 
-use circuits::{
-    DivinationCircuit, ElGamalPlaintext, ElGamalPubKey, ElGamalRandomness, ElGamalScheme,
-    KeyPublicizeCircuit,
-};
+use circuits::{DivinationCircuit, KeyPublicizeCircuit};
+use core::panic;
+use mpc_algebra::Reveal;
 use serde::Deserialize;
 use serialize::{write_r, write_to_file};
 use std::{fs::File, path::PathBuf};
@@ -167,18 +167,17 @@ fn preprocessing_mpc(opt: &Opt) -> Result<(), std::io::Error> {
 }
 
 fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
-    // init
+    // net init
     Net::init_from_file(
         opt.input.clone().unwrap().to_str().unwrap(),
         opt.id.unwrap(),
     );
 
+    let num_players = 3;
+
     // dummmy input
-    let mut pub_key_or_dummy = vec![
-        ElGamalPubKey::default(),
-        ElGamalPubKey::default(),
-        ElGamalPubKey::default(),
-    ];
+    let pub_key_or_dummy_x = vec![Fr::from(0); num_players];
+    let pub_key_or_dummy_y = vec![Fr::from(0); num_players];
 
     // collaborative proof
     let rng = &mut test_rng();
@@ -186,28 +185,58 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     let srs = LocalMarlin::universal_setup(10000, 50, 100, rng).expect("Failed to setup");
 
     // input parameters
-    let elgamal_params = ElGamalScheme::setup(rng).unwrap();
+    let elgamal_params = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::setup(rng).unwrap();
 
-    let (pk, sk) = ElGamalScheme::keygen(&elgamal_params, rng).unwrap();
+    let (pk, sk) =
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::keygen(&elgamal_params, rng).unwrap();
 
-    // let fortune_teller_pk = pk;
-
-    pub_key_or_dummy[0] = pk;
-
-    let key_publicize_circuit = KeyPublicizeCircuit::<Fr> {
-        pub_key_or_dummy,
-        _field: std::marker::PhantomData,
+    let key_publicize_circuit = KeyPublicizeCircuit {
+        pub_key_or_dummy_x,
+        pub_key_or_dummy_y,
     };
 
     let (index_pk, index_vk) = LocalMarlin::index(&srs, key_publicize_circuit.clone()).unwrap();
+
+    let mpc_index_pk = IndexProverKey::from_public(index_pk);
+
+    let pub_key_or_dummy_x = {
+        let mut vec = vec![MFr::default(); num_players];
+
+        if Net::party_id() == 0 {
+            vec[0] = MFr::from_add_shared(pk.x);
+        } else {
+            vec[0] = MFr::from_add_shared(Fr::default());
+        }
+
+        vec
+    };
+
+    let pub_key_or_dummy_y = {
+        let mut vec = vec![MFr::default(); num_players];
+
+        if Net::party_id() == 0 {
+            vec[0] = MFr::from_add_shared(pk.y);
+        } else {
+            vec[0] = MFr::from_add_shared(Fr::default());
+        }
+
+        vec
+    };
+
+    let key_publicize_circuit = KeyPublicizeCircuit {
+        pub_key_or_dummy_x,
+        pub_key_or_dummy_y,
+    };
+
+    // prove
+    let mpc_proof = MpcMarlin::prove(&mpc_index_pk, key_publicize_circuit, rng).unwrap();
+
+    let proof = mpc_proof.reveal();
 
     let inputs = [pk]
         .iter()
         .flat_map(|point| vec![point.x, point.y])
         .collect::<Vec<_>>();
-
-    // prove
-    let proof = LocalMarlin::prove(&index_pk, key_publicize_circuit, rng).unwrap();
 
     // verify
     let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();

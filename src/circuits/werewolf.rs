@@ -1,55 +1,64 @@
-use std::marker::PhantomData;
-use std::ops::AddAssign;
-
 use ark_bls12_377::Fr;
 use ark_crypto_primitives::encryption::elgamal::{constraints::ElGamalEncGadget, ElGamal};
 use ark_crypto_primitives::encryption::*;
 use ark_ec::AffineCurve;
+use ark_ec::ProjectiveCurve;
 use ark_ed_on_bls12_377::constraints::EdwardsVar;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::groups::CurveVar;
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_relations::lc;
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable};
 use ark_std::One;
+
+use mpc_algebra::{AdditiveFieldShare, MpcEdwardsProjective, MpcEdwardsVar, MpcField};
+
+type MFr = MpcField<Fr, AdditiveFieldShare<Fr>>;
 
 #[derive(Clone)]
 pub struct KeyPublicizeCircuit<F: PrimeField> {
-    pub pub_key_or_dummy: Vec<ElGamalPubKey>,
-    pub _field: PhantomData<F>,
+    pub pub_key_or_dummy_x: Vec<F>,
+    pub pub_key_or_dummy_y: Vec<F>,
 }
 
-impl ConstraintSynthesizer<Fr> for KeyPublicizeCircuit<Fr> {
-    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
-        let pub_key_or_dummy_var = self
-            .pub_key_or_dummy
-            .clone()
+impl<F: PrimeField> ConstraintSynthesizer<F> for KeyPublicizeCircuit<F> {
+    fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
+        let x_var = self
+            .pub_key_or_dummy_x
             .iter()
-            .map(|pk| {
-                ElGamalPublicKeyVar::new_witness(
-                    ark_relations::ns!(cs, "gadget_public_key"),
-                    || Ok(pk),
-                )
-                .unwrap()
-            })
+            .map(|x| cs.new_witness_variable(|| Ok(*x)).unwrap())
             .collect::<Vec<_>>();
 
-        let sum_var = pub_key_or_dummy_var
+        let y_var = self
+            .pub_key_or_dummy_y
             .iter()
-            .fold(EdwardsVar::zero(), |mut acc, x| {
-                acc.add_assign(x.pk.clone());
-                acc
-            });
+            .map(|y| cs.new_witness_variable(|| Ok(*y)).unwrap())
+            .collect::<Vec<_>>();
 
-        // public key is the sum of all public keys
-        let pub_key_var =
-            ElGamalPublicKeyVar::new_input(ark_relations::ns!(cs, "gadget_public_key"), || {
-                let vec = self.pub_key_or_dummy.clone();
-                let pk: ElGamalPubKey = vec.iter().sum();
-                Ok(pk)
-            })?;
+        let input_x_var = cs.new_input_variable(|| {
+            let vec = self.pub_key_or_dummy_x.clone();
+            let pk = vec.iter().sum();
+            Ok(pk)
+        })?;
 
-        pub_key_var.pk.enforce_equal(&sum_var)?;
+        let input_y_var = cs.new_input_variable(|| {
+            let vec = self.pub_key_or_dummy_y.clone();
+            let pk = vec.iter().sum();
+            Ok(pk)
+        })?;
+
+        let lc_x = x_var.iter().fold(lc!(), |mut acc, x| {
+            acc = acc + x;
+            acc
+        });
+
+        let lc_y = y_var.iter().fold(lc!(), |mut acc, y| {
+            acc = acc + y;
+            acc
+        });
+
+        cs.enforce_constraint(lc!() + Variable::One, lc_x, lc!() + input_x_var)?;
+        cs.enforce_constraint(lc!() + Variable::One, lc_y, lc!() + input_y_var)?;
 
         println!("total number of constraints: {}", cs.num_constraints());
 
