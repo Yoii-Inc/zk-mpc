@@ -458,6 +458,16 @@ impl<F: Field, S: FieldShare<F>> One for MpcField<F, S> {
     fn one() -> Self {
         MpcField::Public(F::one())
     }
+    fn is_one(&self) -> bool {
+        match self {
+            MpcField::Public(x) => x.is_one(),
+            MpcField::Shared(x) => {
+                // debug!("Warning: is_zero on shared data. Returning false");
+                // false
+                x.clone().open().is_one()
+            }
+        }
+    }
 }
 
 impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
@@ -468,9 +478,10 @@ impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
     fn is_zero(&self) -> bool {
         match self {
             MpcField::Public(x) => x.is_zero(),
-            MpcField::Shared(_x) => {
-                debug!("Warning: is_zero on shared data. Returning false");
-                false
+            MpcField::Shared(x) => {
+                // debug!("Warning: is_zero on shared data. Returning false");
+                // false
+                x.clone().open().is_zero()
             }
         }
     }
