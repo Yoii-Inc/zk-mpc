@@ -23,6 +23,7 @@ mod marlin;
 use marlin::*;
 
 mod circuits;
+mod input;
 mod preprocessing;
 mod serialize;
 mod she;

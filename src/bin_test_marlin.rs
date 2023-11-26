@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 mod circuits;
+mod input;
 mod marlin;
 
 #[derive(Debug, StructOpt)]

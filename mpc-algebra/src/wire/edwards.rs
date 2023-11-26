@@ -4,19 +4,21 @@ use ark_ec::{
 };
 use ark_ed_on_bls12_377::{EdwardsParameters, EdwardsProjective};
 use ark_ff::{field_new, BigInteger256};
-
 use ark_r1cs_std::{fields::fp::FpVar, groups::curves::twisted_edwards::AffineVar};
 
-use crate::{AdditiveFieldShare, MpcField, Reveal};
+use mpc_net::MpcMultiNet as Net;
+use mpc_trait::MpcWire;
 
 use crate::channel::MpcSerNet;
-use mpc_net::MpcMultiNet as Net;
+use crate::{AdditiveFieldShare, MpcAffineVar, MpcField, Reveal};
+
 // Scalar for ed
 type Fr = MpcField<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>;
 
 impl From<Fr> for BigInteger256 {
     fn from(f: Fr) -> Self {
-        todo!()
+        f.unwrap_as_public().into()
+        // todo!()
     }
 }
 // Base for ed
@@ -254,5 +256,50 @@ impl Reveal for GroupAffine<EdwardsParameters> {
 
     fn from_public(_b: Self::Base) -> Self {
         unimplemented!()
+    }
+}
+
+impl ToMPC for GroupAffine<EdwardsParameters> {
+    type MPC = GroupAffine<MpcEdwardsParameters>;
+
+    fn to_mpc(&self) -> Self::MPC {
+        let x = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(self.x);
+        let y = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(self.y);
+        GroupAffine::new(x, y)
+    }
+}
+
+impl ToLocal for GroupAffine<MpcEdwardsParameters> {
+    type Local = GroupAffine<EdwardsParameters>;
+
+    fn to_local(&self) -> Self::Local {
+        let x = self.x.unwrap_as_public();
+        let y = self.y.unwrap_as_public();
+        GroupAffine::new(x, y)
+    }
+}
+
+impl Reveal for GroupAffine<MpcEdwardsParameters> {
+    type Base = GroupAffine<EdwardsParameters>;
+
+    fn reveal(self) -> Self::Base {
+        let is_shared = self.x.is_shared();
+
+        match is_shared {
+            true => Net::broadcast(&self.to_local())
+                .into_iter()
+                .fold(Self::Base::default(), |acc, x| acc + x),
+            false => self.to_local(),
+        }
+    }
+
+    fn from_add_shared(b: Self::Base) -> Self {
+        todo!()
+    }
+
+    fn from_public(b: Self::Base) -> Self {
+        let x = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(b.x);
+        let y = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(b.y);
+        GroupAffine::new(x, y)
     }
 }
