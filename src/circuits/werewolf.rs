@@ -7,6 +7,7 @@ use ark_ed_on_bls12_377::constraints::EdwardsVar;
 use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::boolean::{AllocatedBool, Boolean};
+use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::groups::CurveVar;
 use ark_relations::lc;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable};
@@ -117,7 +118,7 @@ impl ConstraintSynthesizer<Fr> for DivinationCircuit<Fr> {
         let common_input = self.clone().mpc_input.common.unwrap();
         let peculiar_input = self.clone().mpc_input.peculiar.unwrap();
 
-        let _is_werewolf = peculiar_input
+        let is_werewolf = peculiar_input
             .is_werewolf
             .clone()
             .iter()
@@ -131,16 +132,9 @@ impl ConstraintSynthesizer<Fr> for DivinationCircuit<Fr> {
             .map(|x| cs.new_witness_variable(|| Ok(x.input)).unwrap())
             .collect::<Vec<_>>();
 
-        // let _target_player_id =
-        //     cs.new_witness_variable(|| Ok(Fr::from(self.target_player_id as u32)))?;
-
         let is_target_werewolf = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintextVar::new_witness(
             ark_relations::ns!(cs, "gadget_randomness"),
             || {
-                // let target = self.target_player_id;
-
-                // let is_werewolf = self.is_werewolf[target];
-
                 let is_werewolf: Fr = peculiar_input
                     .is_werewolf
                     .iter()
@@ -221,28 +215,35 @@ impl ConstraintSynthesizer<Fr> for DivinationCircuit<Fr> {
             <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalCiphertextVar::new(c1, c2)
         };
 
-        // // compare
-        // let enc_result_var2 = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalCiphertextVar::new_input(
-        //     ark_relations::ns!(cs, "gadget_commitment"),
-        //     || {
-        //         let message = match self.is_werewolf[self.target_player_id].is_one() {
-        //             true => {
-        //                 <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::prime_subgroup_generator()
-        //             }
-        //             false => <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::default(),
-        //         };
-        //         let enc_result = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::encrypt(
-        //             &self.param,
-        //             &self.pub_key,
-        //             &message,
-        //             &self.randomness,
-        //         )
-        //         .unwrap();
-        //         Ok(enc_result)
-        //     },
-        // )?;
+        // compare
+        let enc_result_var2 = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalCiphertextVar::new_input(
+            ark_relations::ns!(cs, "gadget_commitment"),
+            || {
+                let is_werewolf: Fr = peculiar_input
+                    .is_werewolf
+                    .iter()
+                    .zip(peculiar_input.is_target.iter())
+                    .map(|(x, y)| x.input * y.input)
+                    .sum();
 
-        // enc_result_var.enforce_equal(&enc_result_var2)?;
+                let message = match is_werewolf.is_one() {
+                    true => {
+                        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::prime_subgroup_generator()
+                    }
+                    false => <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::default(),
+                };
+                let enc_result = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::encrypt(
+                    &common_input.elgamal_param,
+                    &common_input.pub_key,
+                    &message,
+                    &peculiar_input.randomness,
+                )
+                .unwrap();
+                Ok(enc_result)
+            },
+        )?;
+
+        enc_result_var.enforce_equal(&enc_result_var2)?;
 
         self.verify_commitments(cs.clone())?;
 
@@ -258,7 +259,7 @@ impl ConstraintSynthesizer<MFr> for DivinationCircuit<MFr> {
         let common_input = self.clone().mpc_input.common.unwrap();
         let peculiar_input = self.clone().mpc_input.peculiar.unwrap();
 
-        let _is_werewolf = peculiar_input
+        let is_werewolf = peculiar_input
             .is_werewolf
             .clone()
             .iter()
@@ -272,16 +273,9 @@ impl ConstraintSynthesizer<MFr> for DivinationCircuit<MFr> {
             .map(|x| cs.new_witness_variable(|| Ok(x.input)).unwrap())
             .collect::<Vec<_>>();
 
-        // let _target_player_id =
-        //     cs.new_witness_variable(|| Ok(Fr::from(self.target_player_id as u32)))?;
-
         let is_target_werewolf = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPlaintextVar::new_witness(
             ark_relations::ns!(cs, "gadget_randomness"),
             || {
-                // let target = self.target_player_id;
-
-                // let is_werewolf = self.is_werewolf[target];
-
                 let is_werewolf: MFr = peculiar_input
                     .is_werewolf
                     .iter()
@@ -289,6 +283,7 @@ impl ConstraintSynthesizer<MFr> for DivinationCircuit<MFr> {
                     .map(|(x, y)| x.input * y.input)
                     .sum();
 
+                // TODO: be shared
                 match is_werewolf.is_one() {
                     true => Ok(
                         <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPlaintext::prime_subgroup_generator(
@@ -363,28 +358,36 @@ impl ConstraintSynthesizer<MFr> for DivinationCircuit<MFr> {
             <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalCiphertextVar::new(c1, c2)
         };
 
-        // // compare
-        // let enc_result_var2 = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalCiphertextVar::new_input(
-        //     ark_relations::ns!(cs, "gadget_commitment"),
-        //     || {
-        //         let message = match self.is_werewolf[self.target_player_id].is_one() {
-        //             true => {
-        //                 <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::prime_subgroup_generator()
-        //             }
-        //             false => <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::default(),
-        //         };
-        //         let enc_result = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::encrypt(
-        //             &self.param,
-        //             &self.pub_key,
-        //             &message,
-        //             &self.randomness,
-        //         )
-        //         .unwrap();
-        //         Ok(enc_result)
-        //     },
-        // )?;
+        // compare
+        let enc_result_var2 = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalCiphertextVar::new_input(
+            ark_relations::ns!(cs, "gadget_commitment"),
+            || {
+                let is_werewolf: MFr = peculiar_input
+                    .is_werewolf
+                    .iter()
+                    .zip(peculiar_input.is_target.iter())
+                    .map(|(x, y)| x.input * y.input)
+                    .sum();
 
-        // enc_result_var.enforce_equal(&enc_result_var2)?;
+                let message = match is_werewolf.is_one() {
+                    true => {
+                        <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPlaintext::prime_subgroup_generator(
+                        )
+                    }
+                    false => <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPlaintext::default(),
+                };
+                let enc_result = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalScheme::encrypt(
+                    &common_input.elgamal_param,
+                    &common_input.pub_key,
+                    &message,
+                    &peculiar_input.randomness,
+                )
+                .unwrap();
+                Ok(enc_result)
+            },
+        )?;
+
+        enc_result_var.enforce_equal(&enc_result_var2)?;
 
         self.verify_commitments(cs.clone())?;
 

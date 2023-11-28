@@ -12,6 +12,7 @@ use ark_ed_on_bls12_377::{constraints::EdwardsVar, EdwardsParameters};
 use ark_ff::bytes::ToBytes;
 use ark_ff::PrimeField;
 use ark_r1cs_std::boolean::AllocatedBool;
+use ark_r1cs_std::fields::fp::FpVar::Var;
 use ark_r1cs_std::groups::curves::twisted_edwards::AffineVar;
 use ark_r1cs_std::{fields::fp::FpVar, prelude::*};
 use ark_relations::lc;
@@ -127,7 +128,7 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for PedersenComCirc
         let _cs_no = cs.num_constraints();
 
         // step 2. Allocate inputs
-        let _input_var = FpVar::new_witness(cs.clone(), || Ok(self.input))?;
+        let input_var = FpVar::new_witness(cs.clone(), || Ok(self.input))?;
         // let input_var_byte = input_var.to_bytes()?;
         let input_bit_var = self
             .input_bit
@@ -153,6 +154,25 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for PedersenComCirc
                 Ok(Boolean::Is(alloc_bool))
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        // step 2.5. check input consistency
+
+        let mut lc = lc!();
+        let mut coeff = F::one();
+
+        for bit in input_bit_var.iter() {
+            lc = &lc + bit.lc() * coeff;
+
+            coeff.double_in_place();
+        }
+
+        if let Var(v) = input_var {
+            lc = lc - v.variable;
+        }
+
+        // lc = lc - &input_var.variable;
+
+        cs.enforce_constraint(lc!(), lc!(), lc)?;
 
         let _cs_no = cs.num_constraints() - _cs_no;
         #[cfg(debug_assertions)]
