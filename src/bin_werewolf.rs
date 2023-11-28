@@ -1,16 +1,16 @@
 use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
-use ark_ec::AffineCurve;
+use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ff::FpParameters;
 use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
-use ark_std::One;
-use ark_std::UniformRand;
 
-use circuits::{DivinationCircuit, KeyPublicizeCircuit};
+use circuits::{DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit};
 use core::panic;
+use mpc_algebra::MpcEdwardsParameters;
+use mpc_algebra::MpcEdwardsProjective;
 use mpc_algebra::Reveal;
 use serde::Deserialize;
 use serialize::{write_r, write_to_file};
@@ -21,6 +21,9 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 mod marlin;
 use marlin::*;
+
+use crate::input::MpcInputTrait;
+use crate::input::WerewolfMpcInput;
 
 mod circuits;
 mod input;
@@ -270,12 +273,7 @@ fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
 
     let self_role = get_my_role();
 
-    match self_role {
-        Roles::FortuneTeller => {
-            divination(&opt);
-        }
-        _ => {}
-    }
+    multi_divination(opt);
 
     println!("My role is {:?}", self_role);
     Ok(())
@@ -325,76 +323,96 @@ fn get_my_role() -> Roles {
     }
 }
 
-fn divination(opt: &Opt) -> Result<(), std::io::Error> {
-    let target_id = opt.target.unwrap();
+fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
+    let target_id = 1;
 
     let is_werewolf_vec = vec![Fr::from(0), Fr::from(1), Fr::from(0)];
 
     // collaborative proof
     let rng = &mut test_rng();
 
-    let srs = LocalMarlin::universal_setup(10000, 50, 100, rng).expect("Failed to setup");
+    let srs = LocalMarlin::universal_setup(30000, 50, 100, rng).expect("Failed to setup");
 
     // input parameters
-    let elgamal_params = ElGamalScheme::setup(rng).unwrap();
+    let local_input = WerewolfMpcInput::<Fr>::rand(rng);
 
-    let (pk, sk) = ElGamalScheme::keygen(&elgamal_params, rng).unwrap();
-
-    let message = match is_werewolf_vec[target_id].is_one() {
-        true => ElGamalPlaintext::prime_subgroup_generator(),
-        false => ElGamalPlaintext::default(),
+    let local_divination_circuit = DivinationCircuit {
+        mpc_input: local_input,
     };
 
-    let randomness = ElGamalRandomness::rand(rng);
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, local_divination_circuit.clone()).unwrap();
 
-    let output = ElGamalScheme::encrypt(&elgamal_params, &pk, &message, &randomness).unwrap();
+    let mpc_index_pk = IndexProverKey::from_public(index_pk);
 
-    let divination_circuit = DivinationCircuit::<Fr> {
-        is_werewolf: Some(is_werewolf_vec),
-        target_player_id: Some(target_id),
-        param: elgamal_params.clone(),
-        pub_key: pk,
-        randomness,
-        output,
-    };
-
-    let (index_pk, index_vk) = LocalMarlin::index(&srs, divination_circuit.clone()).unwrap();
-
-    let inputs = [elgamal_params.generator, pk, output.0, output.1]
+    let vec = is_werewolf_vec
         .iter()
-        .flat_map(|point| vec![point.x, point.y])
+        .map(|x| MFr::from_public(*x))
         .collect::<Vec<_>>();
 
+    let mut mpc_input = WerewolfMpcInput::init();
+    mpc_input.set_public_input(rng);
+    mpc_input.set_private_input();
+    mpc_input.generate_input(rng);
+
+    let multi_divination_circuit = DivinationCircuit {
+        mpc_input: mpc_input.clone(),
+    };
+
+    let peculiar_is_werewolf_commitment: Vec<GroupAffine<MpcEdwardsParameters>> = mpc_input
+        .peculiar
+        .clone()
+        .unwrap()
+        .is_werewolf
+        .iter()
+        .map(|x| x.commitment)
+        .collect::<Vec<_>>();
+
+    let peculiar_is_target_commitment: Vec<GroupAffine<MpcEdwardsParameters>> = mpc_input
+        .peculiar
+        .clone()
+        .unwrap()
+        .is_target
+        .iter()
+        .map(|x| x.commitment)
+        .collect::<Vec<_>>();
+
+    let elgamal_generator: ark_crypto_primitives::encryption::elgamal::Parameters<
+        MpcEdwardsProjective,
+    > = mpc_input.clone().common.unwrap().elgamal_param;
+
+    let elgamal_pubkey: GroupAffine<MpcEdwardsParameters> =
+        mpc_input.clone().common.unwrap().pub_key;
+
+    let mut inputs = Vec::new();
+
+    // elgamal param
+    inputs.push(elgamal_generator.generator.x.reveal());
+    inputs.push(elgamal_generator.generator.y.reveal());
+    // elgamal pubkey
+    inputs.push(elgamal_pubkey.x.reveal());
+    inputs.push(elgamal_pubkey.y.reveal());
+    inputs.push(peculiar_is_werewolf_commitment[0].x.reveal());
+    inputs.push(peculiar_is_werewolf_commitment[0].y.reveal());
+    inputs.push(peculiar_is_werewolf_commitment[1].x.reveal());
+    inputs.push(peculiar_is_werewolf_commitment[1].y.reveal());
+    inputs.push(peculiar_is_werewolf_commitment[2].x.reveal());
+    inputs.push(peculiar_is_werewolf_commitment[2].y.reveal());
+
+    inputs.push(peculiar_is_target_commitment[0].x.reveal());
+    inputs.push(peculiar_is_target_commitment[0].y.reveal());
+    inputs.push(peculiar_is_target_commitment[1].x.reveal());
+    inputs.push(peculiar_is_target_commitment[1].y.reveal());
+    inputs.push(peculiar_is_target_commitment[2].x.reveal());
+    inputs.push(peculiar_is_target_commitment[2].y.reveal());
+
     // prove
-    let proof = LocalMarlin::prove(&index_pk, divination_circuit, rng).unwrap();
+    let mpc_proof = MpcMarlin::prove(&mpc_index_pk, multi_divination_circuit, rng).unwrap();
+
+    let proof = mpc_proof.reveal();
 
     // verify
     let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
     assert!(is_valid);
-
-    // save to file
-    if Net::party_id() == 0 {
-        let divination_result = ElGamalScheme::decrypt(&elgamal_params, &sk, &output).unwrap();
-
-        let mut divination_result_bool = false;
-
-        if divination_result == ElGamalPlaintext::prime_subgroup_generator() {
-            println!("Player {} is werewolf", target_id);
-            divination_result_bool = true;
-        } else {
-            println!("Player {} is villager", target_id);
-        }
-        let datas = vec![
-            ("player_id".to_string(), target_id),
-            ("is_werewolf".to_string(), divination_result_bool as usize),
-        ];
-
-        write_to_file(
-            datas,
-            format!("./werewolf/{}/divination_result.json", Net::party_id()).as_str(),
-        )
-        .unwrap();
-    }
 
     Ok(())
 }

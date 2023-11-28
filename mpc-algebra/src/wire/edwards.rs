@@ -10,7 +10,7 @@ use mpc_net::MpcMultiNet as Net;
 use mpc_trait::MpcWire;
 
 use crate::channel::MpcSerNet;
-use crate::{AdditiveFieldShare, MpcAffineVar, MpcField, Reveal};
+use crate::{AdditiveFieldShare, MpcField, Reveal};
 
 // Scalar for ed
 type Fr = MpcField<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>;
@@ -301,5 +301,42 @@ impl Reveal for GroupAffine<MpcEdwardsParameters> {
         let x = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(b.x);
         let y = <MpcEdwardsParameters as ModelParameters>::BaseField::from_public(b.y);
         GroupAffine::new(x, y)
+    }
+}
+
+use ark_crypto_primitives::encryption::elgamal::Parameters as ElGamalParameters;
+use ark_crypto_primitives::encryption::elgamal::Randomness as ElGamalRandomness;
+
+impl Reveal for ElGamalParameters<MpcEdwardsProjective> {
+    type Base = ElGamalParameters<EdwardsProjective>;
+
+    fn reveal(self) -> Self::Base {
+        todo!()
+    }
+
+    fn from_add_shared(b: Self::Base) -> Self {
+        todo!()
+    }
+
+    fn from_public(b: Self::Base) -> Self {
+        Self {
+            generator: b.generator.to_mpc(),
+        }
+    }
+}
+
+impl Reveal for ElGamalRandomness<MpcEdwardsProjective> {
+    type Base = ElGamalRandomness<EdwardsProjective>;
+
+    fn reveal(self) -> Self::Base {
+        todo!()
+    }
+
+    fn from_add_shared(b: Self::Base) -> Self {
+        Self(Fr::from_add_shared(b.0))
+    }
+
+    fn from_public(b: Self::Base) -> Self {
+        Self(Fr::from_public(b.0))
     }
 }
