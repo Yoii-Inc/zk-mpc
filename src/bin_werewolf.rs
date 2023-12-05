@@ -1,6 +1,7 @@
 use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::twisted_edwards_extended::GroupAffine;
+use ark_ec::AffineCurve;
 use ark_ff::FpParameters;
 use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
@@ -23,6 +24,7 @@ mod marlin;
 use marlin::*;
 
 use crate::input::MpcInputTrait;
+use crate::input::WerewolfKeyInput;
 use crate::input::WerewolfMpcInput;
 
 mod circuits;
@@ -180,56 +182,36 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     let num_players = 3;
 
     // dummmy input
-    let pub_key_or_dummy_x = vec![Fr::from(0); num_players];
-    let pub_key_or_dummy_y = vec![Fr::from(0); num_players];
+    let mut pub_key_or_dummy_x = vec![Fr::from(0); num_players];
+    let mut pub_key_or_dummy_y = vec![Fr::from(0); num_players];
 
     // collaborative proof
     let rng = &mut test_rng();
 
-    let srs = LocalMarlin::universal_setup(10000, 50, 100, rng).expect("Failed to setup");
+    let srs = LocalMarlin::universal_setup(17000, 50, 100, rng).expect("Failed to setup");
 
-    // input parameters
     let elgamal_params = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::setup(rng).unwrap();
 
     let (pk, sk) =
         <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::keygen(&elgamal_params, rng).unwrap();
+    pub_key_or_dummy_x[1] = pk.x;
+    pub_key_or_dummy_y[1] = pk.y;
 
-    let key_publicize_circuit = KeyPublicizeCircuit {
-        pub_key_or_dummy_x,
-        pub_key_or_dummy_y,
-    };
+    let mpc_input = WerewolfKeyInput::rand(rng);
+
+    let key_publicize_circuit = KeyPublicizeCircuit { mpc_input };
 
     let (index_pk, index_vk) = LocalMarlin::index(&srs, key_publicize_circuit.clone()).unwrap();
 
     let mpc_index_pk = IndexProverKey::from_public(index_pk);
 
-    let pub_key_or_dummy_x = {
-        let mut vec = vec![MFr::default(); num_players];
-
-        if Net::party_id() == 0 {
-            vec[0] = MFr::from_add_shared(pk.x);
-        } else {
-            vec[0] = MFr::from_add_shared(Fr::default());
-        }
-
-        vec
-    };
-
-    let pub_key_or_dummy_y = {
-        let mut vec = vec![MFr::default(); num_players];
-
-        if Net::party_id() == 0 {
-            vec[0] = MFr::from_add_shared(pk.y);
-        } else {
-            vec[0] = MFr::from_add_shared(Fr::default());
-        }
-
-        vec
-    };
+    let mut mpc_input = WerewolfKeyInput::init();
+    mpc_input.set_public_input(rng);
+    mpc_input.set_private_input(Some((pub_key_or_dummy_x, pub_key_or_dummy_y)));
+    mpc_input.generate_input(rng);
 
     let key_publicize_circuit = KeyPublicizeCircuit {
-        pub_key_or_dummy_x,
-        pub_key_or_dummy_y,
+        mpc_input: mpc_input.clone(),
     };
 
     // prove
@@ -237,10 +219,31 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
 
     let proof = mpc_proof.reveal();
 
-    let inputs = [pk]
+    // let pk = GroupAffine::<MpcEdwardsParameters> {
+    //     x: mpc_input.pub_key.x.reveal(),
+    //     y: mpc_input.pub_key.y.reveal(),
+    //     infinity: mpc_input.pub_key.infinity.reveal(),
+    // };
+
+    let pk_x: MFr = mpc_input
+        .peculiar
+        .clone()
+        .unwrap()
+        .pub_key_or_dummy_x
         .iter()
-        .flat_map(|point| vec![point.x, point.y])
-        .collect::<Vec<_>>();
+        .map(|x| x.input)
+        .sum();
+
+    let pk_y: MFr = mpc_input
+        .peculiar
+        .clone()
+        .unwrap()
+        .pub_key_or_dummy_y
+        .iter()
+        .map(|x| x.input)
+        .sum();
+
+    let inputs = [pk_x.reveal(), pk_y.reveal()];
 
     // verify
     let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
@@ -279,7 +282,7 @@ fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Roles {
     FortuneTeller,
     Werewolf,
@@ -327,6 +330,8 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     let target_id = 1;
 
     let is_werewolf_vec = vec![Fr::from(0), Fr::from(1), Fr::from(0)];
+    let mut is_target_vec = vec![Fr::from(0); 3];
+    is_target_vec[target_id] = Fr::from(1);
 
     // collaborative proof
     let rng = &mut test_rng();
@@ -344,14 +349,9 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
 
     let mpc_index_pk = IndexProverKey::from_public(index_pk);
 
-    let vec = is_werewolf_vec
-        .iter()
-        .map(|x| MFr::from_public(*x))
-        .collect::<Vec<_>>();
-
     let mut mpc_input = WerewolfMpcInput::init();
     mpc_input.set_public_input(rng);
-    mpc_input.set_private_input();
+    mpc_input.set_private_input(Some((is_werewolf_vec.clone(), is_target_vec.clone())));
     mpc_input.generate_input(rng);
 
     let multi_divination_circuit = DivinationCircuit {
@@ -383,6 +383,18 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     let elgamal_pubkey: GroupAffine<MpcEdwardsParameters> =
         mpc_input.clone().common.unwrap().pub_key;
 
+    let message = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPlaintext::prime_subgroup_generator();
+
+    // let bad_message = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPlaintext::prime_subgroup_generator();
+
+    let enc_result = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalScheme::encrypt(
+        &elgamal_generator,
+        &elgamal_pubkey,
+        &message,
+        &mpc_input.clone().peculiar.unwrap().randomness,
+    )
+    .unwrap();
+
     let mut inputs = Vec::new();
 
     // elgamal param
@@ -391,6 +403,14 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     // elgamal pubkey
     inputs.push(elgamal_pubkey.x.reveal());
     inputs.push(elgamal_pubkey.y.reveal());
+
+    // elgamal ciphertext
+    inputs.push(enc_result.0.x.reveal());
+    inputs.push(enc_result.0.y.reveal());
+    inputs.push(enc_result.1.x.reveal());
+    inputs.push(enc_result.1.y.reveal());
+
+    // input commitment
     inputs.push(peculiar_is_werewolf_commitment[0].x.reveal());
     inputs.push(peculiar_is_werewolf_commitment[0].y.reveal());
     inputs.push(peculiar_is_werewolf_commitment[1].x.reveal());
@@ -413,6 +433,10 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     // verify
     let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
     assert!(is_valid);
+
+    //
+
+    println!("player {} is {}", target_id, is_werewolf_vec[target_id]);
 
     Ok(())
 }

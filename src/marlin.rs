@@ -122,7 +122,7 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
         let mut mpc_input: SampleMpcInput<MFr> = SampleMpcInput::init();
 
         mpc_input.set_public_input(rng);
-        mpc_input.set_private_input();
+        mpc_input.set_private_input(Some((Fr::rand(rng), Fr::rand(rng))));
         mpc_input.generate_input(rng);
 
         let mpc_circuit = MyCircuit {
