@@ -40,6 +40,11 @@ impl<F: Field> AllocatedBool<F> {
         }
     }
 
+    pub fn value_constraint_field(&self) -> Result<F, SynthesisError> {
+        let value = self.cs.assigned_value(self.variable).get()?;
+        Ok(value)
+    }
+
     /// Get the R1CS variable for `self`.
     pub fn variable(&self) -> Variable {
         self.variable
@@ -270,6 +275,14 @@ impl<F: Field> Boolean<F> {
             Boolean::Constant(true) => lc!() + Variable::One,
             Boolean::Is(v) => v.variable().into(),
             Boolean::Not(v) => lc!() + Variable::One - v.variable(),
+        }
+    }
+
+    pub fn value_constraint_field(&self) -> Result<F, SynthesisError> {
+        match self {
+            Boolean::Constant(c) => Ok(F::from(*c)),
+            Boolean::Is(v) => v.value_constraint_field(),
+            Boolean::Not(v) => v.value_constraint_field().map(|b| F::one() - b),
         }
     }
 

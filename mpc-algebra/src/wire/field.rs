@@ -461,10 +461,11 @@ impl<F: Field, S: FieldShare<F>> One for MpcField<F, S> {
     fn is_one(&self) -> bool {
         match self {
             MpcField::Public(x) => x.is_one(),
-            MpcField::Shared(x) => {
-                // debug!("Warning: is_zero on shared data. Returning false");
-                // false
-                x.clone().open().is_one()
+            MpcField::Shared(_) => {
+                // There is no good solution to get is_one without revealing.
+                // We just return false.
+                debug!("Warning: is_zero on shared data. Returning false");
+                false
             }
         }
     }
@@ -478,10 +479,11 @@ impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
     fn is_zero(&self) -> bool {
         match self {
             MpcField::Public(x) => x.is_zero(),
-            MpcField::Shared(x) => {
-                // debug!("Warning: is_zero on shared data. Returning false");
-                // false
-                x.clone().open().is_zero()
+            MpcField::Shared(_) => {
+                // There is no good solution to get is_zero without revealing.
+                // Moreover, this shared case is called only truncate coefficient of polynomial. so we just return false.
+                debug!("Warning: is_zero on shared data. Returning false");
+                false
             }
         }
     }
