@@ -14,8 +14,12 @@ use structopt::StructOpt;
 
 mod circuits;
 use circuits::{circuit::MySimpleCircuit, LocalOrMPC, PedersenComCircuit};
+mod input;
+use input::*;
 mod marlin;
 use marlin::*;
+
+use crate::circuits::circuit::MyCircuit;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
@@ -250,84 +254,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 vec_h_x_local.push(h_x_local);
             }
 
-            let empty_circuit = PedersenComCircuit {
-                param: Some(params.clone()),
-                input: Some(vec_inputs[0]),
-                open: Some(vec_randomness[0].clone()),
-                commit: Some(vec_h_x_local[0]),
+            // let empty_circuit = MyCircuit {
+            //     param: Some(params.clone()),
+            //     input: Some(vec_inputs[0]),
+            //     open: Some(vec_randomness[0].clone()),
+            //     commit: Some(vec_h_x_local[0]),
+            // };
+
+            let local_input = SampleMpcInput::rand(rng);
+
+            let local_circuit = MyCircuit {
+                mpc_input: local_input,
             };
 
-            let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit).unwrap();
-
-            // Pedersen commitment
-            let commitment = shared_input
-                .iter()
-                .map(|x| {
-                    //// input(child)
-                    let x = x.unwrap_as_public();
-                    let x_bytes = x.into_repr().to_bytes_le();
-
-                    //// randomness
-                    let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::default();
-
-                    //// commitment
-                    let h_x = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
-                        &params,
-                        &x_bytes,
-                        &randomness,
-                    )
-                    .unwrap();
-
-                    let circuit = PedersenComCircuit {
-                        param: Some(params.clone()),
-                        input: Some(x),
-                        open: Some(randomness.clone()),
-                        commit: Some(h_x),
-                    };
-
-                    let inputs = vec![h_x.x, h_x.y];
-                    let invalid_inputs = vec![h_x.y, h_x.x];
-
-                    // prove
-                    let proof = LocalMarlin::prove(&index_pk, circuit, rng).unwrap();
-
-                    // verify
-                    let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
-                    assert!(is_valid);
-                    let is_valid =
-                        LocalMarlin::verify(&index_vk, &invalid_inputs, &proof, rng).unwrap();
-                    assert!(!is_valid);
-
-                    h_x
-                })
-                .collect::<Vec<_>>();
-
-            vec_h_x_local
-                .iter()
-                .zip(commitment.iter())
-                .for_each(|(&x, y)| {
-                    assert_eq!(x, y.reveal());
-                });
-
-            // calculation phase
-            let empty_circuit: MySimpleCircuit<Fr> = MySimpleCircuit { a: None, b: None };
-
-            let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit.clone()).unwrap();
+            let (index_pk, index_vk) = LocalMarlin::index(&srs, local_circuit).unwrap();
             let mpc_index_pk = IndexProverKey::from_public(index_pk);
-            println!("Called index");
 
-            let circuit = MySimpleCircuit {
-                a: Some(shared_input[0].clone()),
-                b: Some(shared_input[1].clone()),
+            let mut mpc_input = SampleMpcInput::init();
+            mpc_input.set_public_input(rng, None);
+            mpc_input.set_private_input(None);
+            mpc_input.generate_input(rng);
+
+            let mpc_circuit = MyCircuit {
+                mpc_input: mpc_input.clone(),
             };
-            let c = shared_input[0].clone() * shared_input[1].clone();
 
             // calculate the proof by passing witness variable value
-            let mpc_proof = MpcMarlin::prove(&mpc_index_pk, circuit.clone(), rng).unwrap();
+            let mpc_proof = MpcMarlin::prove(&mpc_index_pk, mpc_circuit.clone(), rng).unwrap();
             let proof = pf_publicize(mpc_proof);
             println!("Called prover");
 
-            assert!(LocalMarlin::verify(&index_vk, &[c.reveal()], &proof, rng).unwrap());
+            let mut inputs = vec![];
+
+            let c = mpc_input.clone().peculiar.unwrap().a.input
+                * mpc_input.clone().peculiar.unwrap().b.input;
+
+            inputs.push(c.reveal());
+
+            let peculiar_a_commitment = mpc_input.peculiar.clone().unwrap().a.commitment;
+            let peculiar_b_commitment = mpc_input.peculiar.unwrap().b.commitment;
+
+            inputs.push(peculiar_a_commitment.x.reveal());
+            inputs.push(peculiar_a_commitment.y.reveal());
+            inputs.push(peculiar_b_commitment.x.reveal());
+            inputs.push(peculiar_b_commitment.y.reveal());
+
+            assert!(LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap());
         }
     }
 
