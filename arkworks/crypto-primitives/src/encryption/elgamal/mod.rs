@@ -17,9 +17,21 @@ pub struct Parameters<C: ProjectiveCurve> {
     pub generator: C::Affine,
 }
 
+impl<C: ProjectiveCurve> Parameters<C> {
+    pub fn new(generator: C::Affine) -> Self {
+        Parameters { generator }
+    }
+}
+
 pub type PublicKey<C> = <C as ProjectiveCurve>::Affine;
 
 pub struct SecretKey<C: ProjectiveCurve>(pub C::ScalarField);
+
+impl<C: ProjectiveCurve> SecretKey<C> {
+    pub fn new(secret_key: C::ScalarField) -> Self {
+        SecretKey(secret_key)
+    }
+}
 
 #[derive(Clone)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);

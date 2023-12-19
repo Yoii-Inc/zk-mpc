@@ -22,11 +22,13 @@ use mpc_algebra::ToLocal;
 use mpc_algebra::ToMPC;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use num_traits::One;
+use num_traits::Zero;
 use rand::Rng;
 
 use crate::circuits::ElGamalLocalOrMPC;
 use crate::circuits::LocalOrMPC;
 use crate::marlin::MFr;
+use crate::Opt;
 
 #[derive(Clone)]
 pub struct SampleMpcInput<F: PrimeField + LocalOrMPC<F>> {
@@ -137,7 +139,7 @@ pub trait MpcInputTrait {
 
     fn get_mode(&self) -> InputMode;
     fn init() -> Self;
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R);
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>);
     fn set_private_input(&mut self, input: Option<Self::Peculiar>);
     fn generate_input<R: Rng>(&mut self, rng: &mut R);
     fn rand<R: Rng>(rng: &mut R) -> Self;
@@ -160,7 +162,7 @@ impl MpcInputTrait for SampleMpcInput<MFr> {
         }
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R) {
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
         assert_eq!(self.get_mode(), InputMode::Init);
 
         let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
@@ -238,7 +240,7 @@ impl MpcInputTrait for SampleMpcInput<Fr> {
         todo!()
     }
 
-    fn set_public_input<R: Rng>(&mut self, _rng: &mut R) {
+    fn set_public_input<R: Rng>(&mut self, _rng: &mut R, input: Option<Self::Common>) {
         todo!()
     }
 
@@ -332,7 +334,7 @@ impl MpcInputTrait for WerewolfKeyInput<MFr> {
         }
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R) {
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
         assert_eq!(self.get_mode(), InputMode::Init);
 
         let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
@@ -429,7 +431,7 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
         unimplemented!()
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R) {
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
         unimplemented!()
     }
 
@@ -519,7 +521,11 @@ impl MpcInputTrait for WerewolfMpcInput<MFr> {
     type Base = Fr;
 
     type Peculiar = (Vec<Fr>, Vec<Fr>);
-    type Common = WerewolfCommonInput<MFr>;
+    // type Common = WerewolfCommonInput<MFr>;
+    type Common = (
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParam,
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPubKey,
+    );
 
     fn get_mode(&self) -> InputMode {
         self.mode
@@ -533,20 +539,32 @@ impl MpcInputTrait for WerewolfMpcInput<MFr> {
         }
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R) {
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
         assert_eq!(self.get_mode(), InputMode::Init);
 
         let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
         let elgamal_param = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::setup(rng).unwrap();
 
-        let mpc_elgamal_param =
-            <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalParam::from_public(elgamal_param.clone());
-
         let (pk, _sk) =
             <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::keygen(&elgamal_param, rng).unwrap();
 
-        let mpc_pk = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPubKey::from_public(pk);
+        let mut mpc_elgamal_param =
+            <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalParam::from_public(elgamal_param.clone());
+
+        let mut mpc_pk = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPubKey::from_public(pk);
+
+        match input {
+            None => (),
+            Some((elgamal_param, pub_key)) => {
+                for i in 0..2 {
+                    mpc_elgamal_param = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalParam::from_public(
+                        elgamal_param.clone(),
+                    );
+                    mpc_pk = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPubKey::from_public(pk);
+                }
+            }
+        }
 
         self.mode = InputMode::PublicSet;
         self.common = Some(WerewolfCommonInput {
@@ -574,6 +592,8 @@ impl MpcInputTrait for WerewolfMpcInput<MFr> {
             None => (),
             Some((is_werewolf_values, is_target_values)) => {
                 for i in 0..2 {
+                    assert!(is_werewolf_values[i].is_zero() || is_werewolf_values[i].is_one());
+                    assert!(is_target_values[i].is_zero() | is_target_values[i].is_one());
                     is_werewolf[i].input = MFr::from_public(is_werewolf_values[i]);
                     is_target[i].input = MFr::from_public(is_target_values[i]);
                 }
@@ -661,7 +681,7 @@ impl MpcInputTrait for WerewolfMpcInput<Fr> {
         unimplemented!()
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R) {
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
         unimplemented!()
     }
 

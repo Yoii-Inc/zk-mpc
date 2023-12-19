@@ -300,7 +300,9 @@ impl<F: PrimeField> AllocatedFp<F> {
     #[tracing::instrument(target = "r1cs")]
     pub fn is_neq(&self, other: &Self) -> Result<Boolean<F>, SynthesisError> {
         let is_not_equal = Boolean::new_witness(self.cs.clone(), || {
-            Ok(self.value.get()? != other.value.get()?)
+            let mut diff = self.value.get()? - other.value.get()?;
+            diff.publicize();
+            Ok(!(diff.is_zero()))
         })?;
         let multiplier = self.cs.new_witness_variable(|| {
             if is_not_equal.value()? {
@@ -519,8 +521,9 @@ impl<F: PrimeField> CondSelectGadget<F> for AllocatedFp<F> {
             _ => {
                 let cs = cond.cs();
                 let result = Self::new_witness(cs.clone(), || {
-                    cond.value()
-                        .and_then(|c| if c { true_val } else { false_val }.value.get())
+                    Ok(false_val.value.get()?
+                        + (true_val.value.get()? - false_val.value.get()?)
+                            * cond.value_constraint_field().unwrap())
                 })?;
                 // a = self; b = other; c = cond;
                 //

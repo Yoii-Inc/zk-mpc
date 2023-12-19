@@ -311,7 +311,9 @@ impl Reveal for ElGamalParameters<MpcEdwardsProjective> {
     type Base = ElGamalParameters<EdwardsProjective>;
 
     fn reveal(self) -> Self::Base {
-        todo!()
+        Self::Base {
+            generator: self.generator.to_local(),
+        }
     }
 
     fn from_add_shared(b: Self::Base) -> Self {

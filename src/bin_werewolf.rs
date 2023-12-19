@@ -2,11 +2,13 @@ use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
+use ark_ed_on_bls12_377::EdwardsParameters;
 use ark_ff::FpParameters;
 use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
+use ark_std::UniformRand;
 
 use circuits::{DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit};
 use core::panic;
@@ -206,7 +208,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     let mpc_index_pk = IndexProverKey::from_public(index_pk);
 
     let mut mpc_input = WerewolfKeyInput::init();
-    mpc_input.set_public_input(rng);
+    mpc_input.set_public_input(rng, None);
     mpc_input.set_private_input(Some((pub_key_or_dummy_x, pub_key_or_dummy_y)));
     mpc_input.generate_input(rng);
 
@@ -262,6 +264,10 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
             format!("./werewolf/{}/secret_key.json", Net::party_id()).as_str(),
         )
         .unwrap();
+
+        let elgamal_parameter_data = vec![("elgamal_param".to_string(), elgamal_params.generator)];
+
+        write_to_file(elgamal_parameter_data, "./werewolf/elgamal_param.json").unwrap();
     }
 
     Ok(())
@@ -292,6 +298,11 @@ enum Roles {
 #[derive(Debug, Deserialize)]
 struct Role {
     role: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ArgSecretKey {
+    secret_key: String,
 }
 
 fn get_my_role() -> Roles {
@@ -349,8 +360,10 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
 
     let mpc_index_pk = IndexProverKey::from_public(index_pk);
 
+    let (elgamal_param, elgamal_pubkey) = get_elgamal_param_pubkey();
+
     let mut mpc_input = WerewolfMpcInput::init();
-    mpc_input.set_public_input(rng);
+    mpc_input.set_public_input(rng, Some((elgamal_param, elgamal_pubkey)));
     mpc_input.set_private_input(Some((is_werewolf_vec.clone(), is_target_vec.clone())));
     mpc_input.generate_input(rng);
 
@@ -411,19 +424,19 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     inputs.push(enc_result.1.y.reveal());
 
     // input commitment
-    inputs.push(peculiar_is_werewolf_commitment[0].x.reveal());
-    inputs.push(peculiar_is_werewolf_commitment[0].y.reveal());
-    inputs.push(peculiar_is_werewolf_commitment[1].x.reveal());
-    inputs.push(peculiar_is_werewolf_commitment[1].y.reveal());
-    inputs.push(peculiar_is_werewolf_commitment[2].x.reveal());
-    inputs.push(peculiar_is_werewolf_commitment[2].y.reveal());
+    // inputs.push(peculiar_is_werewolf_commitment[0].x.reveal());
+    // inputs.push(peculiar_is_werewolf_commitment[0].y.reveal());
+    // inputs.push(peculiar_is_werewolf_commitment[1].x.reveal());
+    // inputs.push(peculiar_is_werewolf_commitment[1].y.reveal());
+    // inputs.push(peculiar_is_werewolf_commitment[2].x.reveal());
+    // inputs.push(peculiar_is_werewolf_commitment[2].y.reveal());
 
-    inputs.push(peculiar_is_target_commitment[0].x.reveal());
-    inputs.push(peculiar_is_target_commitment[0].y.reveal());
-    inputs.push(peculiar_is_target_commitment[1].x.reveal());
-    inputs.push(peculiar_is_target_commitment[1].y.reveal());
-    inputs.push(peculiar_is_target_commitment[2].x.reveal());
-    inputs.push(peculiar_is_target_commitment[2].y.reveal());
+    // inputs.push(peculiar_is_target_commitment[0].x.reveal());
+    // inputs.push(peculiar_is_target_commitment[0].y.reveal());
+    // inputs.push(peculiar_is_target_commitment[1].x.reveal());
+    // inputs.push(peculiar_is_target_commitment[1].y.reveal());
+    // inputs.push(peculiar_is_target_commitment[2].x.reveal());
+    // inputs.push(peculiar_is_target_commitment[2].y.reveal());
 
     // prove
     let mpc_proof = MpcMarlin::prove(&mpc_index_pk, multi_divination_circuit, rng).unwrap();
@@ -434,9 +447,268 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
     assert!(is_valid);
 
-    //
+    // save divination reesult
+    let file_path = format!("./werewolf/{}/secret_key.json", 0);
+    let mut file = File::open(file_path).unwrap();
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let data: ArgSecretKey = serde_json::from_str(&output_string).unwrap();
+
+    let remove_prefix_string = if let Some(stripped) = data.secret_key.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        data.secret_key.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+    let deserialized_sk =
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
+            <<ark_ec::twisted_edwards_extended::GroupProjective<
+                ark_ed_on_bls12_377::EdwardsParameters,
+            > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
+                reader,
+            )
+            .unwrap(),
+        );
 
     println!("player {} is {}", target_id, is_werewolf_vec[target_id]);
+    if Net::party_id() == 0 {
+        let divination_result = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::decrypt(
+            &elgamal_generator.reveal(),
+            &deserialized_sk,
+            &enc_result.reveal(),
+        )
+        .unwrap();
+
+        let mut divination_result_bool = false;
+
+        if divination_result
+            == <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::prime_subgroup_generator()
+        {
+            println!("Player {} is werewolf", target_id);
+            divination_result_bool = true;
+        } else {
+            println!("Player {} is villager", target_id);
+        }
+        let datas = vec![
+            ("player_id".to_string(), target_id),
+            ("is_werewolf".to_string(), divination_result_bool as usize),
+        ];
+
+        write_to_file(
+            datas,
+            format!("./werewolf/{}/divination_result.json", Net::party_id()).as_str(),
+        )
+        .unwrap();
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct ElGamalPubKey {
+    // public_key: GroupAffine<ark_ed_on_bls12_377::EdwardsParameters>,
+    public_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ElGamalSecKey {
+    // secret_key: Fr,
+    secret_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ElGamalParam {
+    elgamal_param: String,
+}
+
+fn get_elgamal_param_pubkey() -> (
+    <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParam,
+    <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPubKey,
+) {
+    // loading public key
+    let file_path = format!("./werewolf/fortune_teller_key.json");
+    let mut file = File::open(file_path).unwrap();
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let pub_key: ElGamalPubKey = serde_json::from_str(&output_string).unwrap();
+
+    let remove_prefix_string = if let Some(stripped) = pub_key.public_key.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        pub_key.public_key.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+    let deserialized_pk = <ark_ec::twisted_edwards_extended::GroupAffine<
+        ark_ed_on_bls12_377::EdwardsParameters,
+    > as CanonicalDeserialize>::deserialize(reader)
+    .unwrap();
+
+    // loading secret key
+    // let file_path = format!("./werewolf/{}/secret_key.json", opt.target.unwrap());
+    let file_path = format!("./werewolf/{}/secret_key.json", 0);
+
+    let mut file = File::open(file_path).unwrap();
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let sec_key: ElGamalSecKey = serde_json::from_str(&output_string).unwrap();
+
+    let remove_prefix_string = if let Some(stripped) = sec_key.secret_key.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        sec_key.secret_key.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+    let deserialized_sk =
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
+            <<ark_ec::twisted_edwards_extended::GroupProjective<
+                ark_ed_on_bls12_377::EdwardsParameters,
+            > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
+                reader,
+            )
+            .unwrap(),
+        );
+
+    // loading elgamal param
+    let file_path = format!("./werewolf/elgamal_param.json");
+    let mut file = File::open(file_path).unwrap();
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let data: ElGamalParam = serde_json::from_str(&output_string).unwrap();
+
+    let remove_prefix_string = if let Some(stripped) = data.elgamal_param.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        pub_key.public_key.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+    let deserialized_elgamal_param = <ark_ec::twisted_edwards_extended::GroupAffine<
+        ark_ed_on_bls12_377::EdwardsParameters,
+    > as CanonicalDeserialize>::deserialize(reader)
+    .unwrap();
+
+    let elgamal_param =
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParam::new(deserialized_elgamal_param);
+
+    (elgamal_param, deserialized_pk)
+}
+
+#[test]
+#[ignore]
+fn test_encryption_decryption() -> Result<(), std::io::Error> {
+    // loading public key
+    let file_path = format!("./werewolf/fortune_teller_key.json");
+    let mut file = File::open(file_path).unwrap();
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let pub_key: ElGamalPubKey = serde_json::from_str(&output_string).unwrap();
+
+    let remove_prefix_string = if let Some(stripped) = pub_key.public_key.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        pub_key.public_key.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+    let deserialized_pk = <ark_ec::twisted_edwards_extended::GroupAffine<
+        ark_ed_on_bls12_377::EdwardsParameters,
+    > as CanonicalDeserialize>::deserialize(reader)
+    .unwrap();
+
+    // loading secret key
+    // let file_path = format!("./werewolf/{}/secret_key.json", opt.target.unwrap());
+    let file_path = format!("./werewolf/{}/secret_key.json", 0);
+
+    let mut file = File::open(file_path).unwrap();
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let sec_key: ElGamalSecKey = serde_json::from_str(&output_string).unwrap();
+
+    let remove_prefix_string = if let Some(stripped) = sec_key.secret_key.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        sec_key.secret_key.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+    let deserialized_sk =
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
+            <<ark_ec::twisted_edwards_extended::GroupProjective<
+                ark_ed_on_bls12_377::EdwardsParameters,
+            > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
+                reader,
+            )
+            .unwrap(),
+        );
+
+    // loading elgamal param
+    let file_path = format!("./werewolf/elgamal_param.json");
+    let mut file = File::open(file_path).unwrap();
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let data: ElGamalParam = serde_json::from_str(&output_string).unwrap();
+
+    let remove_prefix_string = if let Some(stripped) = data.elgamal_param.strip_prefix("0x") {
+        stripped.to_string()
+    } else {
+        pub_key.public_key.clone()
+    };
+
+    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+    let deserialized_elgamal_param = <ark_ec::twisted_edwards_extended::GroupAffine<
+        ark_ed_on_bls12_377::EdwardsParameters,
+    > as CanonicalDeserialize>::deserialize(reader)
+    .unwrap();
+
+    let elgamal_param =
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParam::new(deserialized_elgamal_param);
+
+    let rng = &mut test_rng();
+
+    let a = GroupAffine::<EdwardsParameters>::rand(rng);
+
+    let randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
+
+    let encrypted_a = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::encrypt(
+        &elgamal_param,
+        &deserialized_pk,
+        &a,
+        &randomness,
+    )
+    .unwrap();
+
+    let decrypted_a = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::decrypt(
+        &elgamal_param,
+        &deserialized_sk,
+        &encrypted_a,
+    )
+    .unwrap();
+
+    assert_eq!(a, decrypted_a);
 
     Ok(())
 }

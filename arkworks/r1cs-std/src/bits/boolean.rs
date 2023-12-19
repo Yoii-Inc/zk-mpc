@@ -59,6 +59,14 @@ impl<F: Field> AllocatedBool<F> {
         Ok(Self { variable, cs })
     }
 
+    fn new_witness_without_booleanity_check_avoid_bool(
+        cs: ConstraintSystemRef<F>,
+        f: impl FnOnce() -> Result<F, SynthesisError>,
+    ) -> Result<Self, SynthesisError> {
+        let variable = cs.new_witness_variable(|| f())?;
+        Ok(Self { variable, cs })
+    }
+
     /// Performs an XOR operation over the two operands, returning
     /// an `AllocatedBool`.
     #[tracing::instrument(target = "r1cs")]
@@ -95,9 +103,14 @@ impl<F: Field> AllocatedBool<F> {
     /// an `AllocatedBool`.
     #[tracing::instrument(target = "r1cs")]
     pub fn and(&self, b: &Self) -> Result<Self, SynthesisError> {
-        let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(self.value()? & b.value()?)
-        })?;
+        // let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
+        //     Ok(self.value()? & b.value()?)
+        // })?;
+
+        let result =
+            Self::new_witness_without_booleanity_check_avoid_bool(self.cs.clone(), || {
+                Ok(self.value_constraint_field().unwrap() * b.value_constraint_field().unwrap())
+            })?;
 
         // Constrain (a) * (b) = (c), ensuring c is 1 iff
         // a AND b are both 1.
@@ -114,9 +127,23 @@ impl<F: Field> AllocatedBool<F> {
     /// an `AllocatedBool`.
     #[tracing::instrument(target = "r1cs")]
     pub fn or(&self, b: &Self) -> Result<Self, SynthesisError> {
-        let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(self.value()? | b.value()?)
-        })?;
+        // let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
+        //     Ok(self.value()? | b.value()?)
+        // })?;
+
+        let result =
+            Self::new_witness_without_booleanity_check_avoid_bool(self.cs.clone(), || {
+                Ok(F::one()
+                    - (F::one() - self.value_constraint_field().unwrap())
+                        * (F::one() - b.value_constraint_field().unwrap()))
+
+                // let val = self.value_constraint_field().unwrap()
+                //     + b.value_constraint_field().unwrap()
+                //     - self.value_constraint_field().unwrap() * b.value_constraint_field().unwrap();
+
+                // println!("val: {:?}", val);
+                // Ok(val)
+            })?;
 
         // Constrain (1 - a) * (1 - b) = (c), ensuring c is 1 iff
         // a and b are both false, and otherwise c is 0.
