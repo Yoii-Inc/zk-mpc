@@ -138,6 +138,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // make share, prove and verify
     // // generate the setup parameters
     let x = Fr::from(data.x);
+    let input_bit = x
+        .into_repr()
+        .to_bits_le()
+        .iter()
+        .map(|b| Fr::from(*b))
+        .collect::<Vec<_>>();
 
     let lower_bound = Fr::from(3);
     let upper_bound = Fr::from(7);
@@ -145,13 +151,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // // Pedersen commitment
     let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(&mut rng).unwrap();
     let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::rand(&mut rng);
+    let open_bit = randomness
+        .0
+        .into_repr()
+        .to_bits_le()
+        .iter()
+        .map(|b| Fr::from(*b))
+        .collect::<Vec<_>>();
     let x_bytes = x.into_repr().to_bytes_le();
     let h_x =
         <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
 
     let circuit = input_circuit::MySecretInputCircuit::new(
         x,
-        randomness,
+        input_bit,
+        open_bit,
         params,
         h_x,
         lower_bound,

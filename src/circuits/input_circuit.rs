@@ -1,4 +1,5 @@
 use ark_bls12_377::Fr;
+use ark_ff::PrimeField;
 use ark_r1cs_std::{fields::fp::FpVar, prelude::*};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 
@@ -6,35 +7,34 @@ use std::cmp::Ordering;
 
 use super::{LocalOrMPC, PedersenComCircuit};
 
-type PedersenCommitment = <Fr as LocalOrMPC<Fr>>::PedersenCommitment;
-type PedersenParam = <Fr as LocalOrMPC<Fr>>::PedersenParam;
-type PedersenRandomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness;
-
 #[derive(Clone)]
-pub struct MySecretInputCircuit {
+pub struct MySecretInputCircuit<F: PrimeField + LocalOrMPC<F>> {
     // private witness to the circuit
-    x: Option<Fr>,
-    randomness: Option<PedersenRandomness>,
-    params: Option<PedersenParam>,
+    x: Option<F>,
+    input_bit: Option<Vec<F>>,
+    open_bit: Option<Vec<F>>,
+    params: Option<F::PedersenParam>,
 
     // public instance to the circuit
-    h_x: Option<PedersenCommitment>,
-    lower_bound: Option<Fr>,
-    upper_bound: Option<Fr>,
+    h_x: Option<F::PedersenCommitment>,
+    lower_bound: Option<F>,
+    upper_bound: Option<F>,
 }
 
-impl MySecretInputCircuit {
+impl<F: PrimeField + LocalOrMPC<F>> MySecretInputCircuit<F> {
     pub fn new(
-        x: Fr,
-        randomness: PedersenRandomness,
-        params: PedersenParam,
-        h_x: PedersenCommitment,
-        lower_bound: Fr,
-        upper_bound: Fr,
+        x: F,
+        input_bit: Vec<F>,
+        open_bit: Vec<F>,
+        params: F::PedersenParam,
+        h_x: F::PedersenCommitment,
+        lower_bound: F,
+        upper_bound: F,
     ) -> Self {
         Self {
             x: Some(x),
-            randomness: Some(randomness),
+            input_bit: Some(input_bit),
+            open_bit: Some(open_bit),
             params: Some(params),
             h_x: Some(h_x),
             lower_bound: Some(lower_bound),
@@ -42,7 +42,7 @@ impl MySecretInputCircuit {
         }
     }
 
-    fn verify_constraints(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+    fn verify_constraints(&self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
         let x = FpVar::new_witness(cs.clone(), || {
             self.x.ok_or(SynthesisError::AssignmentMissing)
         })?;
@@ -61,12 +61,13 @@ impl MySecretInputCircuit {
         Ok(())
     }
 
-    fn verify_commitment(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+    fn verify_commitment(&self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
         let x_com_circuit = PedersenComCircuit {
             param: self.params.clone(),
-            input: self.x,
-            open: self.randomness.clone(),
-            commit: self.h_x,
+            input: self.x.unwrap(),
+            input_bit: self.input_bit.clone().unwrap(),
+            open_bit: self.open_bit.clone().unwrap(),
+            commit: self.h_x.clone(),
         };
 
         x_com_circuit.generate_constraints(cs.clone())?;
@@ -75,8 +76,8 @@ impl MySecretInputCircuit {
     }
 }
 
-impl ConstraintSynthesizer<Fr> for MySecretInputCircuit {
-    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for MySecretInputCircuit<F> {
+    fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
         self.verify_constraints(cs.clone())?;
 
         self.verify_commitment(cs.clone())?;
@@ -99,6 +100,7 @@ mod tests {
     use blake2::Blake2s;
 
     type PedersenComScheme = <Fr as LocalOrMPC<Fr>>::PedersenComScheme;
+    type PedersenRandomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness;
 
     use super::*;
 
@@ -108,6 +110,12 @@ mod tests {
 
         // generate the setup parameters
         let x = Fr::from(4);
+        let input_bit = x
+            .into_repr()
+            .to_bits_le()
+            .iter()
+            .map(|b| Fr::from(*b))
+            .collect::<Vec<_>>();
 
         let lower_bound = Fr::from(3);
         let upper_bound = Fr::from(7);
@@ -115,15 +123,24 @@ mod tests {
         // Pedersen commitment
         let params = PedersenComScheme::setup(&mut rng).unwrap();
         let randomness = PedersenRandomness::rand(&mut rng);
+        let open_bit = randomness
+            .0
+            .into_repr()
+            .to_bits_le()
+            .iter()
+            .map(|b| Fr::from(*b))
+            .collect::<Vec<_>>();
+
         let x_bytes = x.into_repr().to_bytes_le();
         let h_x = PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
 
         let circuit = MySecretInputCircuit {
             x: Some(x),
+            input_bit: Some(input_bit),
+            open_bit: Some(open_bit),
             h_x: Some(h_x),
             lower_bound: Some(lower_bound),
             upper_bound: Some(upper_bound),
-            randomness: Some(randomness),
             params: Some(params),
         };
 
@@ -163,6 +180,12 @@ mod tests {
 
         // generate the setup parameters
         let x = Fr::from(4);
+        let input_bit = x
+            .into_repr()
+            .to_bits_le()
+            .iter()
+            .map(|b| Fr::from(*b))
+            .collect::<Vec<_>>();
 
         let lower_bound = Fr::from(3);
         let upper_bound = Fr::from(7);
@@ -170,15 +193,24 @@ mod tests {
         // Pedersen commitment
         let params = PedersenComScheme::setup(&mut rng).unwrap();
         let randomness = PedersenRandomness::rand(&mut rng);
+        let open_bit = randomness
+            .0
+            .into_repr()
+            .to_bits_le()
+            .iter()
+            .map(|b| Fr::from(*b))
+            .collect::<Vec<_>>();
+
         let x_bytes = x.into_repr().to_bytes_le();
         let h_x = PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
 
         let circuit = MySecretInputCircuit {
             x: Some(x),
+            input_bit: Some(input_bit),
+            open_bit: Some(open_bit),
             h_x: Some(h_x),
             lower_bound: Some(lower_bound),
             upper_bound: Some(upper_bound),
-            randomness: Some(randomness),
             params: Some(params),
         };
 
