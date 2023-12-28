@@ -32,6 +32,10 @@ pub trait FieldShare<F: Field>:
         <Self as Reveal>::reveal(*self)
     }
 
+    fn map_homo<FF: Field, SS: FieldShare<FF>, Fun: Fn(F) -> FF>(self, f: Fun) -> SS {
+        SS::from_add_shared(f(self.unwrap_as_public()))
+    }
+
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         selfs.into_iter().map(|s| s.open()).collect()
     }
