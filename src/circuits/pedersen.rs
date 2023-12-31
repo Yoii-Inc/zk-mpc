@@ -19,11 +19,10 @@ use ark_relations::lc;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable};
 use ark_std::{fmt::Debug, hash::Hash};
 
-use mpc_algebra::{
-    AdditiveFieldShare, MpcEdwardsParameters, MpcEdwardsProjective, MpcEdwardsVar, MpcField,
-};
+use mpc_algebra::honest_but_curious as hbc;
+use mpc_algebra::malicious_majority as mm;
 
-type MFr = MpcField<Fr, AdditiveFieldShare<Fr>>;
+use num_traits::One;
 
 pub trait LocalOrMPC<ConstraintF: PrimeField> {
     type JubJub: ProjectiveCurve;
@@ -72,24 +71,44 @@ impl LocalOrMPC<Fr> for Fr {
     type PedersenCommitmentVar = AffineVar<EdwardsParameters, FpVar<Fr>>;
 }
 
-impl LocalOrMPC<MFr> for MFr {
-    type JubJub = MpcEdwardsProjective;
+impl LocalOrMPC<hbc::MpcField<Fr>> for hbc::MpcField<Fr> {
+    type JubJub = hbc::MpcEdwardsProjective;
 
     type PedersenComScheme = Commitment<Self::JubJub, Window>;
     type PedersenCommitment = <Self::PedersenComScheme as CommitmentScheme>::Output;
     type PedersenParam = <Self::PedersenComScheme as CommitmentScheme>::Parameters;
     type PedersenRandomness = Randomness<Self::JubJub>;
 
-    type PedersenComSchemeVar = CommGadget<Self::JubJub, MpcEdwardsVar, Window>;
+    type PedersenComSchemeVar = CommGadget<Self::JubJub, hbc::MpcEdwardsVar, Window>;
     type PedersenParamVar = <Self::PedersenComSchemeVar as CommitmentGadget<
         Self::PedersenComScheme,
-        MFr,
+        hbc::MpcField<Fr>,
     >>::ParametersVar;
     type PedersenRandomnessVar = <Self::PedersenComSchemeVar as CommitmentGadget<
         Self::PedersenComScheme,
-        MFr,
+        hbc::MpcField<Fr>,
     >>::RandomnessVar;
-    type PedersenCommitmentVar = AffineVar<MpcEdwardsParameters, FpVar<MFr>>;
+    type PedersenCommitmentVar = AffineVar<hbc::MpcEdwardsParameters, FpVar<hbc::MpcField<Fr>>>;
+}
+
+impl LocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
+    type JubJub = mm::MpcEdwardsProjective;
+
+    type PedersenComScheme = Commitment<Self::JubJub, Window>;
+    type PedersenCommitment = <Self::PedersenComScheme as CommitmentScheme>::Output;
+    type PedersenParam = <Self::PedersenComScheme as CommitmentScheme>::Parameters;
+    type PedersenRandomness = Randomness<Self::JubJub>;
+
+    type PedersenComSchemeVar = CommGadget<Self::JubJub, mm::MpcEdwardsVar, Window>;
+    type PedersenParamVar = <Self::PedersenComSchemeVar as CommitmentGadget<
+        Self::PedersenComScheme,
+        mm::MpcField<Fr>,
+    >>::ParametersVar;
+    type PedersenRandomnessVar = <Self::PedersenComSchemeVar as CommitmentGadget<
+        Self::PedersenComScheme,
+        mm::MpcField<Fr>,
+    >>::RandomnessVar;
+    type PedersenCommitmentVar = AffineVar<mm::MpcEdwardsParameters, FpVar<mm::MpcField<Fr>>>;
 }
 
 pub const PERDERSON_WINDOW_SIZE: usize = 256;
@@ -282,8 +301,18 @@ impl GetParam<<Fr as LocalOrMPC<Fr>>::JubJub> for <Fr as LocalOrMPC<Fr>>::Peders
     }
 }
 
-impl GetParam<<MFr as LocalOrMPC<MFr>>::JubJub> for <MFr as LocalOrMPC<MFr>>::PedersenParamVar {
-    fn params(&self) -> Parameters<<MFr as LocalOrMPC<MFr>>::JubJub> {
+impl GetParam<<hbc::MpcField<Fr> as LocalOrMPC<hbc::MpcField<Fr>>>::JubJub>
+    for <hbc::MpcField<Fr> as LocalOrMPC<hbc::MpcField<Fr>>>::PedersenParamVar
+{
+    fn params(&self) -> Parameters<<hbc::MpcField<Fr> as LocalOrMPC<hbc::MpcField<Fr>>>::JubJub> {
+        self.params.clone()
+    }
+}
+
+impl GetParam<<mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::JubJub>
+    for <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::PedersenParamVar
+{
+    fn params(&self) -> Parameters<<mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::JubJub> {
         self.params.clone()
     }
 }

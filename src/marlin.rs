@@ -7,23 +7,16 @@ use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_std::{end_timer, start_timer, test_rng, PubUniformRand, UniformRand};
 
 use blake2::Blake2s;
-use mpc_algebra::*;
+// use mpc_algebra::honest_but_curious::*;
+use mpc_algebra::malicious_majority::*;
+use mpc_algebra::{FromLocal, Reveal};
 use mpc_net::{MpcMultiNet, MpcNet};
+use num_traits::One;
 
 use crate::{
     circuits::{circuit::MyCircuit, LocalOrMPC, PedersenComCircuit},
     input::{MpcInputTrait, SampleMpcInput},
 };
-
-pub type MpcField<F> = wire::field::MpcField<F, AdditiveFieldShare<F>>;
-// pub type MpcGroup<G> = group::MpcGroup<G, AdditiveGroupShare<G, NaiveMsm<G>>>;
-// pub type MpcG1Affine<E> = wire::pairing::MpcG1Affine<E, AdditivePairingShare<E>>;
-// pub type MpcG2Affine<E> = wire::pairing::MpcG2Affine<E, AdditivePairingShare<E>>;
-// pub type MpcG1Projective<E> = wire::pairing::MpcG1Projective<E, AdditivePairingShare<E>>;
-// pub type MpcG2Projective<E> = wire::pairing::MpcG2Projective<E, AdditivePairingShare<E>>;
-// pub type MpcG1Prep<E> = wire::pairing::MpcG1Prep<E, AdditivePairingShare<E>>;
-// pub type MpcG2Prep<E> = wire::pairing::MpcG2Prep<E, AdditivePairingShare<E>>;
-pub type MpcPairingEngine<E> = wire::pairing::MpcPairingEngine<E, AdditivePairingShare<E>>;
 
 fn prover_message_publicize(
     p: ProverMsg<MpcField<ark_bls12_377::Fr>>,
@@ -93,11 +86,14 @@ pub fn pf_publicize(
 }
 
 type Fr = ark_bls12_377::Fr;
+pub type MFr = MpcField<Fr>;
+
 type E = ark_bls12_377::Bls12_377;
 type ME = MpcPairingEngine<ark_bls12_377::Bls12_377>;
-pub type MFr = MpcField<Fr>;
-type MpcMarlinKZG10 = MarlinKZG10<ME, DensePolynomial<MFr>>;
+
 type LocalMarlinKZG10 = MarlinKZG10<E, DensePolynomial<Fr>>;
+type MpcMarlinKZG10 = MarlinKZG10<ME, DensePolynomial<MFr>>;
+
 pub type LocalMarlin = Marlin<Fr, LocalMarlinKZG10, Blake2s>;
 pub type MpcMarlin = Marlin<MFr, MpcMarlinKZG10, Blake2s>;
 
@@ -121,7 +117,7 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
 
         let mut mpc_input: SampleMpcInput<MFr> = SampleMpcInput::init();
 
-        mpc_input.set_public_input(rng);
+        mpc_input.set_public_input(rng, None);
         mpc_input.set_private_input(Some((Fr::rand(rng), Fr::rand(rng))));
         mpc_input.generate_input(rng);
 
@@ -132,10 +128,9 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
             * mpc_input.clone().peculiar.unwrap().b.input;
         let mut inputs = vec![c.reveal()];
 
-        let peculiar_a_commitment: GroupAffine<MpcEdwardsParameters> =
+        let peculiar_a_commitment: MpcEdwardsAffine =
             mpc_input.peculiar.clone().unwrap().a.commitment;
-        let peculiar_b_commitment: GroupAffine<MpcEdwardsParameters> =
-            mpc_input.peculiar.unwrap().b.commitment;
+        let peculiar_b_commitment: MpcEdwardsAffine = mpc_input.peculiar.unwrap().b.commitment;
 
         inputs.push(peculiar_a_commitment.x.reveal());
         inputs.push(peculiar_a_commitment.y.reveal());
@@ -203,7 +198,7 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
     for _ in 0..n_iters {
         // Pedersen commitment
         //// commom parameter
-        let mpc_params = params.to_mpc();
+        let mpc_params = <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&params);
 
         //// input
         let x = MFr::rand(rng);

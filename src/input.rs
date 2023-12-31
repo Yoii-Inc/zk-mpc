@@ -13,21 +13,20 @@ use ark_ff::Field;
 use ark_std::PubUniformRand;
 use ark_std::UniformRand;
 use derivative::Derivative;
-use mpc_algebra::FieldShare;
-use mpc_algebra::MpcEdwardsParameters;
-use mpc_algebra::MpcEdwardsProjective;
-use mpc_algebra::MpcField;
-use mpc_algebra::Reveal;
-use mpc_algebra::ToLocal;
-use mpc_algebra::ToMPC;
+use mpc_algebra::{FieldShare, FromLocal, Reveal, ToLocal};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use num_traits::One;
 use num_traits::Zero;
 use rand::Rng;
 
+// use mpc_algebra::honest_but_curious::*;
+use mpc_algebra::malicious_majority::*;
+
+type MFr = MpcField<Fr>;
+
 use crate::circuits::ElGamalLocalOrMPC;
 use crate::circuits::LocalOrMPC;
-use crate::marlin::MFr;
+
 use crate::Opt;
 
 #[derive(Clone)]
@@ -118,7 +117,7 @@ impl InputWithCommit<MFr> {
             ),
         };
 
-        iwc.commitment = h_x_mpc.reveal().to_mpc();
+        iwc.commitment = MpcEdwardsAffine::from_local(&h_x_mpc.reveal());
         iwc
     }
 }
@@ -169,7 +168,7 @@ impl MpcInputTrait for SampleMpcInput<MFr> {
 
         self.mode = InputMode::PublicSet;
         self.common = Some(CommonInput {
-            pedersen_param: pedersen_param.to_mpc(),
+            pedersen_param: Parameters::<MpcEdwardsProjective>::from_local(&pedersen_param),
         });
     }
 
@@ -341,7 +340,7 @@ impl MpcInputTrait for WerewolfKeyInput<MFr> {
 
         self.mode = InputMode::PublicSet;
         self.common = Some(CommonInput {
-            pedersen_param: pedersen_param.to_mpc(),
+            pedersen_param: Parameters::<MpcEdwardsProjective>::from_local(&pedersen_param),
         });
     }
 
@@ -568,7 +567,7 @@ impl MpcInputTrait for WerewolfMpcInput<MFr> {
 
         self.mode = InputMode::PublicSet;
         self.common = Some(WerewolfCommonInput {
-            pedersen_param: pedersen_param.to_mpc(),
+            pedersen_param: Parameters::<MpcEdwardsProjective>::from_local(&pedersen_param),
             elgamal_param: mpc_elgamal_param,
             pub_key: mpc_pk,
         });
@@ -802,7 +801,7 @@ pub trait MpcSharePhase<F, S> {
     fn generate_share(&self, allocator: usize) -> Self;
 }
 
-impl<F: Field, S: FieldShare<F>> MpcSharePhase<F, S> for MpcField<F, S> {
+impl<F: Field, S: FieldShare<F>> MpcSharePhase<F, S> for mpc_algebra::MpcField<F, S> {
     fn generate_share(&self, allocator: usize) -> Self {
         let mut share_source = DummyShareSource::<F, S>::default();
 
@@ -812,7 +811,7 @@ impl<F: Field, S: FieldShare<F>> MpcSharePhase<F, S> for MpcField<F, S> {
         let sum_r = r.reveal();
 
         if Net::party_id() != allocator {
-            MpcField::Shared(r)
+            mpc_algebra::MpcField::Shared(r)
         } else {
             Self::from_add_shared(self.unwrap_as_public() + r.unwrap_as_public() + sum_r)
         }

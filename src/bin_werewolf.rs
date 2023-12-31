@@ -12,8 +12,8 @@ use ark_std::UniformRand;
 
 use circuits::{DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit};
 use core::panic;
-use mpc_algebra::MpcEdwardsParameters;
-use mpc_algebra::MpcEdwardsProjective;
+
+use mpc_algebra::malicious_majority::*;
 use mpc_algebra::Reveal;
 use serde::Deserialize;
 use serialize::{write_r, write_to_file};
@@ -116,6 +116,7 @@ fn initialize_game(opt: &Opt) -> Result<(), std::io::Error> {
     write_to_file(datas, file_path).unwrap();
 
     // role.json
+    // TODO: randomize
     let role = ["FortuneTeller", "Werewolf", "Villager"];
     for i in 0..opt.num_players.unwrap() {
         let file_path = format!("./werewolf/{}/role.json", i);
@@ -181,6 +182,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
         opt.id.unwrap(),
     );
 
+    // TODO: changable
     let num_players = 3;
 
     // dummmy input

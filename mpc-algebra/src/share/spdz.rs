@@ -164,6 +164,10 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
             .map(Self::from_add_shared)
             .collect()
     }
+
+    fn unwrap_as_public(self) -> F {
+        self.sh.unwrap_as_public()
+    }
 }
 
 impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
