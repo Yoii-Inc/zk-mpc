@@ -30,31 +30,25 @@ Encryption](https://eprint.iacr.org/2011/535.pdf).
 
 ## Build guide
 Clone this repositry:
-```
+
+```bash
 git clone https://github.com/Yoii-Inc/zk-mpc.git
 ```
 
 and build:
-```
+
+```bash
 cargo build
 ```
 
 setup input file
-```
+
+```bash
 cp ./inputs/inputs-template.json ./inputs/inputs.json
 ```
 
 ### Preprocessing phase
-run(by groth16):
-```
-cargo run --bin main groth16 ./inputs/inputs.json
-```
-or run(by marlin):
-```
-cargo run --bin main marlin ./inputs/inputs.json
-```
 
-### Online phase
 setup output folder
 ```
 mkdir ./outputs
@@ -63,20 +57,38 @@ mkdir ./outputs/1
 mkdir ./outputs/2
 ```
 
-run online phase
+run(by groth16):
+
+```bash
+cargo run --bin main groth16 ./inputs/inputs.json
 ```
+
+or run(by marlin):
+
+```bash
+cargo run --bin main marlin ./inputs/inputs.json
+```
+
+### Online phase
+
+run online phase
+
+```bash
 ./run_online.zsh
 ```
 
 ## Tests
+
 The tests performed by the following **DOES NOT** include MPC. Therefore, testing of the MPC itself is performed by executing preprocessing and online as described above.
 
-```
+```bash
 cargo test --bin main
 ```
 
 ## Usage
+
 ### how to specify secret inputs
+
 To specify secret inputs, follow these steps:
 
 1. In the `inputs/inputs.json` file, define the desired inputs using a JSON format. For example:
