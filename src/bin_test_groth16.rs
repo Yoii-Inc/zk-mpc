@@ -4,6 +4,7 @@ use structopt::StructOpt;
 
 mod circuits;
 mod groth16;
+mod input;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]

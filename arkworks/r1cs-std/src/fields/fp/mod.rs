@@ -300,7 +300,9 @@ impl<F: PrimeField> AllocatedFp<F> {
     #[tracing::instrument(target = "r1cs")]
     pub fn is_neq(&self, other: &Self) -> Result<Boolean<F>, SynthesisError> {
         let is_not_equal = Boolean::new_witness(self.cs.clone(), || {
-            Ok(self.value.get()? != other.value.get()?)
+            let mut diff = self.value.get()? - other.value.get()?;
+            diff.publicize();
+            Ok(!(diff.is_zero()))
         })?;
         let multiplier = self.cs.new_witness_variable(|| {
             if is_not_equal.value()? {
@@ -519,8 +521,9 @@ impl<F: PrimeField> CondSelectGadget<F> for AllocatedFp<F> {
             _ => {
                 let cs = cond.cs();
                 let result = Self::new_witness(cs.clone(), || {
-                    cond.value()
-                        .and_then(|c| if c { true_val } else { false_val }.value.get())
+                    Ok(false_val.value.get()?
+                        + (true_val.value.get()? - false_val.value.get()?)
+                            * cond.value_constraint_field().unwrap())
                 })?;
                 // a = self; b = other; c = cond;
                 //
@@ -534,7 +537,7 @@ impl<F: PrimeField> CondSelectGadget<F> for AllocatedFp<F> {
                 )?;
 
                 Ok(result)
-            }
+            },
         }
     }
 }
@@ -548,10 +551,18 @@ impl<F: PrimeField> TwoBitLookupGadget<F> for AllocatedFp<F> {
         debug_assert_eq!(b.len(), 2);
         debug_assert_eq!(c.len(), 4);
         let result = Self::new_witness(b.cs(), || {
-            let lsb = usize::from(b[0].value()?);
-            let msb = usize::from(b[1].value()?);
-            let index = lsb + (msb << 1);
-            Ok(c[index])
+            // let lsb = usize::from(b[0].value()?);
+            // let msb = usize::from(b[1].value()?);
+            // let index = lsb + (msb << 1);
+            // Ok(c[index])
+
+            let c = c[0]
+                + b[0].value_constraint_field().unwrap() * (c[1] - c[0])
+                + b[1].value_constraint_field().unwrap() * (c[2] - c[0])
+                + b[0].value_constraint_field().unwrap()
+                    * b[1].value_constraint_field().unwrap()
+                    * (c[3] - c[2] - c[1] + c[0]);
+            Ok(c)
         })?;
         let one = Variable::One;
         b.cs().enforce_constraint(
@@ -678,13 +689,13 @@ impl<F: PrimeField> FieldVar<F, F> for FpVar<F> {
             (Constant(_), Constant(_), Constant(_)) => Ok(()),
             (Constant(_), Constant(_), _) | (Constant(_), Var(_), _) | (Var(_), Constant(_), _) => {
                 result.enforce_equal(&(self * other))
-            } // this multiplication should be free
+            }, // this multiplication should be free
             (Var(v1), Var(v2), Var(v3)) => v1.mul_equals(v2, v3),
             (Var(v1), Var(v2), Constant(f)) => {
                 let cs = v1.cs.clone();
                 let v3 = AllocatedFp::new_constant(cs, f).unwrap();
                 v1.mul_equals(v2, &v3)
-            }
+            },
         }
     }
 
@@ -698,12 +709,12 @@ impl<F: PrimeField> FieldVar<F, F> for FpVar<F> {
                 let cs = r.cs.clone();
                 let v = AllocatedFp::new_witness(cs, || Ok(f))?;
                 v.square_equals(&r)
-            }
+            },
             (Var(v), Constant(f)) => {
                 let cs = v.cs.clone();
                 let r = AllocatedFp::new_witness(cs, || Ok(f))?;
                 v.square_equals(&r)
-            }
+            },
             (Var(v1), Var(v2)) => v1.square_equals(v2),
         }
     }
@@ -724,7 +735,7 @@ impl<F: PrimeField> FieldVar<F, F> for FpVar<F> {
                 let mut f = *f;
                 f.frobenius_map(power);
                 Ok(FpVar::Constant(f))
-            }
+            },
         }
     }
 
@@ -811,7 +822,7 @@ impl<F: PrimeField> EqGadget<F> for FpVar<F> {
                 let cs = v.cs.clone();
                 let c = AllocatedFp::new_constant(cs, c)?;
                 c.is_eq(v)
-            }
+            },
             (Self::Var(v1), Self::Var(v2)) => v1.is_eq(v2),
         }
     }
@@ -828,7 +839,7 @@ impl<F: PrimeField> EqGadget<F> for FpVar<F> {
                 let cs = v.cs.clone();
                 let c = AllocatedFp::new_constant(cs, c)?;
                 c.conditional_enforce_equal(v, should_enforce)
-            }
+            },
             (Self::Var(v1), Self::Var(v2)) => v1.conditional_enforce_equal(v2, should_enforce),
         }
     }
@@ -845,7 +856,7 @@ impl<F: PrimeField> EqGadget<F> for FpVar<F> {
                 let cs = v.cs.clone();
                 let c = AllocatedFp::new_constant(cs, c)?;
                 c.conditional_enforce_not_equal(v, should_enforce)
-            }
+            },
             (Self::Var(v1), Self::Var(v2)) => v1.conditional_enforce_not_equal(v2, should_enforce),
         }
     }
@@ -917,7 +928,7 @@ impl<F: PrimeField> CondSelectGadget<F> for FpVar<F> {
                         let not = AllocatedFp::from(cond.not());
                         // cond * t + (1 - cond) * f
                         Ok(is.mul_constant(*t).add(&not.mul_constant(*f)).into())
-                    }
+                    },
                     (..) => {
                         let cs = cond.cs();
                         let true_value = match true_value {
@@ -929,9 +940,9 @@ impl<F: PrimeField> CondSelectGadget<F> for FpVar<F> {
                             Self::Var(v) => v.clone(),
                         };
                         cond.select(&true_value, &false_value).map(Self::Var)
-                    }
+                    },
                 }
-            }
+            },
         }
     }
 }

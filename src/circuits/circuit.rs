@@ -4,36 +4,50 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
 };
 
+use crate::input::SampleMpcInput;
+
 use super::{LocalOrMPC, PedersenComCircuit};
 
 #[derive(Clone)]
 pub struct MyCircuit<F: PrimeField + LocalOrMPC<F>> {
-    pub a: Option<F>,
-    pub b: Option<F>,
-
-    pub params: Option<F::PedersenParam>,
-    pub vec_x: Option<Vec<F>>,
-    pub randomness: Option<Vec<F::PedersenRandomness>>,
-
-    pub vec_h_x: Option<Vec<F::PedersenCommitment>>,
+    pub mpc_input: SampleMpcInput<F>,
 }
 
 impl<F: PrimeField + LocalOrMPC<F>> MyCircuit<F> {
     fn verify_commitments(&self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        for i in 0..self.vec_x.as_ref().unwrap().len() {
-            let x = self.vec_x.clone().unwrap()[i];
-            let h_x = &self.vec_h_x.clone().unwrap()[i];
-            let randomness = &self.randomness.clone().unwrap()[i];
+        let a_com_circuit = PedersenComCircuit {
+            param: Some(self.clone().mpc_input.common.unwrap().pedersen_param),
+            input: self.clone().mpc_input.peculiar.unwrap().a.input,
+            input_bit: self.clone().mpc_input.peculiar.unwrap().a.input_bit.clone(),
+            open_bit: self
+                .clone()
+                .mpc_input
+                .peculiar
+                .unwrap()
+                .a
+                .randomness_bit
+                .clone(),
+            commit: Some(self.clone().mpc_input.peculiar.unwrap().a.commitment),
+        };
 
-            let x_com_circuit = PedersenComCircuit {
-                param: self.params.clone(),
-                input: Some(x),
-                open: Some(randomness.clone()),
-                commit: Some(h_x.clone()),
-            };
+        a_com_circuit.generate_constraints(cs.clone())?;
 
-            x_com_circuit.generate_constraints(cs.clone())?;
-        }
+        let b_com_circuit = PedersenComCircuit {
+            param: Some(self.clone().mpc_input.common.unwrap().pedersen_param),
+            input: self.clone().mpc_input.peculiar.unwrap().b.input,
+            input_bit: self.clone().mpc_input.peculiar.unwrap().b.input_bit.clone(),
+            open_bit: self
+                .clone()
+                .mpc_input
+                .peculiar
+                .unwrap()
+                .b
+                .randomness_bit
+                .clone(),
+            commit: Some(self.clone().mpc_input.peculiar.unwrap().b.commitment),
+        };
+
+        b_com_circuit.generate_constraints(cs.clone())?;
 
         Ok(())
     }
@@ -46,11 +60,17 @@ impl<ConstraintF: PrimeField + LocalOrMPC<ConstraintF>> ConstraintSynthesizer<Co
         self,
         cs: ConstraintSystemRef<ConstraintF>,
     ) -> Result<(), SynthesisError> {
-        let a = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
-        let b = cs.new_witness_variable(|| self.b.ok_or(SynthesisError::AssignmentMissing))?;
+        let peculiar_input = self
+            .mpc_input
+            .peculiar
+            .clone()
+            .ok_or(SynthesisError::AssignmentMissing)?;
+
+        let a = cs.new_witness_variable(|| Ok(peculiar_input.a.input))?;
+        let b = cs.new_witness_variable(|| Ok(peculiar_input.b.input))?;
         let c = cs.new_input_variable(|| {
-            let mut a = self.a.ok_or(SynthesisError::AssignmentMissing)?;
-            let b = self.b.ok_or(SynthesisError::AssignmentMissing)?;
+            let mut a = peculiar_input.a.input;
+            let b = peculiar_input.b.input;
 
             a.mul_assign(&b);
             Ok(a)

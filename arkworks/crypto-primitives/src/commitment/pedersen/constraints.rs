@@ -21,7 +21,7 @@ pub struct ParametersVar<C: ProjectiveCurve, GG: CurveVar<C, ConstraintF<C>>>
 where
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
 {
-    params: Parameters<C>,
+    pub params: Parameters<C>,
     #[doc(hidden)]
     _group_var: PhantomData<GG>,
 }

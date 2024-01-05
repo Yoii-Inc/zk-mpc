@@ -15,7 +15,7 @@ use ark_std::UniformRand;
 use derivative::Derivative;
 
 use crate::reveal::Reveal;
-use crate::{DenseOrSparsePolynomial, DensePolynomial, Msm, SparsePolynomial};
+use crate::{BeaverSource, DenseOrSparsePolynomial, DensePolynomial, Msm, SparsePolynomial};
 
 use crate::channel::MpcSerNet;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
@@ -210,6 +210,86 @@ impl<F: Field> ExtFieldShare<F> for AdditiveExtFieldShare<F> {
     type Ext = AdditiveFieldShare<F>;
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MulFieldShare<T> {
+    pub val: T,
+}
+
+impl_field_basics!(MulFieldShare, Field);
+
+impl<F: Field> Reveal for MulFieldShare<F> {
+    type Base = F;
+
+    fn reveal(self) -> F {
+        Net::broadcast(&self.val).into_iter().product()
+    }
+    fn from_public(f: F) -> Self {
+        Self {
+            val: if Net::am_king() { f } else { F::one() },
+        }
+    }
+    fn from_add_shared(f: F) -> Self {
+        Self { val: f }
+    }
+    fn unwrap_as_public(self) -> F {
+        self.val
+    }
+}
+
+impl<F: Field> FieldShare<F> for MulFieldShare<F> {
+    fn map_homo<FF: Field, SS: FieldShare<FF>, Fun: Fn(F) -> FF>(self, _f: Fun) -> SS {
+        unimplemented!()
+    }
+    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
+        let self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
+        let all_vals = Net::broadcast(&self_vec);
+        (0..self_vec.len())
+            .map(|i| all_vals.iter().map(|v| &v[i]).product())
+            .collect()
+    }
+
+    fn add(&mut self, _other: &Self) -> &mut Self {
+        unimplemented!("add for MulFieldShare")
+    }
+
+    fn scale(&mut self, other: &F) -> &mut Self {
+        if Net::am_king() {
+            self.val *= other;
+        }
+        self
+    }
+
+    fn shift(&mut self, _other: &F) -> &mut Self {
+        unimplemented!("add for MulFieldShare")
+    }
+
+    fn beaver_mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut S) -> Self {
+        Self {
+            val: self.val * other.val,
+        }
+    }
+
+    fn batch_mul<S: BeaverSource<Self, Self, Self>>(
+        mut xs: Vec<Self>,
+        ys: Vec<Self>,
+        _source: &mut S,
+    ) -> Vec<Self> {
+        for (x, y) in xs.iter_mut().zip(ys.iter()) {
+            x.val *= y.val;
+        }
+        xs
+    }
+
+    fn inv<S: BeaverSource<Self, Self, Self>>(mut self, _source: &mut S) -> Self {
+        self.val = self.val.inverse().unwrap();
+        self
+    }
+
+    fn batch_inv<S: BeaverSource<Self, Self, Self>>(xs: Vec<Self>, source: &mut S) -> Vec<Self> {
+        xs.into_iter().map(|x| x.inv(source)).collect()
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct MulExtFieldShare<F: Field>(pub PhantomData<F>);
 
@@ -220,6 +300,7 @@ impl<F: Field> ExtFieldShare<F> for MulExtFieldShare<F> {
 
 #[derive(Derivative)]
 #[derivative(
+    Default(bound = "T: Default"),
     Clone(bound = "T:Clone"),
     Copy(bound = "T:Copy"),
     PartialEq(bound = "T: PartialEq"),
@@ -325,6 +406,11 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
 
     fn add(&mut self, other: &Self) -> &mut Self {
         self.val += &other.val;
+        self
+    }
+
+    fn scale_pub_scalar(&mut self, scalar: &G::ScalarField) -> &mut Self {
+        self.val *= *scalar;
         self
     }
 

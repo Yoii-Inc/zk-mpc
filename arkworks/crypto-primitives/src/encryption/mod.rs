@@ -9,10 +9,10 @@ use crate::Error;
 use ark_std::rand::Rng;
 
 pub trait AsymmetricEncryptionScheme {
-    type Parameters;
+    type Parameters: Clone;
     type PublicKey;
     type SecretKey;
-    type Randomness;
+    type Randomness: Clone;
     type Plaintext;
     type Ciphertext;
 

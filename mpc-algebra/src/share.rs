@@ -1,3 +1,6 @@
+use derivative::Derivative;
+use std::marker::PhantomData;
+
 pub mod additive;
 pub use additive::*;
 pub mod field;
@@ -8,6 +11,8 @@ pub mod msm;
 pub use msm::*;
 pub mod pairing;
 pub use pairing::*;
+pub mod spdz;
+pub use spdz::*;
 
 pub trait BeaverSource<A, B, C>: Clone {
     fn triple(&mut self) -> (A, B, C);
@@ -33,5 +38,23 @@ pub trait BeaverSource<A, B, C>: Clone {
             ys.push(y);
         }
         (xs, ys)
+    }
+}
+
+#[derive(Derivative)]
+#[derivative(Default(bound = ""), Clone(bound = ""))]
+/// Panics if you ask it for triples.
+pub struct PanicBeaverSource<A, B, C>(PhantomData<(A, B, C)>);
+
+pub type PanicFieldTripleSource<F> = PanicBeaverSource<F, F, F>;
+pub type PanicGroupTripleSource<F, G> = PanicBeaverSource<G, F, G>;
+
+impl<A, B, C> BeaverSource<A, B, C> for PanicBeaverSource<A, B, C> {
+    fn triple(&mut self) -> (A, B, C) {
+        panic!("PanicBeaverSource")
+    }
+
+    fn inv_pair(&mut self) -> (B, B) {
+        panic!("PanicBeaverSource")
     }
 }
