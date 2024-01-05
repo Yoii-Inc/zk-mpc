@@ -27,8 +27,6 @@ type MFr = MpcField<Fr>;
 use crate::circuits::ElGamalLocalOrMPC;
 use crate::circuits::LocalOrMPC;
 
-use crate::Opt;
-
 #[derive(Clone)]
 pub struct SampleMpcInput<F: PrimeField + LocalOrMPC<F>> {
     pub mode: InputMode,
@@ -86,7 +84,7 @@ impl InputWithCommit<MFr> {
                 .into_repr()
                 .to_bits_le()
                 .iter()
-                .map(|b| MFr::from_add_shared(Fr::from(false)))
+                .map(|_b| MFr::from_add_shared(Fr::from(false)))
                 .collect::<Vec<_>>();
         }
 
@@ -161,7 +159,7 @@ impl MpcInputTrait for SampleMpcInput<MFr> {
         }
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, _input: Option<Self::Common>) {
         assert_eq!(self.get_mode(), InputMode::Init);
 
         let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
@@ -239,11 +237,11 @@ impl MpcInputTrait for SampleMpcInput<Fr> {
         todo!()
     }
 
-    fn set_public_input<R: Rng>(&mut self, _rng: &mut R, input: Option<Self::Common>) {
+    fn set_public_input<R: Rng>(&mut self, _rng: &mut R, _input: Option<Self::Common>) {
         todo!()
     }
 
-    fn set_private_input(&mut self, input: Option<Self::Peculiar>) {
+    fn set_private_input(&mut self, _input: Option<Self::Peculiar>) {
         todo!()
     }
 
@@ -313,12 +311,13 @@ pub struct WerewolfKeyInput<F: PrimeField + LocalOrMPC<F>> {
 pub struct WerewolfKeyPeculiarInput<F: PrimeField + LocalOrMPC<F>> {
     pub pub_key_or_dummy_x: Vec<InputWithCommit<F>>,
     pub pub_key_or_dummy_y: Vec<InputWithCommit<F>>,
+    pub is_fortune_teller: Vec<InputWithCommit<F>>,
 }
 
 impl MpcInputTrait for WerewolfKeyInput<MFr> {
     type Base = Fr;
 
-    type Peculiar = (Vec<Fr>, Vec<Fr>);
+    type Peculiar = (Vec<Fr>, Vec<Fr>, Vec<Fr>);
     type Common = CommonInput<MFr>;
 
     fn get_mode(&self) -> InputMode {
@@ -333,7 +332,7 @@ impl MpcInputTrait for WerewolfKeyInput<MFr> {
         }
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, _input: Option<Self::Common>) {
         assert_eq!(self.get_mode(), InputMode::Init);
 
         let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
@@ -352,17 +351,21 @@ impl MpcInputTrait for WerewolfKeyInput<MFr> {
         let mut pub_key_or_dummy_x = vec![InputWithCommit::default(); 3];
         let mut pub_key_or_dummy_y = vec![InputWithCommit::default(); 3];
 
+        let mut is_fortune_teller = vec![InputWithCommit::default(); 3];
+
         for i in 0..2 {
             pub_key_or_dummy_x[i].allocation = i;
             pub_key_or_dummy_y[i].allocation = i;
+            is_fortune_teller[i].allocation = i;
         }
 
         match input {
             None => (),
-            Some((x_values, y_values)) => {
+            Some((x_values, y_values, is_fortune_teller_value)) => {
                 for i in 0..2 {
                     pub_key_or_dummy_x[i].input = MFr::from_public(x_values[i]);
                     pub_key_or_dummy_y[i].input = MFr::from_public(y_values[i]);
+                    is_fortune_teller[i].input = MFr::from_public(is_fortune_teller_value[i]);
                 }
             }
         }
@@ -370,6 +373,7 @@ impl MpcInputTrait for WerewolfKeyInput<MFr> {
         self.peculiar = Some(WerewolfKeyPeculiarInput {
             pub_key_or_dummy_x,
             pub_key_or_dummy_y,
+            is_fortune_teller,
         });
     }
 
@@ -403,15 +407,28 @@ impl MpcInputTrait for WerewolfKeyInput<MFr> {
             })
             .collect::<Vec<_>>();
 
+        let is_ft = self.clone().peculiar.unwrap().is_fortune_teller;
+
+        let is_ft_processed = is_ft
+            .iter()
+            .map(|iwc| {
+                iwc.generate_input(
+                    &self.clone().common.unwrap().pedersen_param,
+                    &common_randomness,
+                )
+            })
+            .collect::<Vec<_>>();
+
         let peculiar = WerewolfKeyPeculiarInput {
             pub_key_or_dummy_x: pk_x_processed,
             pub_key_or_dummy_y: pk_y_processed,
+            is_fortune_teller: is_ft_processed,
         };
 
         self.peculiar = Some(peculiar);
     }
 
-    fn rand<R: Rng>(rng: &mut R) -> Self {
+    fn rand<R: Rng>(_rng: &mut R) -> Self {
         unimplemented!()
     }
 }
@@ -430,15 +447,15 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
         unimplemented!()
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
+    fn set_public_input<R: Rng>(&mut self, _rng: &mut R, _input: Option<Self::Common>) {
         unimplemented!()
     }
 
-    fn set_private_input(&mut self, input: Option<Self::Peculiar>) {
+    fn set_private_input(&mut self, _input: Option<Self::Peculiar>) {
         unimplemented!()
     }
 
-    fn generate_input<R: Rng>(&mut self, rng: &mut R) {
+    fn generate_input<R: Rng>(&mut self, _rng: &mut R) {
         todo!()
     }
 
@@ -472,6 +489,29 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
             allocation: 0,
             input: input_a,
             input_bit,
+            randomness_bit: open_bit.clone(),
+            commitment: <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
+                &params,
+                &a_bytes,
+                &randomness,
+            )
+            .unwrap(),
+        };
+
+        let input_b = Fr::rand(rng);
+        let input_b_bit = input_b
+            .into_repr()
+            .to_bits_le()
+            .iter()
+            .map(|b| Fr::from(*b))
+            .collect::<Vec<_>>();
+
+        let b_bytes = input_b.into_repr().to_bytes_le();
+
+        let b = InputWithCommit {
+            allocation: 0,
+            input: input_b,
+            input_bit: input_b_bit,
             randomness_bit: open_bit,
             commitment: <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
                 &params,
@@ -485,6 +525,7 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
             peculiar: Some(WerewolfKeyPeculiarInput {
                 pub_key_or_dummy_x: vec![a.clone(); 3],
                 pub_key_or_dummy_y: vec![a.clone(); 3],
+                is_fortune_teller: vec![b.clone(); 3],
             }),
             common: Some(CommonInput {
                 pedersen_param: params,
@@ -555,8 +596,8 @@ impl MpcInputTrait for WerewolfMpcInput<MFr> {
 
         match input {
             None => (),
-            Some((elgamal_param, pub_key)) => {
-                for i in 0..2 {
+            Some((elgamal_param, _pub_key)) => {
+                for _i in 0..2 {
                     mpc_elgamal_param = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalParam::from_public(
                         elgamal_param.clone(),
                     );
@@ -661,7 +702,7 @@ impl MpcInputTrait for WerewolfMpcInput<MFr> {
         self.peculiar = Some(peculiar);
     }
 
-    fn rand<R: Rng>(rng: &mut R) -> Self {
+    fn rand<R: Rng>(_rng: &mut R) -> Self {
         unimplemented!()
     }
 }
@@ -680,15 +721,15 @@ impl MpcInputTrait for WerewolfMpcInput<Fr> {
         unimplemented!()
     }
 
-    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
+    fn set_public_input<R: Rng>(&mut self, _rng: &mut R, _input: Option<Self::Common>) {
         unimplemented!()
     }
 
-    fn set_private_input(&mut self, input: Option<Self::Peculiar>) {
+    fn set_private_input(&mut self, _input: Option<Self::Peculiar>) {
         unimplemented!()
     }
 
-    fn generate_input<R: Rng>(&mut self, rng: &mut R) {
+    fn generate_input<R: Rng>(&mut self, _rng: &mut R) {
         unimplemented!()
     }
 

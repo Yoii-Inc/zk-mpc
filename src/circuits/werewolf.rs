@@ -8,6 +8,8 @@ use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::boolean::{AllocatedBool, Boolean};
 use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_relations::lc;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable};
@@ -67,40 +69,52 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for KeyPublicizeCir
         let pk_x = self.clone().mpc_input.peculiar.unwrap().pub_key_or_dummy_x;
         let pk_y = self.clone().mpc_input.peculiar.unwrap().pub_key_or_dummy_y;
 
+        let is_fortune_teller = self.clone().mpc_input.peculiar.unwrap().is_fortune_teller;
+
         let x_var = pk_x
             .iter()
-            .map(|x| cs.new_witness_variable(|| Ok(x.input)).unwrap())
-            .collect::<Vec<_>>();
+            .map(|x| {
+                FpVar::<F>::new_witness(ark_relations::ns!(cs, "gadget_randomness"), || Ok(x.input))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let y_var = pk_y
             .iter()
-            .map(|y| cs.new_witness_variable(|| Ok(y.input)).unwrap())
-            .collect::<Vec<_>>();
+            .map(|y| {
+                FpVar::<F>::new_witness(ark_relations::ns!(cs, "gadget_randomness"), || Ok(y.input))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let input_x_var = cs.new_input_variable(|| {
-            let vec = pk_x.clone();
-            let pk = vec.iter().map(|x| x.input).sum();
-            Ok(pk)
-        })?;
+        let is_ft_var = is_fortune_teller
+            .iter()
+            .map(|b| {
+                FpVar::<F>::new_witness(ark_relations::ns!(cs, "gadget_randomness"), || Ok(b.input))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let input_y_var = cs.new_input_variable(|| {
-            let vec = pk_y.clone();
-            let pk = vec.iter().map(|y| y.input).sum();
-            Ok(pk)
-        })?;
+        // is_fortune_teller = 0 or 1
+        for b in is_ft_var.iter() {
+            let is_zero = FieldVar::<F, F>::is_zero(b)?;
+            let is_one = FieldVar::<F, F>::is_one(b)?;
+            let is_bool = is_zero.or(&is_one)?;
+            is_bool.enforce_equal(&Boolean::constant(true))?;
+        }
 
-        let lc_x = x_var.iter().fold(lc!(), |mut acc, x| {
-            acc = acc + x;
-            acc
-        });
+        let sum_x_var = x_var
+            .iter()
+            .enumerate()
+            .fold(FpVar::<F>::zero(), |mut acc, (i, x)| {
+                acc = acc + x * &is_ft_var[i];
+                acc
+            });
 
-        let lc_y = y_var.iter().fold(lc!(), |mut acc, y| {
-            acc = acc + y;
-            acc
-        });
-
-        cs.enforce_constraint(lc!() + Variable::One, lc_x, lc!() + input_x_var)?;
-        cs.enforce_constraint(lc!() + Variable::One, lc_y, lc!() + input_y_var)?;
+        let sum_y_var = y_var
+            .iter()
+            .enumerate()
+            .fold(FpVar::<F>::zero(), |mut acc, (i, y)| {
+                acc = acc + y * &is_ft_var[i];
+                acc
+            });
 
         // self.verify_commitments(cs.clone())?;
 

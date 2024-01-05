@@ -2,7 +2,6 @@ use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
-use ark_ed_on_bls12_377::EdwardsParameters;
 use ark_ff::FpParameters;
 use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
@@ -188,6 +187,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     // dummmy input
     let mut pub_key_or_dummy_x = vec![Fr::from(0); num_players];
     let mut pub_key_or_dummy_y = vec![Fr::from(0); num_players];
+    let is_fortune_teller = vec![Fr::from(0); num_players];
 
     // collaborative proof
     let rng = &mut test_rng();
@@ -211,7 +211,11 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
 
     let mut mpc_input = WerewolfKeyInput::init();
     mpc_input.set_public_input(rng, None);
-    mpc_input.set_private_input(Some((pub_key_or_dummy_x, pub_key_or_dummy_y)));
+    mpc_input.set_private_input(Some((
+        pub_key_or_dummy_x,
+        pub_key_or_dummy_y,
+        is_fortune_teller,
+    )));
     mpc_input.generate_input(rng);
 
     let key_publicize_circuit = KeyPublicizeCircuit {
@@ -247,7 +251,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
         .map(|x| x.input)
         .sum();
 
-    let inputs = [pk_x.reveal(), pk_y.reveal()];
+    let inputs = [];
 
     // verify
     let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
@@ -373,7 +377,7 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
         mpc_input: mpc_input.clone(),
     };
 
-    let peculiar_is_werewolf_commitment: Vec<GroupAffine<MpcEdwardsParameters>> = mpc_input
+    let _peculiar_is_werewolf_commitment: Vec<GroupAffine<MpcEdwardsParameters>> = mpc_input
         .peculiar
         .clone()
         .unwrap()
@@ -382,7 +386,7 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
         .map(|x| x.commitment)
         .collect::<Vec<_>>();
 
-    let peculiar_is_target_commitment: Vec<GroupAffine<MpcEdwardsParameters>> = mpc_input
+    let _peculiar_is_target_commitment: Vec<GroupAffine<MpcEdwardsParameters>> = mpc_input
         .peculiar
         .clone()
         .unwrap()
@@ -572,7 +576,7 @@ fn get_elgamal_param_pubkey() -> (
 
     let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
-    let deserialized_sk =
+    let _deserialized_sk =
         <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
             <<ark_ec::twisted_edwards_extended::GroupProjective<
                 ark_ed_on_bls12_377::EdwardsParameters,
