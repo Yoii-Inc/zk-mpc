@@ -506,7 +506,7 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
             .map(|b| Fr::from(*b))
             .collect::<Vec<_>>();
 
-        let b_bytes = input_b.into_repr().to_bytes_le();
+        let _b_bytes = input_b.into_repr().to_bytes_le();
 
         let b = InputWithCommit {
             allocation: 0,

@@ -100,7 +100,7 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for KeyPublicizeCir
             is_bool.enforce_equal(&Boolean::constant(true))?;
         }
 
-        let sum_x_var = x_var
+        let _sum_x_var = x_var
             .iter()
             .enumerate()
             .fold(FpVar::<F>::zero(), |mut acc, (i, x)| {
@@ -108,7 +108,7 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for KeyPublicizeCir
                 acc
             });
 
-        let sum_y_var = y_var
+        let _sum_y_var = y_var
             .iter()
             .enumerate()
             .fold(FpVar::<F>::zero(), |mut acc, (i, y)| {

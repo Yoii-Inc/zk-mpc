@@ -2,6 +2,7 @@ use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
+
 use ark_ff::FpParameters;
 use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
@@ -233,7 +234,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     //     infinity: mpc_input.pub_key.infinity.reveal(),
     // };
 
-    let pk_x: MFr = mpc_input
+    let _pk_x: MFr = mpc_input
         .peculiar
         .clone()
         .unwrap()
@@ -242,7 +243,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
         .map(|x| x.input)
         .sum();
 
-    let pk_y: MFr = mpc_input
+    let _pk_y: MFr = mpc_input
         .peculiar
         .clone()
         .unwrap()
@@ -695,7 +696,7 @@ fn test_encryption_decryption() -> Result<(), std::io::Error> {
 
     let rng = &mut test_rng();
 
-    let a = GroupAffine::<EdwardsParameters>::rand(rng);
+    let a = GroupAffine::<ark_ed_on_bls12_377::EdwardsParameters>::rand(rng);
 
     let randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
 

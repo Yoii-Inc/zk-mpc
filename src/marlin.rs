@@ -11,7 +11,6 @@ use blake2::Blake2s;
 use mpc_algebra::malicious_majority::*;
 use mpc_algebra::{FromLocal, Reveal};
 use mpc_net::{MpcMultiNet, MpcNet};
-use num_traits::One;
 
 use crate::{
     circuits::{circuit::MyCircuit, LocalOrMPC, PedersenComCircuit},

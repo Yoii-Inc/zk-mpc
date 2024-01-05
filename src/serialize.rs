@@ -1,5 +1,6 @@
 use ark_serialize::CanonicalSerialize;
 use hex::ToHex;
+
 use serde_json::Value;
 use std::{fmt::Write, fs::File};
 
@@ -72,6 +73,30 @@ pub fn write_to_file<T: CanonicalSerialize>(
     }
     Ok(())
 }
+
+// pub fn read_from_file<'a, T: Deserialize<'a>>(
+//     file_path: &str,
+// ) -> Result<T, Box<dyn std::error::Error>> {
+//     let mut file = File::open(file_path).expect("Failed to open file");
+
+//     let mut data_string = String::new();
+//     file.read_to_string(&mut data_string)
+//         .expect("Failed to read file");
+
+//     let data: T = serde_json::from_str(&data_string)?;
+
+//     // let remove_prefix_string = if let Some(stripped) = data.role.strip_prefix("0x") {
+//     //     stripped.to_string()
+//     // } else {
+//     //     data.role.clone()
+//     // };
+
+//     // let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+//     // let deserialized_role = <String as CanonicalDeserialize>::deserialize(reader).unwrap();
+
+//     Ok(data)
+// }
 
 pub fn write_r(
     peer_num: usize,

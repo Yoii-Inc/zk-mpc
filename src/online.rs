@@ -13,7 +13,7 @@ use std::{fs::File, path::PathBuf, vec};
 use structopt::StructOpt;
 
 mod circuits;
-use circuits::{circuit::MySimpleCircuit, LocalOrMPC, PedersenComCircuit};
+use circuits::LocalOrMPC;
 mod input;
 use input::*;
 mod marlin;
