@@ -1,5 +1,6 @@
 use ark_serialize::CanonicalSerialize;
 use hex::ToHex;
+
 use serde_json::Value;
 use std::{fmt::Write, fs::File};
 
@@ -73,8 +74,33 @@ pub fn write_to_file<T: CanonicalSerialize>(
     Ok(())
 }
 
+// pub fn read_from_file<'a, T: Deserialize<'a>>(
+//     file_path: &str,
+// ) -> Result<T, Box<dyn std::error::Error>> {
+//     let mut file = File::open(file_path).expect("Failed to open file");
+
+//     let mut data_string = String::new();
+//     file.read_to_string(&mut data_string)
+//         .expect("Failed to read file");
+
+//     let data: T = serde_json::from_str(&data_string)?;
+
+//     // let remove_prefix_string = if let Some(stripped) = data.role.strip_prefix("0x") {
+//     //     stripped.to_string()
+//     // } else {
+//     //     data.role.clone()
+//     // };
+
+//     // let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+//     // let deserialized_role = <String as CanonicalDeserialize>::deserialize(reader).unwrap();
+
+//     Ok(data)
+// }
+
 pub fn write_r(
     peer_num: usize,
+    dir_name: &str,
     r_angle: AngleShares,
     r_bracket: BracketShares,
 ) -> Result<(), std::io::Error> {
@@ -91,7 +117,7 @@ pub fn write_r(
 
     // write
     for i in 0..peer_num {
-        let output_file_path = format!("./outputs/{}/online_setup.json", i);
+        let output_file_path = format!("./{}/{}/online_setup.json", dir_name, i);
 
         let mut write_datas = Vec::new();
 
@@ -173,6 +199,6 @@ mod tests {
         let (r_bracket, r_angle) =
             preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
-        write_r(3, r_angle, r_bracket).unwrap();
+        write_r(3, "outputs", r_angle, r_bracket).unwrap();
     }
 }

@@ -290,7 +290,7 @@ impl<'a, P: Parameters> Sub<&'a Self> for GroupAffine<P> {
 
 impl<P: Parameters> SubAssign<Self> for GroupAffine<P> {
     fn sub_assign(&mut self, other: Self) {
-        self.sub_assign(other)
+        self.sub_assign(&other)
     }
 }
 

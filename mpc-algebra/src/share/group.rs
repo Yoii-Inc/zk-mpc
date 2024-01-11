@@ -31,11 +31,33 @@ pub trait GroupShare<G: Group>:
 {
     type FieldShare: FieldShare<G::ScalarField>;
 
+    fn open(&self) -> G {
+        <Self as Reveal>::reveal(*self)
+    }
+
     fn map_homo<G2: Group, S2: GroupShare<G2>, Fun: Fn(G) -> G2>(self, f: Fun) -> S2 {
         S2::from_add_shared(f(self.unwrap_as_public()))
     }
 
+    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
+        selfs.into_iter().map(|s| s.open()).collect()
+    }
+
     fn add(&mut self, other: &Self) -> &mut Self;
+
+    fn sub(&mut self, other: &Self) -> &mut Self {
+        let mut t = other.clone();
+        t.neg();
+        t.add(&self);
+        *self = t;
+        self
+    }
+
+    fn neg(&mut self) -> &mut Self {
+        self.scale_pub_scalar(&-<G::ScalarField as ark_ff::One>::one())
+    }
+
+    fn scale_pub_scalar(&mut self, scalar: &G::ScalarField) -> &mut Self;
 
     fn scale_pub_group(base: G, scalar: &Self::FieldShare) -> Self;
 

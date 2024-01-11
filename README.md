@@ -1,12 +1,14 @@
 This repositry is zk-mpc.
 
 ## Directory Structure
-- input_circuit.rs
-    - This file defines the input circuit for prove the correctness of secret inputs sharing.
-- preprocess.rs
-    - This file defines the preprocessing module.
-    - MPC protocol requires preprocessing.
-- she.rs
+The following is the main directory structure.
+- `/circuits`
+    - This module contains various circuits.
+    - `circuit.rs`
+        - This file defines the circuit for MPC.
+    - `input_circuit.rs`
+        - This file defines the input circuit for prove the correctness of secret inputs sharing.
+- `/she`
     - This file defines the Somewhat Hmomorphic Encryption protocol. Concrete implementation is based on these papers.
         - [Fully Homomorphic Encryption from Ring-LWE
 and Security for Key Dependent Messages](https://www.wisdom.weizmann.ac.il/~zvikab/localpapers/IdealHom.pdf).
@@ -14,35 +16,39 @@ and Security for Key Dependent Messages](https://www.wisdom.weizmann.ac.il/~zvik
 ](https://eprint.iacr.org/2011/133.pdf).
         - [Multiparty Computation from Somewhat Homomorphic
 Encryption](https://eprint.iacr.org/2011/535.pdf).
+- `input.rs`
+    - This file defines the input struct used in the corresponding circuit.
+- `bin_werewolf.rs`
+    - This is the binary file for werewolf game.
+- `main.rs`
+    - This file is the main binary file. Mainly, used for preprocessing phase.
+- `online.rs`
+    - This file is the second binary file. Mainly, used for online phase.
+- `preprocessing.rs`
+    - This file defines the preprocessing module.
+    - MPC protocol requires preprocessing.
 
 ## Build guide
 Clone this repositry:
-```
+
+```bash
 git clone https://github.com/Yoii-Inc/zk-mpc.git
 ```
 
 and build:
-```
+
+```bash
 cargo build
 ```
 
 setup input file
-```
 
+```bash
 cp ./inputs/inputs-template.json ./inputs/inputs.json
 ```
 
 ### Preprocessing phase
-run(by groth16):
-```
-cargo run --bin main groth16 ./inputs/inputs.json
-```
-or run(by marlin):
-```
-cargo run --bin main marlin ./inputs/inputs.json
-```
 
-### Online phase
 setup output folder
 ```
 mkdir ./outputs
@@ -51,19 +57,38 @@ mkdir ./outputs/1
 mkdir ./outputs/2
 ```
 
-run online phase
+run(by groth16):
+
+```bash
+cargo run --bin main groth16 ./inputs/inputs.json
 ```
+
+or run(by marlin):
+
+```bash
+cargo run --bin main marlin ./inputs/inputs.json
+```
+
+### Online phase
+
+run online phase
+
+```bash
 ./run_online.zsh
 ```
 
 ## Tests
 
-```
-cargo test
+The tests performed by the following **DOES NOT** include MPC. Therefore, testing of the MPC itself is performed by executing preprocessing and online as described above.
+
+```bash
+cargo test --bin main
 ```
 
 ## Usage
+
 ### how to specify secret inputs
+
 To specify secret inputs, follow these steps:
 
 1. In the `inputs/inputs.json` file, define the desired inputs using a JSON format. For example:
@@ -93,19 +118,20 @@ By following these steps, you can specify secret inputs in the inputs.json file 
 
 ### how to specify constraints
 
-Constraints are specified in input_circuit.rs. For example:
+Constraints are specified in `input_circuit.rs`. For example:
 
 ```rust
-pub struct MySecretInputCircuit {
+pub struct MySecretInputCircuit<F: PrimeField + LocalOrMPC<F>> {
     // private witness to the circuit
-    x: Option<Fr>,
-    randomness: Option<PedersenRandomness>,
-    params: Option<PedersenParam>,
+    x: Option<F>,
+    input_bit: Option<Vec<F>>,
+    open_bit: Option<Vec<F>>,
+    params: Option<F::PedersenParam>,
 
     // public instance to the circuit
-    h_x: Option<PedersenCommitment>,
-    lower_bound: Option<Fr>,
-    upper_bound: Option<Fr>,
+    h_x: Option<F::PedersenCommitment>,
+    lower_bound: Option<F>,
+    upper_bound: Option<F>,
 }
 ```
 
@@ -114,8 +140,8 @@ This sturuct represents a circuit, and it requires to define the necessary witne
 In addition, the constraints in the circuit are defined as follows.
 
 ```rust
-impl ConstraintSynthesizer<Fr> for MySecretInputCircuit {
-    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for MySecretInputCircuit<F> {
+    fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
         self.verify_constraints(cs.clone())?;
 
         self.verify_commitment(cs.clone())?;
@@ -130,8 +156,8 @@ In addition to usual constraints, we also defines one here to calculate commitme
 Here we show the example of the former constraints:
 
 ```rust
-impl MySecretInputCircuit {
-    fn verify_constraints(&self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+impl<F: PrimeField + LocalOrMPC<F>> MySecretInputCircuit<F> {
+    fn verify_constraints(&self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
         let x = FpVar::new_witness(cs.clone(), || {
             self.x.ok_or(SynthesisError::AssignmentMissing)
         })?;
@@ -155,7 +181,20 @@ impl MySecretInputCircuit {
 See [this](https://github.com/arkworks-rs/r1cs-tutorial/) to learn more about how to specify constraints.
 
 ### how to specify mpc calculation
-online mpc calculations are specified in circuits/circuit.rs. Defaultly, MySimpleCircuit is used. Constraints is specified in same way as input_circuit.rs.
+online mpc calculations are specified in `circuits/circuit.rs`. Defaultly, MySimpleCircuit is used. Constraints is specified in same way as `input_circuit.rs`.
+
+
+## Example - Werewolf
+Initialize werewolf game. The following command initializes the game with 3 players. Game files are generated in `werewolf/` directory.
+```
+./run_werewolf.zsh init 3
+```
+
+Run the game. The following command runs the game in the night phase.
+The command is written in Default zsh file, that player allocated `fortune teller` get whether next player is werewolf or not and outputs the result to e.g. `werewolf/0/divination_result.json`.
+```
+./run_werewolf.zsh night
+```
 
 ## Technical Details
 ### Generating secret sharing of inputs and ZKP verification

@@ -8,12 +8,12 @@ pub mod encodedtext;
 pub mod plaintext;
 mod polynomial;
 pub mod texts;
-pub use ark_bls12_377::{Fr, FrParameters};
+pub use ark_bls12_377::Fr;
 pub use ciphertext::Ciphertext;
 pub use encodedtext::Encodedtext;
 pub use texts::Texts;
 
-pub use ark_ff::{FftField, Field, FpParameters};
+pub use ark_ff::FpParameters;
 pub use ark_mnt4_753::{Fq, FqParameters};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use num_bigint::BigUint;
@@ -115,6 +115,7 @@ pub fn get_gaussian<T: Rng>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ark_bls12_377::FrParameters;
     use rand::thread_rng;
 
     fn is_power_of_two(n: usize) -> bool {

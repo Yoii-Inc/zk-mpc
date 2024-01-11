@@ -15,8 +15,8 @@ use core::borrow::Borrow;
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[must_use]
 pub struct AllocatedBool<F: Field> {
-    variable: Variable,
-    cs: ConstraintSystemRef<F>,
+    pub variable: Variable,
+    pub cs: ConstraintSystemRef<F>,
 }
 
 pub(crate) fn bool_to_field<F: Field>(val: impl Borrow<bool>) -> F {
@@ -40,6 +40,11 @@ impl<F: Field> AllocatedBool<F> {
         }
     }
 
+    pub fn value_constraint_field(&self) -> Result<F, SynthesisError> {
+        let value = self.cs.assigned_value(self.variable).get()?;
+        Ok(value)
+    }
+
     /// Get the R1CS variable for `self`.
     pub fn variable(&self) -> Variable {
         self.variable
@@ -51,6 +56,14 @@ impl<F: Field> AllocatedBool<F> {
         f: impl FnOnce() -> Result<T, SynthesisError>,
     ) -> Result<Self, SynthesisError> {
         let variable = cs.new_witness_variable(|| f().map(bool_to_field))?;
+        Ok(Self { variable, cs })
+    }
+
+    fn new_witness_without_booleanity_check_avoid_bool(
+        cs: ConstraintSystemRef<F>,
+        f: impl FnOnce() -> Result<F, SynthesisError>,
+    ) -> Result<Self, SynthesisError> {
+        let variable = cs.new_witness_variable(|| f())?;
         Ok(Self { variable, cs })
     }
 
@@ -90,9 +103,14 @@ impl<F: Field> AllocatedBool<F> {
     /// an `AllocatedBool`.
     #[tracing::instrument(target = "r1cs")]
     pub fn and(&self, b: &Self) -> Result<Self, SynthesisError> {
-        let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(self.value()? & b.value()?)
-        })?;
+        // let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
+        //     Ok(self.value()? & b.value()?)
+        // })?;
+
+        let result =
+            Self::new_witness_without_booleanity_check_avoid_bool(self.cs.clone(), || {
+                Ok(self.value_constraint_field().unwrap() * b.value_constraint_field().unwrap())
+            })?;
 
         // Constrain (a) * (b) = (c), ensuring c is 1 iff
         // a AND b are both 1.
@@ -109,9 +127,23 @@ impl<F: Field> AllocatedBool<F> {
     /// an `AllocatedBool`.
     #[tracing::instrument(target = "r1cs")]
     pub fn or(&self, b: &Self) -> Result<Self, SynthesisError> {
-        let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(self.value()? | b.value()?)
-        })?;
+        // let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
+        //     Ok(self.value()? | b.value()?)
+        // })?;
+
+        let result =
+            Self::new_witness_without_booleanity_check_avoid_bool(self.cs.clone(), || {
+                Ok(F::one()
+                    - (F::one() - self.value_constraint_field().unwrap())
+                        * (F::one() - b.value_constraint_field().unwrap()))
+
+                // let val = self.value_constraint_field().unwrap()
+                //     + b.value_constraint_field().unwrap()
+                //     - self.value_constraint_field().unwrap() * b.value_constraint_field().unwrap();
+
+                // println!("val: {:?}", val);
+                // Ok(val)
+            })?;
 
         // Constrain (1 - a) * (1 - b) = (c), ensuring c is 1 iff
         // a and b are both false, and otherwise c is 0.
@@ -273,6 +305,14 @@ impl<F: Field> Boolean<F> {
         }
     }
 
+    pub fn value_constraint_field(&self) -> Result<F, SynthesisError> {
+        match self {
+            Boolean::Constant(c) => Ok(F::from(*c)),
+            Boolean::Is(v) => v.value_constraint_field(),
+            Boolean::Not(v) => v.value_constraint_field().map(|b| F::one() - b),
+        }
+    }
+
     /// Constructs a `Boolean` vector from a slice of constant `u8`.
     /// The `u8`s are decomposed in little-endian manner.
     ///
@@ -396,7 +436,7 @@ impl<F: Field> Boolean<F> {
             // a XOR (NOT b) = NOT(a XOR b)
             (is @ &Is(_), not @ &Not(_)) | (not @ &Not(_), is @ &Is(_)) => {
                 Ok(is.xor(&not.not())?.not())
-            }
+            },
             // a XOR b = (NOT a) XOR (NOT b)
             (&Is(ref a), &Is(ref b)) | (&Not(ref a), &Not(ref b)) => Ok(Is(a.xor(b)?)),
         }
@@ -438,7 +478,7 @@ impl<F: Field> Boolean<F> {
             // a OR b = NOT ((NOT a) AND (NOT b))
             (a @ &Is(_), b @ &Not(_)) | (b @ &Not(_), a @ &Is(_)) | (b @ &Not(_), a @ &Not(_)) => {
                 Ok(a.not().and(&b.not())?.not())
-            }
+            },
             (&Is(ref a), &Is(ref b)) => a.or(b).map(From::from),
         }
     }
@@ -604,7 +644,7 @@ impl<F: Field> Boolean<F> {
             Is(_) | Not(_) => {
                 r.cs()
                     .enforce_constraint(r.lc(), lc!() + Variable::One, lc!() + Variable::One)
-            }
+            },
         }
     }
 
@@ -946,7 +986,7 @@ impl<F: Field> CondSelectGadget<F> for Boolean<F> {
                     )?;
 
                     Ok(result)
-                }
+                },
             },
         }
     }
@@ -1247,30 +1287,30 @@ mod test {
                     (OpType::AllocatedTrue, OpType::False, Boolean::Is(_)) => (),
                     (OpType::AllocatedTrue, OpType::AllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::AllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::NegatedAllocatedTrue, Boolean::Not(ref v)) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::NegatedAllocatedFalse, Boolean::Not(ref v)) => {
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (OpType::AllocatedFalse, OpType::True, Boolean::Not(_)) => (),
                     (OpType::AllocatedFalse, OpType::False, Boolean::Is(_)) => (),
                     (OpType::AllocatedFalse, OpType::AllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (OpType::AllocatedFalse, OpType::AllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedFalse, OpType::NegatedAllocatedTrue, Boolean::Not(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (
                         OpType::AllocatedFalse,
                         OpType::NegatedAllocatedFalse,
@@ -1278,18 +1318,18 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
 
                     (OpType::NegatedAllocatedTrue, OpType::True, Boolean::Is(_)) => (),
                     (OpType::NegatedAllocatedTrue, OpType::False, Boolean::Not(_)) => (),
                     (OpType::NegatedAllocatedTrue, OpType::AllocatedTrue, Boolean::Not(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::NegatedAllocatedTrue, OpType::AllocatedFalse, Boolean::Not(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedTrue,
                         OpType::NegatedAllocatedTrue,
@@ -1297,7 +1337,7 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedTrue,
                         OpType::NegatedAllocatedFalse,
@@ -1305,14 +1345,14 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
 
                     (OpType::NegatedAllocatedFalse, OpType::True, Boolean::Is(_)) => (),
                     (OpType::NegatedAllocatedFalse, OpType::False, Boolean::Not(_)) => (),
                     (OpType::NegatedAllocatedFalse, OpType::AllocatedTrue, Boolean::Not(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedFalse,
                         OpType::AllocatedFalse,
@@ -1320,7 +1360,7 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedFalse,
                         OpType::NegatedAllocatedTrue,
@@ -1328,7 +1368,7 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedFalse,
                         OpType::NegatedAllocatedFalse,
@@ -1336,7 +1376,7 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
 
                     _ => unreachable!(),
                 }
@@ -1409,85 +1449,85 @@ mod test {
                     (OpType::AllocatedTrue, OpType::False, Boolean::Is(_)) => (),
                     (OpType::AllocatedTrue, OpType::AllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::AllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::NegatedAllocatedTrue, Boolean::Not(ref v)) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::NegatedAllocatedFalse, Boolean::Not(ref v)) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
 
                     (OpType::AllocatedFalse, OpType::True, Boolean::Constant(true)) => (),
                     (OpType::AllocatedFalse, OpType::False, Boolean::Is(_)) => (),
                     (OpType::AllocatedFalse, OpType::AllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (OpType::AllocatedFalse, OpType::AllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedFalse, OpType::NegatedAllocatedTrue, Boolean::Not(ref v)) => {
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (
                         OpType::AllocatedFalse,
                         OpType::NegatedAllocatedFalse,
                         Boolean::Not(ref v),
                     ) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
 
                     (OpType::NegatedAllocatedTrue, OpType::True, Boolean::Constant(true)) => (),
                     (OpType::NegatedAllocatedTrue, OpType::False, Boolean::Not(_)) => (),
                     (OpType::NegatedAllocatedTrue, OpType::AllocatedTrue, Boolean::Not(ref v)) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::NegatedAllocatedTrue, OpType::AllocatedFalse, Boolean::Not(ref v)) => {
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedTrue,
                         OpType::NegatedAllocatedTrue,
                         Boolean::Not(ref v),
                     ) => {
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedTrue,
                         OpType::NegatedAllocatedFalse,
                         Boolean::Not(ref v),
                     ) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
 
                     (OpType::NegatedAllocatedFalse, OpType::True, Boolean::Constant(true)) => (),
                     (OpType::NegatedAllocatedFalse, OpType::False, Boolean::Not(_)) => (),
                     (OpType::NegatedAllocatedFalse, OpType::AllocatedTrue, Boolean::Not(ref v)) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedFalse,
                         OpType::AllocatedFalse,
                         Boolean::Not(ref v),
                     ) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedFalse,
                         OpType::NegatedAllocatedTrue,
                         Boolean::Not(ref v),
                     ) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedFalse,
                         OpType::NegatedAllocatedFalse,
                         Boolean::Not(ref v),
                     ) => {
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
 
                     _ => panic!(
                         "this should never be encountered, in case: (a = {:?}, b = {:?}, c = {:?})",
@@ -1531,49 +1571,49 @@ mod test {
                     (OpType::AllocatedTrue, OpType::AllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::AllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::NegatedAllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedTrue, OpType::NegatedAllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
 
                     (OpType::AllocatedFalse, OpType::True, Boolean::Is(_)) => (),
                     (OpType::AllocatedFalse, OpType::False, Boolean::Constant(false)) => (),
                     (OpType::AllocatedFalse, OpType::AllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedFalse, OpType::AllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedFalse, OpType::NegatedAllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::AllocatedFalse, OpType::NegatedAllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
 
                     (OpType::NegatedAllocatedTrue, OpType::True, Boolean::Not(_)) => (),
                     (OpType::NegatedAllocatedTrue, OpType::False, Boolean::Constant(false)) => (),
                     (OpType::NegatedAllocatedTrue, OpType::AllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (OpType::NegatedAllocatedTrue, OpType::AllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedTrue,
                         OpType::NegatedAllocatedTrue,
@@ -1581,7 +1621,7 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedTrue,
                         OpType::NegatedAllocatedFalse,
@@ -1589,18 +1629,18 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
 
                     (OpType::NegatedAllocatedFalse, OpType::True, Boolean::Not(_)) => (),
                     (OpType::NegatedAllocatedFalse, OpType::False, Boolean::Constant(false)) => (),
                     (OpType::NegatedAllocatedFalse, OpType::AllocatedTrue, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
                     (OpType::NegatedAllocatedFalse, OpType::AllocatedFalse, Boolean::Is(ref v)) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedFalse,
                         OpType::NegatedAllocatedTrue,
@@ -1608,7 +1648,7 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::zero());
                         assert_eq!(v.value(), Ok(false));
-                    }
+                    },
                     (
                         OpType::NegatedAllocatedFalse,
                         OpType::NegatedAllocatedFalse,
@@ -1616,14 +1656,14 @@ mod test {
                     ) => {
                         assert_eq!(cs.assigned_value(v.variable()).unwrap(), Fr::one());
                         assert_eq!(v.value(), Ok(true));
-                    }
+                    },
 
                     _ => {
                         panic!(
                             "unexpected behavior at {:?} AND {:?}",
                             first_operand, second_operand
                         );
-                    }
+                    },
                 }
             }
         }

@@ -42,7 +42,7 @@ pub struct ParametersVar<C: ProjectiveCurve, GG: CurveVar<C, ConstraintF<C>>>
 where
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
 {
-    generator: GG,
+    pub generator: GG,
     #[doc(hidden)]
     _curve: PhantomData<C>,
 }
@@ -136,6 +136,21 @@ where
     pub c2: GG,
     #[doc(hidden)]
     _curve: PhantomData<C>,
+}
+
+impl<C, GG> OutputVar<C, GG>
+where
+    C: ProjectiveCurve,
+    GG: CurveVar<C, ConstraintF<C>>,
+    for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
+{
+    pub fn new(c1: GG, c2: GG) -> Self {
+        Self {
+            c1,
+            c2,
+            _curve: PhantomData,
+        }
+    }
 }
 
 impl<C, GG> AllocVar<Ciphertext<C>, ConstraintF<C>> for OutputVar<C, GG>
