@@ -176,7 +176,9 @@ mod tests {
     use rand::thread_rng;
 
     use super::*;
-    use crate::she::{FqParameters, Fr, FrParameters, SHEParameters};
+    use crate::she::SHEParameters;
+    use ark_bls12_377::{Fr, FrParameters};
+    use ark_mnt4_753::FqParameters;
 
     #[test]
     fn test_interpolate() {
