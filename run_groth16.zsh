@@ -2,8 +2,8 @@ set -ex
 trap "exit" INT TERM
 trap "kill 0" EXIT
 
-cargo build --bin bin-test-groth16
-BIN=./target/debug/bin-test-groth16
+cargo build --bin bin-test-groth16 --release
+BIN=./target/release/bin-test-groth16
 
 
 PROCS=()
