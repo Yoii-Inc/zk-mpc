@@ -249,6 +249,28 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcFi
     }
 }
 
+impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcField<F, S>> {
+    type Output = MpcField<F, S>;
+
+    fn unbounded_fan_in_and(&self) -> Self::Output {
+        debug_assert!({
+            // each element is 0 or 1
+            self.iter()
+                .all(|x| x.reveal().is_zero() || x.reveal().is_one())
+        });
+        self.iter().fold(MpcField::<F, S>::one(), |acc, x| acc * x)
+    }
+
+    fn unbounded_fan_in_or(&self) -> Self::Output {
+        let not_self = self
+            .iter()
+            .map(|x| MpcField::<F, S>::one() - x)
+            .collect::<Vec<_>>();
+
+        MpcField::<F, S>::one() - not_self.unbounded_fan_in_and()
+    }
+}
+
 impl<F: Field, S: FieldShare<F>> AddAssign for MpcField<F, S> {
     fn add_assign(&mut self, rhs: Self) {
         self.add_assign(&rhs);
