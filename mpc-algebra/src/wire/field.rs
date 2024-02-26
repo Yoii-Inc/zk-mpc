@@ -216,7 +216,7 @@ impl<F: Field, S: FieldShare<F>> PubUniformRand for MpcField<F, S> {
     }
 }
 
-impl<F: SquareRootField, S: FieldShare<F>> UniformBitRand for MpcField<F, S> {
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcField<F, S> {
     fn bit_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         let r = MpcField::<F, S>::rand(rng);
         let r2 = (r * r).reveal();
@@ -231,6 +231,21 @@ impl<F: SquareRootField, S: FieldShare<F>> UniformBitRand for MpcField<F, S> {
         }
 
         (r / Self::from_public(root_r2) + Self::one()) / Self::from_public(F::from(2u8))
+    }
+
+    fn bits_rand<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self) {
+        let modulus_size = F::Params::MODULUS_BITS as usize;
+
+        let mut bits = (0..modulus_size)
+            .map(|_| Self::bit_rand(rng))
+            .collect::<Vec<_>>();
+
+        // bits to field element (big endian)
+        let num = bits.iter().fold(Self::zero(), |acc, x| {
+            acc * Self::from_public(F::from(2u8)) + x
+        });
+
+        (bits, num)
     }
 }
 
