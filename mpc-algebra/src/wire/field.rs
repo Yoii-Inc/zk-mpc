@@ -1,3 +1,4 @@
+use ark_std::{end_timer, start_timer};
 use derivative::Derivative;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
@@ -21,8 +22,8 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::UniformBitRand;
-use crate::{AdditiveFieldShare, BeaverSource, Reveal};
+use crate::{BeaverSource, LogicalOperations, Reveal};
+use crate::{EqualityZero, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -236,7 +237,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcFi
     fn bits_rand<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self) {
         let modulus_size = F::Params::MODULUS_BITS as usize;
 
-        let mut bits = (0..modulus_size)
+        let bits = (0..modulus_size)
             .map(|_| Self::bit_rand(rng))
             .collect::<Vec<_>>();
 
@@ -542,6 +543,57 @@ impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
                 false
             }
         }
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcField<F, S> {
+    fn is_zero_shared(&self) -> Self {
+        let timer = start_timer!(|| "EqualityZero test");
+        let res = match self {
+            MpcField::Public(_) => {
+                panic!("public is not expected here");
+            }
+            MpcField::Shared(_) => {
+                let rng = &mut ark_std::test_rng();
+
+                let (mut vec_r, r) = Self::bits_rand(rng);
+
+                let c = (r + self).reveal();
+
+                use ark_ff::BitIteratorBE;
+
+                let bits: Vec<Option<bool>> = {
+                    let field_char = BitIteratorBE::new(F::characteristic());
+                    let bits: Vec<_> = BitIteratorBE::new(c.into_repr())
+                        .zip(field_char)
+                        .skip_while(|(_, c)| !c)
+                        .map(|(b, _)| Some(b))
+                        .collect();
+                    assert_eq!(bits.len(), F::Params::MODULUS_BITS as usize);
+                    bits
+                };
+
+                vec_r.reverse();
+
+                let c_prime = bits
+                    .iter()
+                    .map(|b| match b {
+                        Some(b) => {
+                            if *b {
+                                vec_r.pop().unwrap()
+                            } else {
+                                Self::one() - vec_r.pop().unwrap()
+                            }
+                        }
+                        None => panic!("bits decomposition failed"),
+                    })
+                    .collect::<Vec<_>>();
+
+                c_prime.unbounded_fan_in_and()
+            }
+        };
+        end_timer!(timer);
+        res
     }
 }
 

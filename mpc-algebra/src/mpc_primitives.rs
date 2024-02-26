@@ -14,3 +14,7 @@ pub trait LogicalOperations {
 
     fn unbounded_fan_in_or(&self) -> Self::Output;
 }
+
+pub trait EqualityZero {
+    fn is_zero_shared(&self) -> Self;
+}
