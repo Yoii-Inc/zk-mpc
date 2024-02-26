@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
+use ark_ff::{One, Zero};
 use log::debug;
-use mpc_algebra::{AdditiveFieldShare, MpcField, Reveal};
+use mpc_algebra::{AdditiveFieldShare, MpcField, Reveal, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 use structopt::StructOpt;
@@ -68,6 +69,26 @@ fn test_sum() {
     assert_eq!(result.reveal(), F::from(6u64));
 }
 
+fn test_bit_rand() {
+    let mut rng = ark_std::test_rng();
+    let mut counter = [0, 0, 0];
+
+    for i in 0..1000 {
+        let a = MF::bit_rand(&mut rng).reveal();
+
+        if a.is_zero() {
+            counter[0] += 1;
+        } else if a.is_one() {
+            counter[1] += 1;
+        } else {
+            counter[2] += 1;
+        }
+    }
+
+    assert_eq!(counter[2], 0); // should be 0 (no other value than 0 or 1 is allowed in the current implementation
+    println!("{:?}", counter);
+}
+
 fn main() {
     env_logger::builder().format_timestamp(None).init();
     debug!("Start");
@@ -80,4 +101,6 @@ fn main() {
     test_mul();
     test_div();
     test_sum();
+
+    test_bit_rand();
 }
