@@ -21,6 +21,7 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
+use crate::UniformBitRand;
 use crate::{AdditiveFieldShare, BeaverSource, Reveal};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -212,6 +213,24 @@ impl<F: Field, S: FieldShare<F>> UniformRand for MpcField<F, S> {
 impl<F: Field, S: FieldShare<F>> PubUniformRand for MpcField<F, S> {
     fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         Self::Public(<F as PubUniformRand>::pub_rand(rng))
+    }
+}
+
+impl<F: SquareRootField, S: FieldShare<F>> UniformBitRand for MpcField<F, S> {
+    fn bit_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+        let r = MpcField::<F, S>::rand(rng);
+        let r2 = (r * r).reveal();
+        let mut root_r2;
+
+        loop {
+            root_r2 = r2.sqrt().unwrap();
+
+            if !root_r2.is_zero() {
+                break;
+            }
+        }
+
+        (r / Self::from_public(root_r2) + Self::one()) / Self::from_public(F::from(2u8))
     }
 }
 

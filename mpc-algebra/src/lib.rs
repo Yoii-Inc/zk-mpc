@@ -6,6 +6,8 @@ pub mod share;
 pub use share::*;
 pub mod wire;
 pub use wire::*;
+pub mod mpc_primitives;
+pub use mpc_primitives::*;
 
 pub mod channel;
 
