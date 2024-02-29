@@ -13,7 +13,7 @@ use zeroize::Zeroize;
 
 use log::debug;
 
-use ark_ff::{poly_stub, prelude::*, FftField};
+use ark_ff::{poly_stub, prelude::*, BitIteratorBE, FftField};
 use ark_ff::{FromBytes, ToBytes};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
@@ -234,19 +234,33 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcFi
         (r / Self::from_public(root_r2) + Self::one()) / Self::from_public(F::from(2u8))
     }
 
-    fn bits_rand<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self) {
+    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self) {
         let modulus_size = F::Params::MODULUS_BITS as usize;
 
-        let bits = (0..modulus_size)
-            .map(|_| Self::bit_rand(rng))
+        let mut modulus_bits = F::Params::MODULUS
+            .to_bits_le()
+            .iter()
+            .map(|b| Self::from_public(F::from(*b)))
             .collect::<Vec<_>>();
 
-        // bits to field element (big endian)
-        let num = bits.iter().fold(Self::zero(), |acc, x| {
+        modulus_bits = modulus_bits[..modulus_size].to_vec();
+
+        let valid_bits = loop {
+            let bits = (0..modulus_size)
+                .map(|_| Self::bit_rand(rng))
+                .collect::<Vec<_>>();
+
+            if bits.clone().bitwise_lt(&modulus_bits).reveal().is_one() {
+                break bits;
+            }
+        };
+
+        // bits to field elemetn (little endian)
+        let num = valid_bits.iter().rev().fold(Self::zero(), |acc, x| {
             acc * Self::from_public(F::from(2u8)) + x
         });
 
-        (bits, num)
+        (valid_bits, num)
     }
 }
 
@@ -592,11 +606,9 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
             MpcField::Shared(_) => {
                 let rng = &mut ark_std::test_rng();
 
-                let (mut vec_r, r) = Self::bits_rand(rng);
+                let (vec_r, r) = Self::rand_number_bitwise(rng);
 
                 let c = (r + self).reveal();
-
-                use ark_ff::BitIteratorBE;
 
                 let bits: Vec<Option<bool>> = {
                     let field_char = BitIteratorBE::new(F::characteristic());
@@ -609,16 +621,16 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                     bits
                 };
 
-                vec_r.reverse();
-
                 let c_prime = bits
                     .iter()
-                    .map(|b| match b {
+                    .rev()
+                    .zip(vec_r.iter())
+                    .map(|(b, r)| match b {
                         Some(b) => {
                             if *b {
-                                vec_r.pop().unwrap()
+                                *r
                             } else {
-                                Self::one() - vec_r.pop().unwrap()
+                                Self::one() - r
                             }
                         }
                         None => panic!("bits decomposition failed"),
