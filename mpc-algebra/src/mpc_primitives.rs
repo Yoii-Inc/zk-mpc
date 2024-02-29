@@ -7,6 +7,12 @@ pub trait UniformBitRand: Sized {
     fn bits_rand<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self);
 }
 
+pub trait BitwiseLessThan {
+    type Output;
+
+    fn bitwise_lt(&self, other: &Self) -> Self::Output;
+}
+
 pub trait LogicalOperations {
     type Output;
 

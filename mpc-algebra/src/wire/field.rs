@@ -22,7 +22,7 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::{BeaverSource, LogicalOperations, Reveal};
+use crate::{BeaverSource, BitwiseLessThan, LogicalOperations, Reveal};
 use crate::{EqualityZero, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -247,6 +247,42 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcFi
         });
 
         (bits, num)
+    }
+}
+
+impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
+    type Output = MpcField<F, S>;
+
+    fn bitwise_lt(&self, other: &Self) -> Self::Output {
+        let modulus_size = F::Params::MODULUS_BITS as usize;
+        assert_eq!(self.len(), modulus_size);
+        assert_eq!(other.len(), modulus_size);
+
+        // [c_i] = [a_i \oplus b_i]
+        let c = self
+            .iter()
+            .zip(other.iter())
+            .map(|(a, b)| *a + b - MpcField::<F, S>::from_public(F::from(2u8)) * a * b)
+            .collect::<Vec<_>>();
+
+        // d_i = OR_{j=i}^{modulus_size-1} c_j
+        let d = c
+            .iter()
+            .enumerate()
+            .map(|(i, _)| c[i..].to_vec().unbounded_fan_in_or())
+            .collect::<Vec<_>>();
+
+        let e = (0..modulus_size)
+            .map(|i| {
+                if i == modulus_size - 1 {
+                    d[modulus_size - 1]
+                } else {
+                    d[i] - d[i + 1]
+                }
+            })
+            .collect::<Vec<_>>();
+
+        e.iter().zip(other.iter()).map(|(e, b)| *e * b).sum()
     }
 }
 
