@@ -1,13 +1,16 @@
 use std::path::PathBuf;
 
+use ark_ff::{BigInteger, BigInteger256, Field, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
 use ark_poly::reveal;
 use log::debug;
 use mpc_algebra::{
-    AdditiveFieldShare, EqualityZero, LogicalOperations, MpcField, Reveal, UniformBitRand,
+    AdditiveFieldShare, BitwiseLessThan, EqualityZero, LogicalOperations, MpcField, Reveal,
+    UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
+use rand::thread_rng;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -92,20 +95,56 @@ fn test_bit_rand() {
     println!("{:?}", counter);
 }
 
-fn test_bits_rand() {
-    let mut rng = ark_std::test_rng();
+fn test_rand_number_bitwise() {
+    let mut rng = thread_rng();
 
-    let (a, b) = MF::bits_rand(&mut rng);
+    for _ in 0..10 {
+        let (a, b) = MF::rand_number_bitwise(&mut rng);
 
-    let revealed_a = a.iter().map(|x| x.reveal()).collect::<Vec<_>>();
-    let revealed_b = b.reveal();
+        let revealed_a = a.iter().map(|x| x.reveal()).collect::<Vec<_>>();
+        let revealed_b = b.reveal();
 
-    // bits representation is given in big-endian
-    let sum = revealed_a
-        .iter()
-        .fold(F::zero(), |acc, x| acc * F::from(2) + x);
+        // bits representation is given in little-endian
 
-    assert_eq!(sum, revealed_b);
+        let a_as_bigint =
+            BigInteger256::from_bits_le(&revealed_a.iter().map(|x| x.is_one()).collect::<Vec<_>>());
+
+        assert!(
+            a_as_bigint
+                < <ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params::MODULUS
+        );
+
+        let a_as_field = F::from_repr(a_as_bigint).unwrap();
+
+        assert_eq!(a_as_field, revealed_b);
+    }
+}
+
+fn test_bitwise_lt() {
+    let modulus_size =
+        <ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params::MODULUS_BITS;
+
+    let rng = &mut thread_rng();
+
+    for _ in 0..10 {
+        let a = (0..modulus_size)
+            .map(|_| MF::bit_rand(rng))
+            .collect::<Vec<_>>();
+        let b = (0..modulus_size)
+            .map(|_| MF::bit_rand(rng))
+            .collect::<Vec<_>>();
+
+        let a_bigint =
+            BigInteger256::from_bits_le(&a.iter().map(|x| x.reveal().is_one()).collect::<Vec<_>>());
+
+        let b_bigint =
+            BigInteger256::from_bits_le(&b.iter().map(|x| x.reveal().is_one()).collect::<Vec<_>>());
+
+        let res_1 = a_bigint < b_bigint;
+        let res_2 = a.bitwise_lt(&b);
+
+        assert_eq!(res_1, res_2.reveal().is_one());
+    }
 }
 
 fn test_and() {
@@ -167,8 +206,6 @@ fn test_or() {
 fn test_equality_zero() {
     let mut rng = ark_std::test_rng();
 
-    let mut counter = [0, 0];
-
     // a is zero
     let a = MF::from_add_shared(F::zero());
     let res = a.is_zero_shared();
@@ -179,21 +216,15 @@ fn test_equality_zero() {
     let res = a.is_zero_shared();
     assert!(res.reveal().is_zero());
 
-    // a is random bit
+    // a is random number
     for _ in 0..10 {
-        let a = MF::bit_rand(&mut rng);
+        let a = MF::rand(&mut rng);
 
         let res = a.is_zero_shared();
 
-        println!("is_zero is {:?}", res.reveal());
-
-        if res.reveal().is_zero() {
-            counter[0] += 1;
-        } else if res.reveal().is_one() {
-            counter[1] += 1;
-        }
+        assert_eq!(a.reveal().is_zero(), res.reveal().is_one());
+        assert_eq!(!a.reveal().is_zero(), res.reveal().is_zero());
     }
-    println!("{:?}", counter);
 }
 
 fn main() {
@@ -203,15 +234,28 @@ fn main() {
     println!("{:?}", opt);
     Net::init_from_file(opt.input.to_str().unwrap(), opt.id);
 
+    println!("Test started");
     test_add();
+    println!("Test add passed");
     test_sub();
+    println!("Test sub passed");
     test_mul();
+    println!("Test mul passed");
     test_div();
+    println!("Test div passed");
     test_sum();
+    println!("Test sum passed");
 
     test_bit_rand();
-    test_bits_rand();
+    println!("Test bit_rand passed");
+    test_rand_number_bitwise();
+    println!("Test rand_number_bitwise passed");
+    test_bitwise_lt();
+    println!("Test bitwise_lt passed");
     test_and();
+    println!("Test and passed");
     test_or();
+    println!("Test or passed");
     test_equality_zero();
+    println!("Test equality_zero passed");
 }
