@@ -25,6 +25,12 @@ pub trait EqualityZero {
     fn is_zero_shared(&self) -> Self;
 }
 
+pub trait BitDecomposition {
+    type Output;
+
+    fn bit_decomposition(&self) -> Self::Output;
+}
+
 pub trait BitAdd {
     type Output;
 
