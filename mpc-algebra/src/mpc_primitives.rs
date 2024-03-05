@@ -24,3 +24,11 @@ pub trait LogicalOperations {
 pub trait EqualityZero {
     fn is_zero_shared(&self) -> Self;
 }
+
+pub trait BitAdd {
+    type Output;
+
+    fn carries(&self, other: &Self) -> Self::Output;
+
+    fn bit_add(self, other: &Self) -> Self::Output;
+}

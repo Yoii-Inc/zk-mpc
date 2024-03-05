@@ -22,7 +22,7 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::{BeaverSource, BitwiseLessThan, LogicalOperations, Reveal};
+use crate::{BeaverSource, BitAdd, BitwiseLessThan, LogicalOperations, Reveal};
 use crate::{EqualityZero, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -642,6 +642,68 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
         };
         end_timer!(timer);
         res
+    }
+}
+
+impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcField<F, S>> {
+    type Output = Self;
+
+    fn carries(&self, other: &Self) -> Self::Output {
+        match self.is_shared() {
+            true => {
+                assert_eq!(self.len(), other.len());
+                let l = self.len(); // l is the bit length.
+
+                let s_vec = self
+                    .iter()
+                    .zip(other.iter())
+                    .map(|(a, b)| *a * b)
+                    .collect::<Vec<_>>();
+
+                let p_vec = (0..l)
+                    .map(|i| {
+                        self[i] + other[i] - MpcField::<F, S>::from_public(F::from(2u64)) * s_vec[i]
+                    })
+                    .collect::<Vec<_>>();
+
+                (0..l)
+                    .scan(MpcField::<F, S>::zero(), |is_s, i| {
+                        *is_s = s_vec[i] + p_vec[i] * *is_s;
+                        Some(*is_s)
+                    })
+                    .collect()
+            }
+            false => {
+                panic!("public is not expected here");
+            }
+        }
+    }
+
+    fn bit_add(self, other: &Self) -> Self::Output {
+        match self.is_shared() {
+            true => {
+                assert_eq!(self.len(), other.len());
+                let l = self.len(); // l is the bit length.
+                let c_vec = self.carries(other);
+
+                (0..=l)
+                    .map(|i| {
+                        if i == 0 {
+                            self[0] + other[0]
+                                - MpcField::<F, S>::from_public(F::from(2u64)) * c_vec[0]
+                        } else if i == l {
+                            c_vec[l - 1]
+                        } else {
+                            self[i] + other[i] + c_vec[i - 1]
+                                - MpcField::<F, S>::from_public(F::from(2u64)) * c_vec[i]
+                        }
+                    })
+                    .collect()
+            }
+            false => {
+                panic!("public is not expected here");
+            }
+        }
     }
 }
 
