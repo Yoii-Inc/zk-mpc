@@ -1,3 +1,4 @@
+use ark_std::{end_timer, start_timer};
 use derivative::Derivative;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
@@ -12,7 +13,7 @@ use zeroize::Zeroize;
 
 use log::debug;
 
-use ark_ff::{poly_stub, prelude::*, FftField};
+use ark_ff::{poly_stub, prelude::*, BitIteratorBE, FftField};
 use ark_ff::{FromBytes, ToBytes};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
@@ -21,8 +22,8 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::UniformBitRand;
-use crate::{AdditiveFieldShare, BeaverSource, Reveal};
+use crate::{BeaverSource, BitwiseLessThan, LogicalOperations, Reveal};
+use crate::{EqualityZero, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -216,7 +217,7 @@ impl<F: Field, S: FieldShare<F>> PubUniformRand for MpcField<F, S> {
     }
 }
 
-impl<F: SquareRootField, S: FieldShare<F>> UniformBitRand for MpcField<F, S> {
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcField<F, S> {
     fn bit_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         let r = MpcField::<F, S>::rand(rng);
         let r2 = (r * r).reveal();
@@ -231,6 +232,93 @@ impl<F: SquareRootField, S: FieldShare<F>> UniformBitRand for MpcField<F, S> {
         }
 
         (r / Self::from_public(root_r2) + Self::one()) / Self::from_public(F::from(2u8))
+    }
+
+    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self) {
+        let modulus_size = F::Params::MODULUS_BITS as usize;
+
+        let mut modulus_bits = F::Params::MODULUS
+            .to_bits_le()
+            .iter()
+            .map(|b| Self::from_public(F::from(*b)))
+            .collect::<Vec<_>>();
+
+        modulus_bits = modulus_bits[..modulus_size].to_vec();
+
+        let valid_bits = loop {
+            let bits = (0..modulus_size)
+                .map(|_| Self::bit_rand(rng))
+                .collect::<Vec<_>>();
+
+            if bits.clone().bitwise_lt(&modulus_bits).reveal().is_one() {
+                break bits;
+            }
+        };
+
+        // bits to field elemetn (little endian)
+        let num = valid_bits.iter().rev().fold(Self::zero(), |acc, x| {
+            acc * Self::from_public(F::from(2u8)) + x
+        });
+
+        (valid_bits, num)
+    }
+}
+
+impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
+    type Output = MpcField<F, S>;
+
+    fn bitwise_lt(&self, other: &Self) -> Self::Output {
+        let modulus_size = F::Params::MODULUS_BITS as usize;
+        assert_eq!(self.len(), modulus_size);
+        assert_eq!(other.len(), modulus_size);
+
+        // [c_i] = [a_i \oplus b_i]
+        let c = self
+            .iter()
+            .zip(other.iter())
+            .map(|(a, b)| *a + b - MpcField::<F, S>::from_public(F::from(2u8)) * a * b)
+            .collect::<Vec<_>>();
+
+        // d_i = OR_{j=i}^{modulus_size-1} c_j
+        let d = c
+            .iter()
+            .enumerate()
+            .map(|(i, _)| c[i..].to_vec().unbounded_fan_in_or())
+            .collect::<Vec<_>>();
+
+        let e = (0..modulus_size)
+            .map(|i| {
+                if i == modulus_size - 1 {
+                    d[modulus_size - 1]
+                } else {
+                    d[i] - d[i + 1]
+                }
+            })
+            .collect::<Vec<_>>();
+
+        e.iter().zip(other.iter()).map(|(e, b)| *e * b).sum()
+    }
+}
+
+impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcField<F, S>> {
+    type Output = MpcField<F, S>;
+
+    fn unbounded_fan_in_and(&self) -> Self::Output {
+        debug_assert!({
+            // each element is 0 or 1
+            self.iter()
+                .all(|x| x.reveal().is_zero() || x.reveal().is_one())
+        });
+        self.iter().fold(MpcField::<F, S>::one(), |acc, x| acc * x)
+    }
+
+    fn unbounded_fan_in_or(&self) -> Self::Output {
+        let not_self = self
+            .iter()
+            .map(|x| MpcField::<F, S>::one() - x)
+            .collect::<Vec<_>>();
+
+        MpcField::<F, S>::one() - not_self.unbounded_fan_in_and()
     }
 }
 
@@ -505,6 +593,55 @@ impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
                 false
             }
         }
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcField<F, S> {
+    fn is_zero_shared(&self) -> Self {
+        let timer = start_timer!(|| "EqualityZero test");
+        let res = match self {
+            MpcField::Public(_) => {
+                panic!("public is not expected here");
+            }
+            MpcField::Shared(_) => {
+                let rng = &mut ark_std::test_rng();
+
+                let (vec_r, r) = Self::rand_number_bitwise(rng);
+
+                let c = (r + self).reveal();
+
+                let bits: Vec<Option<bool>> = {
+                    let field_char = BitIteratorBE::new(F::characteristic());
+                    let bits: Vec<_> = BitIteratorBE::new(c.into_repr())
+                        .zip(field_char)
+                        .skip_while(|(_, c)| !c)
+                        .map(|(b, _)| Some(b))
+                        .collect();
+                    assert_eq!(bits.len(), F::Params::MODULUS_BITS as usize);
+                    bits
+                };
+
+                let c_prime = bits
+                    .iter()
+                    .rev()
+                    .zip(vec_r.iter())
+                    .map(|(b, r)| match b {
+                        Some(b) => {
+                            if *b {
+                                *r
+                            } else {
+                                Self::one() - r
+                            }
+                        }
+                        None => panic!("bits decomposition failed"),
+                    })
+                    .collect::<Vec<_>>();
+
+                c_prime.unbounded_fan_in_and()
+            }
+        };
+        end_timer!(timer);
+        res
     }
 }
 
