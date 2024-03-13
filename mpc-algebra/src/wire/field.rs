@@ -1,6 +1,6 @@
 use ark_std::{end_timer, start_timer};
 use derivative::Derivative;
-use mpc_trait::MpcWire;
+use mpc_trait::{MpcWire, PubUniformRand};
 use num_bigint::BigUint;
 use rand::Rng;
 use std::fmt::{self, Debug, Display};
