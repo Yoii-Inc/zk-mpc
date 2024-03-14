@@ -238,7 +238,7 @@ fn test_carries() {
 
     let c = a.carries(&b);
 
-    // expected carries: 0010
+    // expected carries: 1100
     assert_eq!(c.reveal(), vec![F::zero(), F::zero(), F::one(), F::one()]);
 
     // a = 010011 = 19, b = 101010= 42
