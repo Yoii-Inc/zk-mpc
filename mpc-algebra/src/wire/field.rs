@@ -645,14 +645,14 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
     }
 }
 
-impl<S: FieldShare<ark_bls12_377::Fr>> BitDecomposition for MpcField<ark_bls12_377::Fr, S> {
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for MpcField<F, S> {
     type Output = Vec<Self>;
     fn bit_decomposition(&self) -> Self::Output {
         match self.is_shared() {
             true => {
                 let rng = &mut ark_std::test_rng();
 
-                let l = ark_bls12_377::FrParameters::MODULUS_BITS as usize;
+                let l = F::Params::MODULUS_BITS as usize;
 
                 // 1
                 let (vec_r, r) = Self::rand_number_bitwise(rng);
@@ -674,30 +674,30 @@ impl<S: FieldShare<ark_bls12_377::Fr>> BitDecomposition for MpcField<ark_bls12_3
 
                 let p_minus_c_field = p_minus_c_bool
                     .iter()
-                    .map(|b| Self::from_public(ark_bls12_377::Fr::from(*b)))
+                    .map(|b| Self::from_public(F::from(*b)))
                     .collect::<Vec<_>>();
 
                 let q = Self::one() - vec_r.bitwise_lt(&p_minus_c_field);
 
                 // 4
-                let mut two_l = BigInteger256::from(1u64);
+                let mut two_l = F::BigInt::from(1u64);
                 two_l.muln(l as u32);
 
                 let mut vec_f = two_l;
                 vec_f.add_nocarry(&revealed_c.into_repr());
-                vec_f.sub_noborrow(&ark_bls12_377::FrParameters::MODULUS);
+                vec_f.sub_noborrow(&F::Params::MODULUS);
 
                 let vec_f = vec_f
                     .to_bits_le()
                     .iter()
-                    .map(|b| Self::from_public(ark_bls12_377::Fr::from(*b)))
+                    .map(|b| Self::from_public(F::from(*b)))
                     .collect::<Vec<_>>();
 
                 let vec_f_prime = revealed_c
                     .into_repr()
                     .to_bits_le()
                     .iter()
-                    .map(|b| Self::from_public(ark_bls12_377::Fr::from(*b)))
+                    .map(|b| Self::from_public(F::from(*b)))
                     .collect::<Vec<_>>();
 
                 let g_vec = vec_f
