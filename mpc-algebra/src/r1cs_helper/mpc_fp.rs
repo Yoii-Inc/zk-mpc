@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use ark_ff::{Field, PrimeField};
+use ark_ff::{Field, PrimeField, SquareRootField};
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
     fields::{
@@ -21,7 +21,7 @@ use ark_std::{One, Zero};
 use crate::{
     mpc_eq::MpcEqGadget,
     mpc_select::{MpcCondSelectGadget, MpcTwoBitLookupGadget},
-    FieldShare, MpcBoolean, MpcField,
+    EqualityZero, FieldShare, MpcBoolean, MpcField,
 };
 
 // TODO: MpcAllocatedFp is required?
@@ -453,6 +453,16 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
             should_enforce.lc(),
         )?;
         Ok(())
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
+    pub fn is_zero(&self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+        let is_zero =
+            MpcBoolean::new_witness(self.cs.clone(), || Ok(self.value.get()?.is_zero_shared()))?;
+        self.cs
+            .enforce_constraint(lc!() + self.variable, is_zero.not().lc(), lc!())?;
+        Ok(is_zero)
     }
 }
 
@@ -909,6 +919,15 @@ impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcFpVar<F, S> {
                 c.conditional_enforce_not_equal(v, should_enforce)
             }
             (Self::Var(v1), Self::Var(v2)) => v1.conditional_enforce_not_equal(v2, should_enforce),
+        }
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcFpVar<F, S> {
+    pub fn is_zero(&self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+        match self {
+            Self::Constant(c1) => Ok(MpcBoolean::Constant(c1.is_zero())),
+            Self::Var(v1) => v1.is_zero(),
         }
     }
 }
