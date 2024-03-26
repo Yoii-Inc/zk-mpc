@@ -5,8 +5,8 @@ use ark_ff::{One, Zero};
 use ark_poly::reveal;
 use log::debug;
 use mpc_algebra::{
-    AdditiveFieldShare, BitwiseLessThan, EqualityZero, LogicalOperations, MpcField, Reveal,
-    UniformBitRand,
+    AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LogicalOperations,
+    MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -227,6 +227,79 @@ fn test_equality_zero() {
     }
 }
 
+fn test_carries() {
+    // a = 0101 = 5, b = 1100= 12
+    let mut a = vec![MF::from_add_shared(F::from(0u64)); 4];
+    let mut b = vec![MF::from_add_shared(F::from(0u64)); 4];
+    a[0] += MF::from_public(F::from(1u64));
+    a[2] += MF::one();
+    b[2] += MF::one();
+    b[3] += MF::one();
+
+    let c = a.carries(&b);
+
+    // expected carries: 1100
+    assert_eq!(c.reveal(), vec![F::zero(), F::zero(), F::one(), F::one()]);
+
+    // a = 010011 = 19, b = 101010= 42
+    let mut a = vec![MF::from_add_shared(F::from(0u64)); 6];
+    let mut b = vec![MF::from_add_shared(F::from(0u64)); 6];
+    a[0] += MF::one();
+    a[1] += MF::one();
+    a[4] += MF::one();
+    b[1] += MF::one();
+    b[3] += MF::one();
+    b[5] += MF::one();
+
+    let c = a.carries(&b);
+
+    // expected carries: 000010
+    assert_eq!(
+        c.reveal(),
+        vec![
+            F::zero(),
+            F::one(),
+            F::zero(),
+            F::zero(),
+            F::zero(),
+            F::zero()
+        ]
+    );
+}
+
+fn test_bit_add() {
+    let rng = &mut thread_rng();
+
+    let (rand_a, a) = MF::rand_number_bitwise(rng);
+    let (rand_b, b) = MF::rand_number_bitwise(rng);
+
+    let c_vec = rand_a.bit_add(&rand_b);
+
+    let c = c_vec
+        .reveal()
+        .iter()
+        .rev()
+        .fold(F::zero(), |acc, x| acc * F::from(2u64) + x);
+
+    assert_eq!(c, (a + b).reveal());
+}
+
+fn test_bit_decomposition() {
+    let rng = &mut thread_rng();
+
+    let random = MF::rand(rng);
+
+    let bit = random.bit_decomposition();
+
+    let res = bit
+        .reveal()
+        .iter()
+        .rev()
+        .fold(F::zero(), |acc, x| acc * F::from(2u64) + x);
+
+    assert_eq!(res, random.reveal());
+}
+
 fn main() {
     env_logger::builder().format_timestamp(None).init();
     debug!("Start");
@@ -258,4 +331,11 @@ fn main() {
     println!("Test or passed");
     test_equality_zero();
     println!("Test equality_zero passed");
+
+    test_carries();
+    println!("Test carries passed");
+    test_bit_add();
+    println!("Test bit_add passed");
+    test_bit_decomposition();
+    println!("Test bit_decomposition passed");
 }
