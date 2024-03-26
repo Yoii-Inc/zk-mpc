@@ -2,8 +2,16 @@ set -ex
 trap "exit" INT TERM
 trap "kill 0" EXIT
 
-cargo build --example test
-BIN=./target/debug/examples/test
+if [[ $1 == "algebra" ]]; then
+cargo build --example algebra
+elif [[ $1 == "r1cs" ]]; then
+cargo build --example r1cs
+else
+    echo "Invalid argument. Usage: ./test.zsh [algebra|r1cs]"
+    exit
+fi
+
+BIN="./target/debug/examples/$1"
 
 
 PROCS=()

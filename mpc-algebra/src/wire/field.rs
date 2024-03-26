@@ -1,3 +1,4 @@
+use ark_std::{end_timer, start_timer};
 use derivative::Derivative;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
@@ -12,7 +13,7 @@ use zeroize::Zeroize;
 
 use log::debug;
 
-use ark_ff::{poly_stub, prelude::*, FftField};
+use ark_ff::{poly_stub, prelude::*, BigInteger256, BitIteratorBE, FftField};
 use ark_ff::{FromBytes, ToBytes};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
@@ -21,7 +22,8 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::{AdditiveFieldShare, BeaverSource, Reveal};
+use crate::{BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, LogicalOperations, Reveal};
+use crate::{EqualityZero, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -212,6 +214,111 @@ impl<F: Field, S: FieldShare<F>> UniformRand for MpcField<F, S> {
 impl<F: Field, S: FieldShare<F>> PubUniformRand for MpcField<F, S> {
     fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         Self::Public(<F as PubUniformRand>::pub_rand(rng))
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcField<F, S> {
+    fn bit_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+        let r = MpcField::<F, S>::rand(rng);
+        let r2 = (r * r).reveal();
+        let mut root_r2;
+
+        loop {
+            root_r2 = r2.sqrt().unwrap();
+
+            if !root_r2.is_zero() {
+                break;
+            }
+        }
+
+        (r / Self::from_public(root_r2) + Self::one()) / Self::from_public(F::from(2u8))
+    }
+
+    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self) {
+        let modulus_size = F::Params::MODULUS_BITS as usize;
+
+        let mut modulus_bits = F::Params::MODULUS
+            .to_bits_le()
+            .iter()
+            .map(|b| Self::from_public(F::from(*b)))
+            .collect::<Vec<_>>();
+
+        modulus_bits = modulus_bits[..modulus_size].to_vec();
+
+        let valid_bits = loop {
+            let bits = (0..modulus_size)
+                .map(|_| Self::bit_rand(rng))
+                .collect::<Vec<_>>();
+
+            if bits.clone().bitwise_lt(&modulus_bits).reveal().is_one() {
+                break bits;
+            }
+        };
+
+        // bits to field elemetn (little endian)
+        let num = valid_bits.iter().rev().fold(Self::zero(), |acc, x| {
+            acc * Self::from_public(F::from(2u8)) + x
+        });
+
+        (valid_bits, num)
+    }
+}
+
+impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
+    type Output = MpcField<F, S>;
+
+    fn bitwise_lt(&self, other: &Self) -> Self::Output {
+        let modulus_size = F::Params::MODULUS_BITS as usize;
+        assert_eq!(self.len(), modulus_size);
+        assert_eq!(other.len(), modulus_size);
+
+        // [c_i] = [a_i \oplus b_i]
+        let c = self
+            .iter()
+            .zip(other.iter())
+            .map(|(a, b)| *a + b - MpcField::<F, S>::from_public(F::from(2u8)) * a * b)
+            .collect::<Vec<_>>();
+
+        // d_i = OR_{j=i}^{modulus_size-1} c_j
+        let d = c
+            .iter()
+            .enumerate()
+            .map(|(i, _)| c[i..].to_vec().unbounded_fan_in_or())
+            .collect::<Vec<_>>();
+
+        let e = (0..modulus_size)
+            .map(|i| {
+                if i == modulus_size - 1 {
+                    d[modulus_size - 1]
+                } else {
+                    d[i] - d[i + 1]
+                }
+            })
+            .collect::<Vec<_>>();
+
+        e.iter().zip(other.iter()).map(|(e, b)| *e * b).sum()
+    }
+}
+
+impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcField<F, S>> {
+    type Output = MpcField<F, S>;
+
+    fn unbounded_fan_in_and(&self) -> Self::Output {
+        debug_assert!({
+            // each element is 0 or 1
+            self.iter()
+                .all(|x| x.reveal().is_zero() || x.reveal().is_one())
+        });
+        self.iter().fold(MpcField::<F, S>::one(), |acc, x| acc * x)
+    }
+
+    fn unbounded_fan_in_or(&self) -> Self::Output {
+        let not_self = self
+            .iter()
+            .map(|x| MpcField::<F, S>::one() - x)
+            .collect::<Vec<_>>();
+
+        MpcField::<F, S>::one() - not_self.unbounded_fan_in_and()
     }
 }
 
@@ -484,6 +591,195 @@ impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
                 // Moreover, this shared case is called only truncate coefficient of polynomial. so we just return false.
                 debug!("Warning: is_zero on shared data. Returning false");
                 false
+            }
+        }
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcField<F, S> {
+    fn is_zero_shared(&self) -> Self {
+        let timer = start_timer!(|| "EqualityZero test");
+        let res = match self {
+            MpcField::Public(_) => {
+                panic!("public is not expected here");
+            }
+            MpcField::Shared(_) => {
+                let rng = &mut ark_std::test_rng();
+
+                let (vec_r, r) = Self::rand_number_bitwise(rng);
+
+                let c = (r + self).reveal();
+
+                let bits: Vec<Option<bool>> = {
+                    let field_char = BitIteratorBE::new(F::characteristic());
+                    let bits: Vec<_> = BitIteratorBE::new(c.into_repr())
+                        .zip(field_char)
+                        .skip_while(|(_, c)| !c)
+                        .map(|(b, _)| Some(b))
+                        .collect();
+                    assert_eq!(bits.len(), F::Params::MODULUS_BITS as usize);
+                    bits
+                };
+
+                let c_prime = bits
+                    .iter()
+                    .rev()
+                    .zip(vec_r.iter())
+                    .map(|(b, r)| match b {
+                        Some(b) => {
+                            if *b {
+                                *r
+                            } else {
+                                Self::one() - r
+                            }
+                        }
+                        None => panic!("bits decomposition failed"),
+                    })
+                    .collect::<Vec<_>>();
+
+                c_prime.unbounded_fan_in_and()
+            }
+        };
+        end_timer!(timer);
+        res
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for MpcField<F, S> {
+    type Output = Vec<Self>;
+    fn bit_decomposition(&self) -> Self::Output {
+        match self.is_shared() {
+            true => {
+                let rng = &mut ark_std::test_rng();
+
+                let l = F::Params::MODULUS_BITS as usize;
+
+                // 1
+                let (vec_r, r) = Self::rand_number_bitwise(rng);
+
+                // 2
+                let c = -r + self;
+                let revealed_c = c.reveal();
+                if revealed_c.is_zero() {
+                    return vec_r;
+                }
+
+                // 3
+                let p_minus_c_bool = (-revealed_c).into_repr().to_bits_le();
+
+                // set length to l
+                let p_minus_c_bool = p_minus_c_bool[..l].to_vec();
+
+                assert_eq!(p_minus_c_bool.len(), l);
+
+                let p_minus_c_field = p_minus_c_bool
+                    .iter()
+                    .map(|b| Self::from_public(F::from(*b)))
+                    .collect::<Vec<_>>();
+
+                let q = Self::one() - vec_r.bitwise_lt(&p_minus_c_field);
+
+                // 4
+                let mut two_l = F::BigInt::from(1u64);
+                two_l.muln(l as u32);
+
+                let mut vec_f = two_l;
+                vec_f.add_nocarry(&revealed_c.into_repr());
+                vec_f.sub_noborrow(&F::Params::MODULUS);
+
+                let vec_f = vec_f
+                    .to_bits_le()
+                    .iter()
+                    .map(|b| Self::from_public(F::from(*b)))
+                    .collect::<Vec<_>>();
+
+                let vec_f_prime = revealed_c
+                    .into_repr()
+                    .to_bits_le()
+                    .iter()
+                    .map(|b| Self::from_public(F::from(*b)))
+                    .collect::<Vec<_>>();
+
+                let g_vec = vec_f
+                    .iter()
+                    .zip(vec_f_prime.iter())
+                    .map(|(f, f_prime)| (*f - f_prime) * q + f_prime)
+                    .collect::<Vec<_>>();
+
+                // set length to l
+                let g_vec = g_vec[..l].to_vec();
+
+                // 5
+                let mut h = vec_r.bit_add(&g_vec);
+
+                // 6
+                h.pop(); // remove the last element
+                h
+            }
+            false => {
+                panic!("public is not expected here");
+            }
+        }
+    }
+}
+
+impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcField<F, S>> {
+    type Output = Self;
+
+    fn carries(&self, other: &Self) -> Self::Output {
+        match self.is_shared() {
+            true => {
+                assert_eq!(self.len(), other.len());
+                let l = self.len(); // l is the bit length.
+
+                let s_vec = self
+                    .iter()
+                    .zip(other.iter())
+                    .map(|(a, b)| *a * b)
+                    .collect::<Vec<_>>();
+
+                let p_vec = (0..l)
+                    .map(|i| {
+                        self[i] + other[i] - MpcField::<F, S>::from_public(F::from(2u64)) * s_vec[i]
+                    })
+                    .collect::<Vec<_>>();
+
+                (0..l)
+                    .scan(MpcField::<F, S>::zero(), |is_s, i| {
+                        *is_s = s_vec[i] + p_vec[i] * *is_s;
+                        Some(*is_s)
+                    })
+                    .collect()
+            }
+            false => {
+                panic!("public is not expected here");
+            }
+        }
+    }
+
+    fn bit_add(self, other: &Self) -> Self::Output {
+        match self.is_shared() {
+            true => {
+                assert_eq!(self.len(), other.len());
+                let l = self.len(); // l is the bit length.
+                let c_vec = self.carries(other);
+
+                (0..=l)
+                    .map(|i| {
+                        if i == 0 {
+                            self[0] + other[0]
+                                - MpcField::<F, S>::from_public(F::from(2u64)) * c_vec[0]
+                        } else if i == l {
+                            c_vec[l - 1]
+                        } else {
+                            self[i] + other[i] + c_vec[i - 1]
+                                - MpcField::<F, S>::from_public(F::from(2u64)) * c_vec[i]
+                        }
+                    })
+                    .collect()
+            }
+            false => {
+                panic!("public is not expected here");
             }
         }
     }

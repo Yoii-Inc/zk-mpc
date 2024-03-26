@@ -6,6 +6,10 @@ pub mod share;
 pub use share::*;
 pub mod wire;
 pub use wire::*;
+pub mod mpc_primitives;
+pub use mpc_primitives::*;
+pub mod r1cs_helper;
+pub use r1cs_helper::*;
 
 pub mod channel;
 
