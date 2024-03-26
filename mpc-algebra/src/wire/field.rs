@@ -683,11 +683,11 @@ impl<S: FieldShare<ark_bls12_377::Fr>> BitDecomposition for MpcField<ark_bls12_3
                 let mut two_l = BigInteger256::from(1u64);
                 two_l.muln(l as u32);
 
-                let mut vec_f = two_l;
-                vec_f.add_nocarry(&revealed_c.into_repr());
-                vec_f.sub_noborrow(&ark_bls12_377::FrParameters::MODULUS);
+                let mut bigint_f = two_l;
+                bigint_f.add_nocarry(&revealed_c.into_repr());
+                bigint_f.sub_noborrow(&ark_bls12_377::FrParameters::MODULUS);
 
-                let vec_f = vec_f
+                let vec_f = bigint_f
                     .to_bits_le()
                     .iter()
                     .map(|b| Self::from_public(ark_bls12_377::Fr::from(*b)))
@@ -710,11 +710,11 @@ impl<S: FieldShare<ark_bls12_377::Fr>> BitDecomposition for MpcField<ark_bls12_3
                 let g_vec = g_vec[..l].to_vec();
 
                 // 5
-                let mut h = vec_r.bit_add(&g_vec);
+                let h = vec_r.bit_add(&g_vec);
 
                 // 6
-                h.pop(); // remove the last element
-                h
+                assert!(h.len() == l + 1);
+                h[..l].to_vec() // remove the last element
             }
             false => {
                 panic!("public is not expected here");
@@ -757,6 +757,8 @@ impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcField<F, S>> {
         }
     }
 
+    /// This function is used to add two bit vectors of lenght l.
+    /// Returns a bit vector of length l+1 (bit length always increase by 1).
     fn bit_add(self, other: &Self) -> Self::Output {
         match self.is_shared() {
             true => {
