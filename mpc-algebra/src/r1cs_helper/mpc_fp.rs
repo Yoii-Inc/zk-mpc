@@ -23,7 +23,7 @@ use ark_ff::FpParameters;
 use crate::{
     mpc_eq::MpcEqGadget,
     mpc_select::{MpcCondSelectGadget, MpcTwoBitLookupGadget},
-    BitDecomposition, EqualityZero, FieldShare, MpcBoolean, MpcField, MpcToBitsGadget,
+    BitDecomposition, EqualityZero, FieldShare, MpcBoolean, MpcField, MpcToBitsGadget, Reveal,
 };
 
 // TODO: MpcAllocatedFp is required?
@@ -465,7 +465,8 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
         })?;
 
         let multiplier = self.cs.new_witness_variable(|| {
-            if is_not_zero.value()? {
+            // reveal is not recommended. It is better to avoid revealing.
+            if is_not_zero.value_field()?.reveal().is_one() {
                 (self.value.get()?).inverse().get()
             } else {
                 Ok(MpcField::one())

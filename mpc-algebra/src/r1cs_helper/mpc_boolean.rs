@@ -43,16 +43,20 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     /// Get the assigned value for `self`.
     pub fn value(&self) -> Result<bool, SynthesisError> {
         let value = self.cs.assigned_value(self.variable).get()?;
-        // reveal is not recommended. It is better to avoid revealing.
-        if value.reveal().is_zero() {
+        if value.is_zero() {
             println!("ZEROZEROZERO.");
             Ok(false)
-        } else if value.reveal().is_one() {
+        } else if value.is_one() {
             println!("ONEONEONE");
             Ok(true)
         } else {
             unreachable!("Incorrect value assigned: {:?}", value);
         }
+    }
+
+    pub fn value_field(&self) -> Result<MpcField<F, S>, SynthesisError> {
+        let value = self.cs.assigned_value(self.variable).get()?;
+        Ok(value)
     }
 
     /// Get the R1CS variable for `self`.
@@ -61,11 +65,11 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     }
 
     /// Allocate a witness variable without a booleanity check.
-    fn new_witness_without_booleanity_check<T: Borrow<bool>>(
+    fn new_witness_without_booleanity_check<T: Borrow<MpcField<F, S>>>(
         cs: ConstraintSystemRef<MpcField<F, S>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
     ) -> Result<Self, SynthesisError> {
-        let variable = cs.new_witness_variable(|| f().map(bool_to_field))?;
+        let variable = cs.new_witness_variable(|| Ok(*f()?.borrow()))?;
         Ok(Self { variable, cs })
     }
 
@@ -74,7 +78,9 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     #[tracing::instrument(target = "r1cs")]
     pub fn xor(&self, b: &Self) -> Result<Self, SynthesisError> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(self.value()? ^ b.value()?)
+            // Ok(self.value()? ^ b.value()?)
+            Ok(self.value_field()? + b.value_field()?
+                - MpcField::from_public(F::from(2_u32)) * self.value_field()? * b.value_field()?)
         })?;
 
         // Constrain (a + a) * (b) = (a + b - c)
@@ -106,7 +112,8 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     #[tracing::instrument(target = "r1cs")]
     pub fn and(&self, b: &Self) -> Result<Self, SynthesisError> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(self.value()? & b.value()?)
+            // Ok(self.value()? & b.value()?)
+            Ok(self.value_field()? * b.value_field()?)
         })?;
 
         // Constrain (a) * (b) = (c), ensuring c is 1 iff
@@ -125,7 +132,9 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     #[tracing::instrument(target = "r1cs")]
     pub fn or(&self, b: &Self) -> Result<Self, SynthesisError> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(self.value()? | b.value()?)
+            // Ok(self.value()? | b.value()?)
+            Ok(MpcField::one()
+                - (MpcField::one() - self.value_field()?) * (MpcField::one() - b.value_field()?))
         })?;
 
         // Constrain (1 - a) * (1 - b) = (c), ensuring c is 1 iff
@@ -143,7 +152,8 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     #[tracing::instrument(target = "r1cs")]
     pub fn and_not(&self, b: &Self) -> Result<Self, SynthesisError> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(self.value()? & !b.value()?)
+            // Ok(self.value()? & !b.value()?)
+            Ok(self.value_field()? * (MpcField::one() - b.value_field()?))
         })?;
 
         // Constrain (a) * (1 - b) = (c), ensuring c is 1 iff
@@ -161,7 +171,8 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     #[tracing::instrument(target = "r1cs")]
     pub fn nor(&self, b: &Self) -> Result<Self, SynthesisError> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
-            Ok(!(self.value()? | b.value()?))
+            // Ok(!(self.value()? | b.value()?))
+            Ok((MpcField::one() - self.value_field()?) * (MpcField::one() - b.value_field()?))
         })?;
 
         // Constrain (1 - a) * (1 - b) = (c), ensuring c is 1 iff
@@ -289,6 +300,20 @@ impl<F: PrimeField, S: FieldShare<F>> MpcBoolean<F, S> {
             MpcBoolean::Constant(true) => lc!() + Variable::One,
             MpcBoolean::Is(v) => v.variable().into(),
             MpcBoolean::Not(v) => lc!() + Variable::One - v.variable(),
+        }
+    }
+
+    pub fn value_field(&self) -> Result<MpcField<F, S>, SynthesisError> {
+        match self {
+            MpcBoolean::Constant(c) => {
+                if *c {
+                    Ok(MpcField::one())
+                } else {
+                    Ok(MpcField::zero())
+                }
+            }
+            MpcBoolean::Is(ref v) => v.value_field(),
+            MpcBoolean::Not(ref v) => Ok(MpcField::one() - v.value_field()?),
         }
     }
 
@@ -940,7 +965,11 @@ impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcBoolean<F
                     let result: MpcBoolean<F, S> =
                         MpcAllocatedBool::new_witness_without_booleanity_check(cs.clone(), || {
                             let cond = cond.value()?;
-                            Ok(if cond { a.value()? } else { b.value()? })
+                            Ok(if cond {
+                                a.value_field()?
+                            } else {
+                                b.value_field()?
+                            })
                         })?
                         .into();
                     // a = self; b = other; c = cond;
