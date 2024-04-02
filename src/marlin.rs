@@ -15,7 +15,10 @@ use mpc_net::{MpcMultiNet, MpcNet};
 use ark_std::{One, Zero};
 
 use crate::{
-    circuits::{circuit::MyCircuit, EqualityZeroCircuit, LocalOrMPC, PedersenComCircuit},
+    circuits::{
+        circuit::MyCircuit, BitDecompositionCircuit, EqualityZeroCircuit, LocalOrMPC,
+        PedersenComCircuit,
+    },
     input::{MpcInputTrait, SampleMpcInput},
 };
 
@@ -300,5 +303,26 @@ pub fn test_equality_zero(n_iters: usize) {
 
         let is_not_valid = LocalMarlin::verify(&index_vk, &[], &invalid_proof, rng).unwrap();
         assert!(!is_not_valid);
+    }
+}
+
+pub fn test_bit_decomposition(n_iters: usize) {
+    let rng = &mut test_rng();
+
+    let srs = LocalMarlin::universal_setup(10000, 50, 100, rng).unwrap();
+
+    let local_circuit = BitDecompositionCircuit { a: Fr::zero() };
+
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, local_circuit).unwrap();
+    let mpc_index_pk = IndexProverKey::from_public(index_pk);
+
+    for _ in 0..n_iters {
+        let mpc_circuit = BitDecompositionCircuit { a: MFr::rand(rng) };
+
+        let mpc_proof = MpcMarlin::prove(&mpc_index_pk, mpc_circuit, rng).unwrap();
+        let proof = pf_publicize(mpc_proof);
+
+        let is_valid = LocalMarlin::verify(&index_vk, &[], &proof, rng).unwrap();
+        assert!(is_valid);
     }
 }
