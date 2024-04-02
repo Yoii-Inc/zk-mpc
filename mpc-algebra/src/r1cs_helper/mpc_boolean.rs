@@ -15,6 +15,8 @@ use crate::{
     mpc_eq::MpcEqGadget, mpc_fp::MpcFpVar, mpc_select::MpcCondSelectGadget, FieldShare, MpcField,
 };
 
+use crate::reveal::Reveal;
+
 /// Represents a variable in the constraint system which is guaranteed
 /// to be either zero or one.
 ///
@@ -41,10 +43,11 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     /// Get the assigned value for `self`.
     pub fn value(&self) -> Result<bool, SynthesisError> {
         let value = self.cs.assigned_value(self.variable).get()?;
-        if value.is_zero() {
+        // reveal is not recommended. It is better to avoid revealing.
+        if value.reveal().is_zero() {
             println!("ZEROZEROZERO.");
             Ok(false)
-        } else if value.is_one() {
+        } else if value.reveal().is_one() {
             println!("ONEONEONE");
             Ok(true)
         } else {
