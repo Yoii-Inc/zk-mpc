@@ -16,8 +16,8 @@ use ark_std::{One, Zero};
 
 use crate::{
     circuits::{
-        circuit::MyCircuit, BitDecompositionCircuit, EqualityZeroCircuit, LocalOrMPC,
-        PedersenComCircuit,
+        bit_decomposition::BitDecompositionCircuit, circuit::MyCircuit,
+        equality_zero::EqualityZeroCircuit, LocalOrMPC, PedersenComCircuit,
     },
     input::{MpcInputTrait, SampleMpcInput},
 };
