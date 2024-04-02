@@ -24,8 +24,6 @@ impl ConstraintSynthesizer<MFr> for BitDecompositionCircuit<MFr> {
 
         let bits = a_var.to_bits_le()?;
 
-        // a_var.is_zero()?.enforce_equal(&MpcBoolean::TRUE)?;
-
         Ok(())
     }
 }
@@ -33,8 +31,6 @@ impl ConstraintSynthesizer<MFr> for BitDecompositionCircuit<MFr> {
 impl ConstraintSynthesizer<Fr> for BitDecompositionCircuit<Fr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         let a_var = FpVar::new_witness(cs.clone(), || Ok(self.a))?;
-
-        // a_var.is_zero()?.enforce_equal(&Boolean::TRUE)?;
 
         let bits = a_var.to_bits_le()?;
 
