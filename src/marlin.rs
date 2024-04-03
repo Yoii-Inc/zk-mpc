@@ -12,8 +12,13 @@ use mpc_algebra::malicious_majority::*;
 use mpc_algebra::{FromLocal, Reveal};
 use mpc_net::{MpcMultiNet, MpcNet};
 
+use ark_std::{One, Zero};
+
 use crate::{
-    circuits::{circuit::MyCircuit, LocalOrMPC, PedersenComCircuit},
+    circuits::{
+        bit_decomposition::BitDecompositionCircuit, circuit::MyCircuit,
+        equality_zero::EqualityZeroCircuit, LocalOrMPC, PedersenComCircuit,
+    },
     input::{MpcInputTrait, SampleMpcInput},
 };
 
@@ -265,5 +270,59 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
         assert!(is_valid);
         let is_valid = LocalMarlin::verify(&index_vk, &invalid_inputs, &proof, rng).unwrap();
         assert!(!is_valid);
+    }
+}
+
+pub fn test_equality_zero(n_iters: usize) {
+    let rng = &mut test_rng();
+
+    let srs = LocalMarlin::universal_setup(10000, 50, 100, rng).unwrap();
+
+    let local_circuit = EqualityZeroCircuit { a: Fr::zero() };
+
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, local_circuit).unwrap();
+    let mpc_index_pk = IndexProverKey::from_public(index_pk);
+
+    for _ in 0..n_iters {
+        let mpc_circuit = EqualityZeroCircuit {
+            a: MFr::from_add_shared(Fr::zero()),
+        };
+
+        let mpc_proof = MpcMarlin::prove(&mpc_index_pk, mpc_circuit, rng).unwrap();
+        let proof = pf_publicize(mpc_proof);
+
+        let is_valid = LocalMarlin::verify(&index_vk, &[], &proof, rng).unwrap();
+        assert!(is_valid);
+
+        let invalid_mpc_circuit = EqualityZeroCircuit {
+            a: MFr::from_add_shared(Fr::one()),
+        };
+
+        let invalid_mpc_proof = MpcMarlin::prove(&mpc_index_pk, invalid_mpc_circuit, rng).unwrap();
+        let invalid_proof = pf_publicize(invalid_mpc_proof);
+
+        let is_not_valid = LocalMarlin::verify(&index_vk, &[], &invalid_proof, rng).unwrap();
+        assert!(!is_not_valid);
+    }
+}
+
+pub fn test_bit_decomposition(n_iters: usize) {
+    let rng = &mut test_rng();
+
+    let srs = LocalMarlin::universal_setup(10000, 50, 100, rng).unwrap();
+
+    let local_circuit = BitDecompositionCircuit { a: Fr::zero() };
+
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, local_circuit).unwrap();
+    let mpc_index_pk = IndexProverKey::from_public(index_pk);
+
+    for _ in 0..n_iters {
+        let mpc_circuit = BitDecompositionCircuit { a: MFr::rand(rng) };
+
+        let mpc_proof = MpcMarlin::prove(&mpc_index_pk, mpc_circuit, rng).unwrap();
+        let proof = pf_publicize(mpc_proof);
+
+        let is_valid = LocalMarlin::verify(&index_vk, &[], &proof, rng).unwrap();
+        assert!(is_valid);
     }
 }
