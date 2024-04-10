@@ -5,6 +5,6 @@ pub use pedersen::*;
 pub mod werewolf;
 pub use werewolf::*;
 pub mod equality_zero;
-pub use equality_zero::*;
+
 pub mod bit_decomposition;
-pub use bit_decomposition::*;
+
