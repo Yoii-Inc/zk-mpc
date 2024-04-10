@@ -10,6 +10,8 @@ pub mod mpc_primitives;
 pub use mpc_primitives::*;
 pub mod r1cs_helper;
 pub use r1cs_helper::*;
+pub mod commitment;
+pub use commitment::*;
 
 pub mod channel;
 
