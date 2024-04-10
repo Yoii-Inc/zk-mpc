@@ -460,18 +460,14 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
 
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     pub fn is_zero(&self) -> Result<MpcBoolean<F, S>, SynthesisError> {
-        let is_not_zero = MpcBoolean::new_witness(self.cs.clone(), || {
-            Ok(MpcField::one() - self.value.get()?.is_zero_shared())
-        })?;
+        let is_zero_value = self.value.get()?.is_zero_shared();
 
-        let multiplier = self.cs.new_witness_variable(|| {
-            // reveal is not recommended. It is better to avoid revealing.
-            if is_not_zero.value_field()?.reveal().is_one() {
-                (self.value.get()?).inverse().get()
-            } else {
-                Ok(MpcField::one())
-            }
-        })?;
+        let is_not_zero =
+            MpcBoolean::new_witness(self.cs.clone(), || Ok(MpcField::one() - is_zero_value))?;
+
+        let multiplier = self
+            .cs
+            .new_witness_variable(|| (self.value.get()? + is_zero_value).inverse().get())?;
 
         self.cs
             .enforce_constraint(lc!() + self.variable, lc!() + multiplier, is_not_zero.lc())?;

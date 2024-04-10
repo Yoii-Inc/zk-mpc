@@ -650,6 +650,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
     fn bit_decomposition(&self) -> Self::Output {
         match self.is_shared() {
             true => {
+                let timer = start_timer!(|| "Bit Decomposition");
                 let rng = &mut ark_std::test_rng();
 
                 let l = F::Params::MODULUS_BITS as usize;
@@ -714,6 +715,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
 
                 // 6
                 assert!(h.len() == l + 1);
+                end_timer!(timer);
                 h[..l].to_vec() // remove the last element
             }
             false => {
