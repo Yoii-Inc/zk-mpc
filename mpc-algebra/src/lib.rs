@@ -12,6 +12,7 @@ pub mod r1cs_helper;
 pub use r1cs_helper::*;
 pub mod commitment;
 pub use commitment::*;
+pub mod crh;
 
 pub mod channel;
 
