@@ -1,5 +1,5 @@
 // use crate::{prelude::*, Vec};
-use crate::{FieldShare, MpcBoolean};
+use crate::{FieldShare, MpcBoolean, MpcField};
 use ark_ff::PrimeField;
 use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::SynthesisError;
@@ -84,8 +84,8 @@ pub trait MpcEqGadget<F: PrimeField, S: FieldShare<F>> {
     }
 }
 
-impl<T: MpcEqGadget<F, S> + R1CSVar<F>, F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S>
-    for [T]
+impl<T: MpcEqGadget<F, S> + R1CSVar<MpcField<F, S>>, F: PrimeField, S: FieldShare<F>>
+    MpcEqGadget<F, S> for [T]
 {
     #[tracing::instrument(target = "r1cs", skip(self, other))]
     fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F, S>, SynthesisError> {
