@@ -25,7 +25,7 @@ pub trait FieldOpsBounds<'a, F, T: 'a>:
 }
 
 /// A variable representing a field. Corresponds to the native type `F`.
-pub trait FieldVar<F: Field, ConstraintF: PrimeField + SquareRootField, S: FieldShare<ConstraintF>>:
+pub trait MpcFieldVar<F: Field, ConstraintF: PrimeField + SquareRootField, S: FieldShare<ConstraintF>>:
     'static
     + Clone
     + From<MpcBoolean<ConstraintF, S>>

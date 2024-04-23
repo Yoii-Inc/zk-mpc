@@ -1,7 +1,7 @@
 use ark_ff::{PrimeField, SquareRootField};
 use ark_relations::r1cs::SynthesisError;
 
-use crate::{FieldShare, MpcBoolean};
+use crate::{FieldShare, MpcBoolean, MpcUInt8};
 
 /// Specifies constraints for conversion to a little-endian bit representation
 /// of `self`.
@@ -33,5 +33,20 @@ pub trait MpcToBitsGadget<F: PrimeField + SquareRootField, S: FieldShare<F>> {
         let mut res = self.to_non_unique_bits_le()?;
         res.reverse();
         Ok(res)
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcToBitsGadget<F, S>
+    for [MpcBoolean<F, S>]
+{
+    /// Outputs `self`.
+    fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F, S>>, SynthesisError> {
+        Ok(self.to_vec())
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcToBitsGadget<F, S> for MpcUInt8<F, S> {
+    fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F, S>>, SynthesisError> {
+        Ok(self.bits.to_vec())
     }
 }

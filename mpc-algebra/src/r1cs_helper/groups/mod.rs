@@ -10,6 +10,8 @@ use crate::MpcBoolean;
 use crate::MpcToBitsGadget;
 use crate::{FieldShare, MpcCondSelectGadget};
 
+use crate::MpcEqGadget;
+
 /// This module contains implementations of arithmetic for various curve models.
 pub mod curves;
 
@@ -39,9 +41,9 @@ pub trait MpcCurveVar<
     + Clone
     + Debug
     + R1CSVar<ConstraintF, Value = C>
-    + ToBitsGadget<ConstraintF>
+    + MpcToBitsGadget<ConstraintF, S>
     + ToBytesGadget<ConstraintF>
-    + EqGadget<ConstraintF>
+    + MpcEqGadget<ConstraintF, S>
     + MpcCondSelectGadget<ConstraintF, S>
     + AllocVar<C, ConstraintF>
     + AllocVar<C::Affine, ConstraintF>
@@ -59,7 +61,7 @@ pub trait MpcCurveVar<
 
     /// Returns a `Boolean` representing whether `self == Self::zero()`.
     #[tracing::instrument(target = "r1cs")]
-    fn is_zero(&self) -> Result<Boolean<ConstraintF>, SynthesisError> {
+    fn is_zero(&self) -> Result<MpcBoolean<ConstraintF, S>, SynthesisError> {
         self.is_eq(&Self::zero())
     }
 
