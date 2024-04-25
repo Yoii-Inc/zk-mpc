@@ -2,8 +2,8 @@ set -ex
 trap "exit" INT TERM
 trap "kill 0" EXIT
 
-cargo build --example algebra
-BIN="./target/debug/examples/algebra"
+cargo build --example algebra --release
+BIN="./target/release/examples/algebra"
 
 
 PROCS=()
