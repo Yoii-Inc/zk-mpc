@@ -3,6 +3,7 @@ use derivative::Derivative;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
 use rand::Rng;
+use core::panic;
 use std::fmt::{self, Debug, Display};
 use std::io::{self, Read, Write};
 use std::iter::{Product, Sum};
@@ -22,7 +23,7 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::{BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, IntervalTestHalfModulus, LogicalOperations, Reveal};
+use crate::{BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, LessThan, LogicalOperations, Reveal};
 use crate::{EqualityZero, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -301,9 +302,8 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
 }
 
 
-impl<F: PrimeField + SquareRootField, S: FieldShare<F>> IntervalTestHalfModulus for MpcField<F,S> {
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,S> {
     type Output = Self;
-
     // check if shared value a is in the interval [0, modulus/2)
     fn interval_test_half_modulus(&self) -> Self::Output {
         // define double self as x
@@ -333,6 +333,15 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> IntervalTestHalfModulus 
 
         // return 1 - lsb_x
         one - lsb_x
+    }
+
+    fn less_than(&self, other: &Self) -> Self::Output {
+        // [z]=[b−a<p/2],[x]=[a<p/2],[y]=[b>p/2]
+        // ([z]∧[x])∨([z]∧[y])∨(¬[z]∧[x]∧[y])=[z(x+y)+(1−2z)xy].
+        let z = (*other-self).interval_test_half_modulus();
+        let x = self.interval_test_half_modulus();
+        let y = Self::one() - other.interval_test_half_modulus();
+        z*(x+y)+(Self::one()-Self::from_public(F::from(2u8))*z)*x*y
     }
 }
 

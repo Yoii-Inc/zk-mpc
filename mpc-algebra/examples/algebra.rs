@@ -3,10 +3,11 @@ use std::path::PathBuf;
 use ark_ff::{BigInteger, BigInteger256, Field, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
 use ark_poly::reveal;
+use ark_std::{end_timer, start_timer};
 use log::debug;
 use mpc_algebra::{
     AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero,
-    IntervalTestHalfModulus, LogicalOperations, MpcField, Reveal, UniformBitRand,
+    LessThan, LogicalOperations, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -175,6 +176,20 @@ fn test_interval_test_half_modulus() {
         let public = MF::from_public(F::from_repr(x).unwrap());
         let res_public = public.interval_test_half_modulus();
         assert_eq!(res_public.reveal().is_one(), expected[i]);
+    }
+}
+
+fn test_less_than() {
+    let mut rng = ark_std::test_rng();
+
+    for _ in 0..5 {
+        let timer = start_timer!(|| "less_than test");
+        let a = MF::bit_rand(&mut rng);
+        let b = MF::bit_rand(&mut rng);
+
+        let res = a.less_than(&b);
+        assert_eq!(res.reveal().is_one(), a.reveal() < b.reveal());
+        end_timer!(timer)
     }
 }
 
@@ -352,6 +367,8 @@ fn main() {
 
     test_bit_rand();
     println!("Test bit_rand passed");
+    test_less_than();
+    println!("Test less_than passed");
     test_interval_test_half_modulus();
     println!("Test interval_test_half_modulus passed");
     test_rand_number_bitwise();
