@@ -336,8 +336,8 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
     }
 
     fn less_than(&self, other: &Self) -> Self::Output {
-        // [z]=[b−a<p/2],[x]=[a<p/2],[y]=[b>p/2]
-        // ([z]∧[x])∨([z]∧[y])∨(¬[z]∧[x]∧[y])=[z(x+y)+(1−2z)xy].
+        // [z]=[other−self<p/2],[x]=[self<p/2],[y]=[other>p/2]
+        // ([z]∧[x])∨([z]∧[y])∨(¬[z]∧[x]∧[y])=[z(x+y)+(1−2*z)xy].
         let z = (*other-self).interval_test_half_modulus();
         let x = self.interval_test_half_modulus();
         let y = Self::one() - other.interval_test_half_modulus();

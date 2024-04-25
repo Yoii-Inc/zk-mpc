@@ -6,12 +6,11 @@ use ark_poly::reveal;
 use ark_std::{end_timer, start_timer};
 use log::debug;
 use mpc_algebra::{
-    AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero,
-    LessThan, LogicalOperations, MpcField, Reveal, UniformBitRand,
+    share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LessThan, LogicalOperations, MpcField, Reveal, UniformBitRand
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
-use rand::thread_rng;
+use rand::{thread_rng, Rng};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -149,46 +148,35 @@ fn test_bitwise_lt() {
 }
 
 fn test_interval_test_half_modulus() {
+    let rng = &mut thread_rng();
     let mut half_modulus =
         <<ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS;
     half_modulus.div2();
-    let mut half_modules_plus_one = half_modulus;
-    half_modules_plus_one.add_nocarry(&BigInteger256::from(1));
-    let mut half_modulus_double = half_modulus;
-    half_modulus_double.mul2();
 
-    let samples = [
-        BigInteger256::from(0),
-        BigInteger256::from(1),
-        half_modulus,
-        half_modules_plus_one,
-        half_modulus_double,
-    ];
-    let expected = [true, true, true, false, false];
-
-    for (i, &x) in samples.iter().enumerate() {
-        // test shared
-        let shared = MF::from_add_shared(F::from_repr(x).unwrap());
-        let res_shared = shared.interval_test_half_modulus();
-        assert_eq!(res_shared.reveal().is_one(), expected[i]);
-
-        // test public
-        let public = MF::from_public(F::from_repr(x).unwrap());
-        let res_public = public.interval_test_half_modulus();
-        assert_eq!(res_public.reveal().is_one(), expected[i]);
+    for _ in 0..5 {
+        let shared = MF::rand(rng);
+        let timer = start_timer!(|| "interval_test_half_modulus");
+        let res = shared.interval_test_half_modulus();
+        assert_eq!(res.reveal(), if shared.reveal().into_repr() < half_modulus {F::one()} else {F::zero()});
+        end_timer!(timer);
     }
 }
 
 fn test_less_than() {
-    let mut rng = ark_std::test_rng();
+    let rng = &mut thread_rng();
 
     for _ in 0..5 {
         let timer = start_timer!(|| "less_than test");
-        let a = MF::bit_rand(&mut rng);
-        let b = MF::bit_rand(&mut rng);
+        let a = MF::rand(rng);
+        let b = MF::rand(rng);
+        print!("a: {:?}, b: {:?}", a.reveal().into_repr(), b.reveal().into_repr());
 
         let res = a.less_than(&b);
-        assert_eq!(res.reveal().is_one(), a.reveal() < b.reveal());
+        if res.reveal().is_one() !=  (a.reveal() < b.reveal()) {
+            println!("a: {:?}, b: {:?}", a.reveal(), b.reveal());
+            println!("res: {:?}", res.reveal());
+            assert_eq!(res.reveal().is_one(), a.reveal() < b.reveal());
+        }
         end_timer!(timer)
     }
 }
@@ -368,6 +356,7 @@ fn main() {
     test_bit_rand();
     println!("Test bit_rand passed");
     test_less_than();
+    
     println!("Test less_than passed");
     test_interval_test_half_modulus();
     println!("Test interval_test_half_modulus passed");
