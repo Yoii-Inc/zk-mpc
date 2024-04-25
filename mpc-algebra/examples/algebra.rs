@@ -5,8 +5,8 @@ use ark_ff::{One, Zero};
 use ark_poly::reveal;
 use log::debug;
 use mpc_algebra::{
-    AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LogicalOperations,
-    MpcField, Reveal, UniformBitRand,
+    AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero,
+    IntervalTestHalfModulus, LogicalOperations, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -144,6 +144,37 @@ fn test_bitwise_lt() {
         let res_2 = a.bitwise_lt(&b);
 
         assert_eq!(res_1, res_2.reveal().is_one());
+    }
+}
+
+fn test_interval_test_half_modulus() {
+    let mut half_modulus =
+        <<ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS;
+    half_modulus.div2();
+    let mut half_modules_plus_one = half_modulus;
+    half_modules_plus_one.add_nocarry(&BigInteger256::from(1));
+    let mut half_modulus_double = half_modulus;
+    half_modulus_double.mul2();
+
+    let samples = [
+        BigInteger256::from(0),
+        BigInteger256::from(1),
+        half_modulus,
+        half_modules_plus_one,
+        half_modulus_double,
+    ];
+    let expected = [true, true, true, false, false];
+
+    for (i, &x) in samples.iter().enumerate() {
+        // test shared
+        let shared = MF::from_add_shared(F::from_repr(x).unwrap());
+        let res_shared = shared.interval_test_half_modulus();
+        assert_eq!(res_shared.reveal().is_one(), expected[i]);
+
+        // test public
+        let public = MF::from_public(F::from_repr(x).unwrap());
+        let res_public = public.interval_test_half_modulus();
+        assert_eq!(res_public.reveal().is_one(), expected[i]);
     }
 }
 
@@ -321,6 +352,8 @@ fn main() {
 
     test_bit_rand();
     println!("Test bit_rand passed");
+    test_interval_test_half_modulus();
+    println!("Test interval_test_half_modulus passed");
     test_rand_number_bitwise();
     println!("Test rand_number_bitwise passed");
     test_bitwise_lt();

@@ -13,6 +13,12 @@ pub trait BitwiseLessThan {
     fn bitwise_lt(&self, other: &Self) -> Self::Output;
 }
 
+pub trait IntervalTestHalfModulus {
+    type Output;
+
+    fn interval_test_half_modulus(&self) -> Self::Output;
+}
+
 pub trait LogicalOperations {
     type Output;
 
