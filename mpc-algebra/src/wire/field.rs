@@ -279,13 +279,14 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
             .zip(other.iter())
             .map(|(a, b)| *a + b - MpcField::<F, S>::from_public(F::from(2u8)) * a * b)
             .collect::<Vec<_>>();
+        let rev_c = c.into_iter().rev().collect::<Vec<_>>();
 
         // d_i = OR_{j=i}^{modulus_size-1} c_j
-        let d = c
-            .iter()
-            .enumerate()
-            .map(|(i, _)| c[i..].to_vec().unbounded_fan_in_or())
-            .collect::<Vec<_>>();
+        let mut d = vec![rev_c[0]];
+        for i in 0..modulus_size -1 {
+            d.push(vec![d[i],rev_c[i+1]].unbounded_fan_in_or());
+        }
+        d.reverse();
 
         let e = (0..modulus_size)
             .map(|i| {
@@ -362,7 +363,6 @@ impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcField<F, S>> {
             .iter()
             .map(|x| MpcField::<F, S>::one() - x)
             .collect::<Vec<_>>();
-
         MpcField::<F, S>::one() - not_self.unbounded_fan_in_and()
     }
 }
