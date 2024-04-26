@@ -153,20 +153,22 @@ fn test_interval_test_half_modulus() {
         <<ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS;
     half_modulus.div2();
 
-    for _ in 0..5 {
+    let n = 10;
+    let timer = start_timer!(|| format!("interval_test_half_modulus test x {}", n));
+    for _ in 0..n {
         let shared = MF::rand(rng);
-        let timer = start_timer!(|| "interval_test_half_modulus");
         let res = shared.interval_test_half_modulus();
         assert_eq!(res.reveal(), if shared.reveal().into_repr() < half_modulus {F::one()} else {F::zero()});
-        end_timer!(timer);
     }
+    end_timer!(timer);
 }
 
 fn test_less_than() {
     let rng = &mut thread_rng();
 
-    for _ in 0..5 {
-        let timer = start_timer!(|| "less_than test");
+    let n = 10;
+    let timer = start_timer!(|| format!("less_than test x {}", n));
+    for _ in 0..n {
         let a = MF::rand(rng);
         let b = MF::rand(rng);
 
@@ -176,8 +178,8 @@ fn test_less_than() {
             println!("res: {:?}", res.reveal());
             assert_eq!(res.reveal().is_one(), a.reveal() < b.reveal());
         }
-        end_timer!(timer)
     }
+    end_timer!(timer);
 }
 
 fn test_and() {
@@ -209,7 +211,7 @@ fn test_and() {
 }
 
 fn test_or() {
-    let mut rng = ark_std::test_rng();
+    let mut rng = thread_rng();
 
     let a00 = vec![MF::zero(), MF::zero()];
     let a10 = vec![MF::one(), MF::zero()];
@@ -226,7 +228,7 @@ fn test_or() {
 
         let res = a.unbounded_fan_in_or();
 
-        println!("unbounded or is {:?}", res.reveal());
+        // println!("unbounded or is {:?}", res.reveal());
         if res.reveal().is_zero() {
             counter[0] += 1;
         } else if res.reveal().is_one() {
@@ -249,8 +251,10 @@ fn test_equality_zero() {
     let res = a.is_zero_shared();
     assert!(res.reveal().is_zero());
 
+    let n = 10;
+    let timer = start_timer!(|| format!("is_zero_shared test x {}", n));
     // a is random number
-    for _ in 0..10 {
+    for _ in 0..n {
         let a = MF::rand(&mut rng);
 
         let res = a.is_zero_shared();
@@ -258,6 +262,7 @@ fn test_equality_zero() {
         assert_eq!(a.reveal().is_zero(), res.reveal().is_one());
         assert_eq!(!a.reveal().is_zero(), res.reveal().is_zero());
     }
+    end_timer!(timer);
 }
 
 fn test_carries() {

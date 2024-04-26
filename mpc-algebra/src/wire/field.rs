@@ -643,7 +643,6 @@ impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
 
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcField<F, S> {
     fn is_zero_shared(&self) -> Self {
-        let timer = start_timer!(|| "EqualityZero test");
         let res = match self {
             MpcField::Public(_) => {
                 panic!("public is not expected here");
@@ -685,7 +684,6 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                 c_prime.unbounded_fan_in_and()
             }
         };
-        end_timer!(timer);
         res
     }
 }
