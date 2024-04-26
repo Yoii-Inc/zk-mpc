@@ -34,3 +34,7 @@ sha2 = "0.9"
 
 [features]
 default = ["ark-r1cs-std"]
+
+[[example]]
+name = "algebra"
+path = "examples/algebra.rs"

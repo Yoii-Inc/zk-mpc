@@ -2,9 +2,12 @@ set -ex
 trap "exit" INT TERM
 trap "kill 0" EXIT
 
-cargo build --example algebra --release
-BIN="./target/release/examples/algebra"
+# Move to the project directory
+cd "$(dirname "$0")"
 
+# Execute cargo build command
+cargo build --example algebra --release
+BIN="$(pwd)/target/release/examples/algebra"
 
 PROCS=()
 
