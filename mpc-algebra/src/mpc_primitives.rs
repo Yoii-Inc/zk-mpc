@@ -2,7 +2,6 @@ use rand::Rng;
 
 pub trait UniformBitRand: Sized {
     fn bit_rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
-
     // little-endian
     fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self);
 }
@@ -11,6 +10,13 @@ pub trait BitwiseLessThan {
     type Output;
 
     fn bitwise_lt(&self, other: &Self) -> Self::Output;
+}
+
+pub trait LessThan : UniformBitRand {
+    type Output;
+    
+    fn interval_test_half_modulus(&self) -> Self::Output;
+    fn less_than(&self, other: &Self) -> Self::Output;
 }
 
 pub trait LogicalOperations {
