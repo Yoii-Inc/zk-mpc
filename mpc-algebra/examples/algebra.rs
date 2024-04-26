@@ -76,7 +76,7 @@ fn test_sum() {
 }
 
 fn test_bit_rand() {
-    let mut rng = ark_std::test_rng();
+    let mut rng = thread_rng();
     let mut counter = [0, 0, 0];
 
     for _ in 0..1000 {
@@ -169,7 +169,6 @@ fn test_less_than() {
         let timer = start_timer!(|| "less_than test");
         let a = MF::rand(rng);
         let b = MF::rand(rng);
-        print!("a: {:?}, b: {:?}", a.reveal().into_repr(), b.reveal().into_repr());
 
         let res = a.less_than(&b);
         if res.reveal().is_one() !=  (a.reveal() < b.reveal()) {
@@ -356,7 +355,6 @@ fn main() {
     test_bit_rand();
     println!("Test bit_rand passed");
     test_less_than();
-    
     println!("Test less_than passed");
     test_interval_test_half_modulus();
     println!("Test interval_test_half_modulus passed");
