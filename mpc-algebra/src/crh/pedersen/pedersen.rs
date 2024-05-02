@@ -9,7 +9,7 @@ use ark_std::{
 use rayon::prelude::*;
 
 use crate::crh::{TwoToOneCRH, CRH as CRHTrait};
-use crate::{FieldShare, MpcField};
+use ark_ec::AffineCurve;
 use ark_ec::ProjectiveCurve;
 use ark_ff::{Field, ToConstraintField};
 use ark_std::Zero;
@@ -28,24 +28,12 @@ pub struct Parameters<C: ProjectiveCurve> {
     pub generators: Vec<Vec<C>>,
 }
 
-pub struct CRH<
-    C: ProjectiveCurve,
-    S: FieldShare<<<C as ProjectiveCurve>::BaseField as ark_ff::Field>::BasePrimeField>,
-    W: Window,
-> {
+pub struct CRH<C: ProjectiveCurve, W: Window> {
     group: PhantomData<C>,
-    #[doc(hidden)]
-    share: PhantomData<S>,
-
     window: PhantomData<W>,
 }
 
-impl<
-        C: ProjectiveCurve,
-        S: FieldShare<<<C as ProjectiveCurve>::BaseField as ark_ff::Field>::BasePrimeField>,
-        W: Window,
-    > CRH<C, S, W>
-{
+impl<C: ProjectiveCurve, W: Window> CRH<C, W> {
     pub fn create_generators<R: Rng>(rng: &mut R) -> Vec<Vec<C>> {
         let mut generators_powers = Vec::new();
         for _ in 0..W::NUM_WINDOWS {
@@ -65,16 +53,11 @@ impl<
     }
 }
 
-impl<
-        C: ProjectiveCurve,
-        S: FieldShare<<<C as ProjectiveCurve>::BaseField as ark_ff::Field>::BasePrimeField>,
-        W: Window,
-    > CRHTrait for CRH<C, S, W>
-{
+impl<C: ProjectiveCurve, W: Window> CRHTrait for CRH<C, W> {
     const INPUT_SIZE_BITS: usize = W::WINDOW_SIZE * W::NUM_WINDOWS;
     type Output = C::Affine;
     type Parameters = Parameters<C>;
-    type Input = Vec<MpcField<<C::BaseField as Field>::BasePrimeField, S>>;
+    type Input = Vec<C::ScalarField>;
 
     fn setup<R: Rng>(rng: &mut R) -> Result<Self::Parameters, Error> {
         let time = start_timer!(|| format!(
@@ -106,7 +89,7 @@ impl<
         if (input.len()) < W::WINDOW_SIZE * W::NUM_WINDOWS {
             padded_input.extend_from_slice(input);
             let padded_length = (W::WINDOW_SIZE * W::NUM_WINDOWS);
-            padded_input.resize(padded_length, MpcField::zero());
+            padded_input.resize(padded_length, C::ScalarField::zero());
             input = &padded_input;
         }
 
@@ -126,13 +109,22 @@ impl<
             .zip(&parameters.generators)
             .map(|(bits, generator_powers)| {
                 let mut encoded = C::zero();
-                for (bit, base) in bits.iter().zip(generator_powers.iter()) {
-                    // if *bit {
-                    //     encoded += base;
-                    // }
-                    todo!()
-                    // encoded += bit * base;
-                }
+                // for (bit, base) in bits.iter().zip(generator_powers.iter()) {
+                //     // if *bit {
+                //     //     encoded += base;
+                //     // }
+
+                //     let mut a = *base;
+                //     a *= *bit;
+                //     encoded += a;
+                // }
+
+                let iter_bases = generator_powers
+                    .iter()
+                    .map(|x| x.into_affine())
+                    .collect::<Vec<_>>();
+
+                encoded += C::Affine::multi_scalar_mul(&iter_bases, bits);
                 encoded
             })
             .sum::<C>();
@@ -143,17 +135,12 @@ impl<
     }
 }
 
-impl<
-        C: ProjectiveCurve,
-        S: FieldShare<<<C as ProjectiveCurve>::BaseField as ark_ff::Field>::BasePrimeField>,
-        W: Window,
-    > TwoToOneCRH for CRH<C, S, W>
-{
+impl<C: ProjectiveCurve, W: Window> TwoToOneCRH for CRH<C, W> {
     const LEFT_INPUT_SIZE_BITS: usize = W::WINDOW_SIZE * W::NUM_WINDOWS / 2;
     const RIGHT_INPUT_SIZE_BITS: usize = Self::LEFT_INPUT_SIZE_BITS;
     type Output = C::Affine;
     type Parameters = Parameters<C>;
-    type Input = Vec<MpcField<<C::BaseField as Field>::BasePrimeField, S>>;
+    type Input = Vec<C::BaseField>;
 
     fn setup<R: Rng>(r: &mut R) -> Result<Self::Parameters, Error> {
         <Self as CRHTrait>::setup(r)
