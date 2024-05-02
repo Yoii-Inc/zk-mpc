@@ -6,4 +6,6 @@ pub mod pairing;
 pub use pairing::*;
 pub mod edwards;
 pub use edwards::*;
+pub mod edwards2;
+pub use edwards2::*;
 pub mod macros;
