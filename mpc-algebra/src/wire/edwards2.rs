@@ -364,6 +364,37 @@ where
 
 // for MpcGroupAffine
 
+impl<P: Parameters> Reveal for MpcGroupAffine<P> {
+    type Base = GroupAffine<P>;
+    #[inline]
+    fn reveal(self) -> Self::Base {
+        self.val.reveal()
+    }
+    #[inline]
+    fn from_public(t: Self::Base) -> Self {
+        Self {
+            val: MpcGroup::from_public(t),
+        }
+    }
+    #[inline]
+    fn from_add_shared(_t: Self::Base) -> Self {
+        todo!()
+    }
+    #[inline]
+    fn unwrap_as_public(self) -> Self::Base {
+        // self.val.unwrap_as_public()
+        todo!()
+    }
+    #[inline]
+    fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
+        unimplemented!()
+    }
+    #[inline]
+    fn king_share_batch<R: Rng>(_f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
+        unimplemented!()
+    }
+}
+
 impl<P: Parameters> Display for MpcGroupAffine<P> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.val)
