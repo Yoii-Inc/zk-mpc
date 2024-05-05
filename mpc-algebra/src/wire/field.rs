@@ -29,7 +29,7 @@ use crate::{
     LogicalOperations, Reveal,
 };
 use crate::{EqualityZero, UniformBitRand};
-use mpc_net::{MpcMultiNet as Net, MpcNet};
+use mpc_net::{LocalTestNet as Net, MPCNet};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: FieldShare<F>> {

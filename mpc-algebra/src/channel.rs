@@ -1,26 +1,29 @@
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use mpc_net::MpcNet;
+use mpc_net::MPCNet;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 use std::cell::Cell;
 
 /// A trait for MPC networks that can serialize and deserialize.
-pub trait MpcSerNet: MpcNet {
+pub trait MPCSerNet: MPCNet {
     /// Broadcast a value to each other.
-    fn broadcast<T: CanonicalSerialize + CanonicalDeserialize>(out: &T) -> Vec<T> {
+    fn broadcast<T: CanonicalSerialize + CanonicalDeserialize>(&self, out: &T) -> Vec<T> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
-        let bytes_in = Self::broadcast_bytes(&bytes_out);
+        let bytes_in = self.broadcast(&bytes_out);
         bytes_in
             .into_iter()
             .map(|b| T::deserialize(&b[..]).unwrap())
             .collect()
     }
 
-    fn send_to_king<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Option<Vec<T>> {
+    fn send_to_king<T: CanonicalDeserialize + CanonicalSerialize>(
+        &self,
+        out: &T,
+    ) -> Option<Vec<T>> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
-        Self::send_bytes_to_king(&bytes_out).map(|bytes_in| {
+        self.send_to_king(&bytes_out).map(|bytes_in| {
             bytes_in
                 .into_iter()
                 .map(|b| T::deserialize(&b[..]).unwrap())
@@ -41,20 +44,20 @@ pub trait MpcSerNet: MpcNet {
         T::deserialize(&bytes_in[..]).unwrap()
     }
 
-    fn atomic_broadcast<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Vec<T> {
+    fn atomic_broadcast<T: CanonicalDeserialize + CanonicalSerialize>(&self, out: &T) -> Vec<T> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
         let ser_len = bytes_out.len();
         bytes_out.resize(ser_len + COMMIT_RAND_BYTES, 0);
         rand::thread_rng().fill_bytes(&mut bytes_out[ser_len..]);
-        let commitment = CommitHash::new().chain(&bytes_out).finalize();
-        // exchange commitments
-        let all_commits = Self::broadcast_bytes(&commitment[..]);
-        // exchange (data || randomness)
-        let all_data = Self::broadcast_bytes(&bytes_out);
-        let self_id = Self::party_id();
+        let commitment = CommitHash::new().chain(&bytes_out).finalize().to_vec();
+        // コミットメントを交換
+        let all_commits = self.broadcast(&commitment);
+        // データとランダムネスを交換
+        let all_data = self.broadcast(&bytes_out);
+        let self_id = self.party_id();
         for i in 0..all_commits.len() {
-            if i != self_id {
+            if i as u32 != self_id {
                 // check other commitment
                 assert_eq!(
                     &all_commits[i][..],
@@ -69,6 +72,7 @@ pub trait MpcSerNet: MpcNet {
     }
 
     fn king_compute<T: CanonicalDeserialize + CanonicalSerialize>(
+        &self,
         x: &T,
         f: impl Fn(Vec<T>) -> Vec<T>,
     ) -> T {
@@ -76,8 +80,7 @@ pub trait MpcSerNet: MpcNet {
         Self::receive_from_king(king_response)
     }
 }
-
-impl<N: MpcNet> MpcSerNet for N {}
+impl<N: MPCNet> MPCSerNet for N {}
 
 const ALLOW_CHEATING: Cell<bool> = Cell::new(true);
 

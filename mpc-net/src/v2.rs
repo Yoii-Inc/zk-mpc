@@ -1,4 +1,5 @@
 pub mod multi;
+pub use multi::*;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;

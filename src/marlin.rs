@@ -9,10 +9,9 @@ use std::cmp::Ordering;
 use blake2::Blake2s;
 use itertools::Itertools;
 // use mpc_algebra::honest_but_curious::*;
-use mpc_algebra::{
-    malicious_majority::*, BooleanWire, LessThan, MpcBooleanField, SpdzFieldShare, UniformBitRand,
-};
-use mpc_algebra::{CommitmentScheme, FromLocal, Reveal};
+use mpc_algebra::malicious_majority::*;
+use mpc_algebra::{FromLocal, Reveal};
+use mpc_net::{LocalTestNet, MPCNet};
 
 use ark_std::{One, Zero};
 

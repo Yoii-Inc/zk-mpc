@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, self};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::{MPCNetError, MultiplexedStreamID};
+use crate::v2::{MPCNetError, MultiplexedStreamID};
 use async_smux::{MuxBuilder, MuxStream};
 use async_trait::async_trait;
 use futures::stream::{FuturesOrdered, FuturesUnordered};

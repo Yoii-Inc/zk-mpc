@@ -16,8 +16,8 @@ use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
-use crate::channel::{can_cheat, MpcSerNet};
-use mpc_net::{MpcMultiNet as Net, MpcNet};
+use crate::channel::{can_cheat, MPCSerNet};
+use mpc_net::{LocalTestNet as Net, MPCNet};
 
 use super::additive::{AdditiveFieldShare, AdditiveGroupShare, MulFieldShare};
 use super::field::{DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare};
@@ -46,7 +46,7 @@ pub fn mac<F: Field>() -> F {
     }
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SpdzFieldShare<T> {
     sh: AdditiveFieldShare<T>,
     mac: AdditiveFieldShare<T>,

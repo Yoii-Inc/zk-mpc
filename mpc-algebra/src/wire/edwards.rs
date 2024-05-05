@@ -10,10 +10,10 @@ use ark_crypto_primitives::commitment::pedersen::{Parameters, Randomness};
 use ark_crypto_primitives::encryption::elgamal::Parameters as ElGamalParameters;
 use ark_crypto_primitives::encryption::elgamal::Randomness as ElGamalRandomness;
 
-use mpc_net::MpcMultiNet as Net;
+use mpc_net::LocalTestNet as Net;
 use mpc_trait::MpcWire;
 
-use crate::{channel::MpcSerNet, SpdzFieldShare};
+use crate::{channel::MPCSerNet, SpdzFieldShare};
 use crate::{AdditiveFieldShare, MpcField, Reveal};
 
 type AdditiveFq = MpcField<ark_bls12_377::Fr, AdditiveFieldShare<ark_bls12_377::Fr>>;

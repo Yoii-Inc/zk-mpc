@@ -3,6 +3,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
+use std::sync::{Arc, Mutex};
 
 use ark_ec::{group::Group, PairingEngine, ProjectiveCurve};
 use ark_ff::BigInteger;
@@ -19,8 +20,8 @@ use rand::Rng;
 use crate::reveal::Reveal;
 use crate::{BeaverSource, DenseOrSparsePolynomial, DensePolynomial, Msm, SparsePolynomial};
 
-use crate::channel::MpcSerNet;
-use mpc_net::{MpcMultiNet as Net, MpcNet};
+use crate::channel::MPCSerNet;
+use mpc_net::LocalTestNet as Net;
 
 // use super::pairing::ExtendedPairingEngine;
 // use super::group::GroupAffineShare;
@@ -30,9 +31,11 @@ use super::{
     pairing::{AffProjShare, PairingShare},
 };
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AdditiveFieldShare<T> {
     pub val: T,
+    // reference to Net
+    net: Arc<Mutex<Net>>,
 }
 
 impl<F: Field> AdditiveFieldShare<F> {
@@ -78,21 +81,22 @@ impl<F: Field> AdditiveFieldShare<F> {
 impl<F: Field> Reveal for AdditiveFieldShare<F> {
     type Base = F;
 
-    fn reveal(self) -> Self::Base {
-        Net::broadcast(&self.val).into_iter().sum()
+    fn reveal(&self) -> Self::Base {
+        self.net.broadcast(&self.val).into_iter().sum()
     }
 
-    fn from_add_shared(b: Self::Base) -> Self {
-        Self { val: b }
+    fn from_add_shared(b: Self::Base, net: Net) -> Self {
+        Self { val: b, net }
     }
 
-    fn from_public(f: Self::Base) -> Self {
+    fn from_public(f: Self::Base,  net: Net) -> Self {
         Self {
-            val: if Net::am_king() { f } else { F::zero() },
+            val: if net. { f } else { F::zero() },
+            net: self.net.clone(),
         }
     }
 
-    fn unwrap_as_public(self) -> Self::Base {
+    fn unwrap_as_public(&self) -> Self::Base {
         self.val
     }
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
@@ -239,13 +243,15 @@ macro_rules! impl_field_basics {
 
 impl_field_basics!(AdditiveFieldShare, Field);
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct AdditiveExtFieldShare<F: Field>(pub PhantomData<F>);
 
 impl<F: Field> ExtFieldShare<F> for AdditiveExtFieldShare<F> {
     type Base = AdditiveFieldShare<F::BasePrimeField>;
     type Ext = AdditiveFieldShare<F>;
 }
+
+impl Copy for AdditiveExtFieldShare<crate::field::Fp> {}
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MulFieldShare<T> {
