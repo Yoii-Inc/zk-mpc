@@ -5,7 +5,7 @@ use std::{
     sync::Mutex,
 };
 
-use ark_std::{end_timer, start_timer};
+use ark_std::{end_timer, perf_trace::TimerInfo, start_timer};
 use lazy_static::lazy_static;
 use log::debug;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
@@ -151,7 +151,11 @@ impl Connections {
         self.id == 0
     }
     fn broadcast(&mut self, bytes_out: &[u8]) -> Vec<Vec<u8>> {
-        let timer = start_timer!(|| format!("Broadcast {}", bytes_out.len()));
+        let timer: TimerInfo;
+        #[cfg(feature = "log_broadcast")]
+        {
+            timer = start_timer!(|| format!("Broadcast {}", bytes_out.len()));
+        }
         let m = bytes_out.len();
         let own_id = self.id;
         self.stats.bytes_sent += (self.peers.len() - 1) * m;
@@ -181,7 +185,10 @@ impl Connections {
                 bytes_in
             })
             .collect();
-        end_timer!(timer);
+        #[cfg(feature = "log_broadcast")]
+        {
+            end_timer!(timer);
+        }
         r
     }
     fn send_to_king(&mut self, bytes_out: &[u8]) -> Option<Vec<Vec<u8>>> {
