@@ -1,12 +1,14 @@
 use std::path::PathBuf;
 
+use ark_ff::PubUniformRand;
 use ark_ff::{BigInteger, BigInteger256, Field, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
 use ark_poly::reveal;
 use ark_std::{end_timer, start_timer};
 use log::debug;
 use mpc_algebra::{
-    share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LessThan, LogicalOperations, MpcField, Reveal, UniformBitRand
+    share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LessThan,
+    LogicalOperations, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -158,7 +160,14 @@ fn test_interval_test_half_modulus() {
     for _ in 0..n {
         let shared = MF::rand(rng);
         let res = shared.interval_test_half_modulus();
-        assert_eq!(res.reveal(), if shared.reveal().into_repr() < half_modulus {F::one()} else {F::zero()});
+        assert_eq!(
+            res.reveal(),
+            if shared.reveal().into_repr() < half_modulus {
+                F::one()
+            } else {
+                F::zero()
+            }
+        );
     }
     end_timer!(timer);
 }
@@ -173,7 +182,7 @@ fn test_less_than() {
         let b = MF::rand(rng);
 
         let res = a.less_than(&b);
-        if res.reveal().is_one() !=  (a.reveal() < b.reveal()) {
+        if res.reveal().is_one() != (a.reveal() < b.reveal()) {
             println!("a: {:?}, b: {:?}", a.reveal(), b.reveal());
             println!("res: {:?}", res.reveal());
             assert_eq!(res.reveal().is_one(), a.reveal() < b.reveal());
@@ -338,6 +347,18 @@ fn test_bit_decomposition() {
     assert_eq!(res, random.reveal());
 }
 
+fn test_share() {
+    let rng = &mut ark_std::test_rng();
+
+    for i in 0..100 {
+        let init = F::pub_rand(rng);
+        let share = MF::from_sum_to_splited_share(init, rng);
+        let revealed = share.reveal();
+
+        assert_eq!(revealed, init);
+    }
+}
+
 fn main() {
     env_logger::builder().format_timestamp(None).init();
     debug!("Start");
@@ -380,4 +401,7 @@ fn main() {
     println!("Test bit_add passed");
     test_bit_decomposition();
     println!("Test bit_decomposition passed");
+
+    test_share();
+    println!("Test share passed");
 }
