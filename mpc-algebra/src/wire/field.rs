@@ -251,7 +251,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcFi
                 .map(|_| Self::bit_rand(rng))
                 .collect::<Vec<_>>();
 
-            if bits.clone().bitwise_lt(&modulus_bits).reveal().is_one() {
+            if bits.clone().is_smaller_than_le(&modulus_bits).reveal().is_one() {
                 break bits;
             }
         };
@@ -268,7 +268,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcFi
 impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
     type Output = MpcField<F, S>;
 
-    fn bitwise_lt(&self, other: &Self) -> Self::Output {
+    fn is_smaller_than_le(&self, other: &Self) -> Self::Output {
         let modulus_size = F::Params::MODULUS_BITS as usize;
         assert_eq!(self.len(), modulus_size);
         assert_eq!(other.len(), modulus_size);
@@ -284,7 +284,7 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
         // d_i = OR_{j=i}^{modulus_size-1} c_j
         let mut d = vec![rev_c[0]];
         for i in 0..modulus_size -1 {
-            d.push(vec![d[i],rev_c[i+1]].unbounded_fan_in_or());
+            d.push(vec![d[i],rev_c[i+1]].kary_or());
         }
         d.reverse();
 
@@ -306,7 +306,7 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,S> {
     type Output = Self;
     // check if shared value a is in the interval [0, modulus/2)
-    fn interval_test_half_modulus(&self) -> Self::Output {
+    fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output {
         // define double self as x
         let x = *self * Self::from_public(F::from(2u8));
 
@@ -326,7 +326,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
 
         // compute
         // [lsb_x]_p = [c <B r]_p x (1-{lsb_c xor [lsb_r]_p}) +  (1-[c <B r]_p) x {lsb_c xor [lsb_r]_p}
-        let c_lt_r = vec_c.bitwise_lt(&vec_r);
+        let c_lt_r = vec_c.is_smaller_than_le(&vec_r);
         // TODO: implement xor?
         let lsb_c_xor_lsb_r = lsb_c + lsb_r - Self::from_public(F::from(2u8)) * lsb_c * lsb_r;
         let one = Self::one();
@@ -336,20 +336,21 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
         one - lsb_x
     }
 
-    fn less_than(&self, other: &Self) -> Self::Output {
+    fn is_smaller_than(&self, other: &Self) -> Self::Output {
         // [z]=[other−self<p/2],[x]=[self<p/2],[y]=[other>p/2]
         // ([z]∧[x])∨([z]∧[y])∨(¬[z]∧[x]∧[y])=[z(x+y)+(1−2*z)xy].
-        let z = (*other-self).interval_test_half_modulus();
-        let x = self.interval_test_half_modulus();
-        let y = Self::one() - other.interval_test_half_modulus();
+        let z = (*other-self).is_smaller_or_equal_than_mod_minus_one_div_two();
+        let x = self.is_smaller_or_equal_than_mod_minus_one_div_two();
+        let y = Self::one() - other.is_smaller_or_equal_than_mod_minus_one_div_two();
         z*(x+y)+(Self::one()-Self::from_public(F::from(2u8))*z)*x*y
     }
 }
 
 impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcField<F, S>> {
     type Output = MpcField<F, S>;
+    // TODO: Implement kary_nand
 
-    fn unbounded_fan_in_and(&self) -> Self::Output {
+    fn kary_and(&self) -> Self::Output {
         debug_assert!({
             // each element is 0 or 1
             self.iter()
@@ -358,12 +359,12 @@ impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcField<F, S>> {
         self.iter().fold(MpcField::<F, S>::one(), |acc, x| acc * x)
     }
 
-    fn unbounded_fan_in_or(&self) -> Self::Output {
+    fn kary_or(&self) -> Self::Output {
         let not_self = self
             .iter()
             .map(|x| MpcField::<F, S>::one() - x)
             .collect::<Vec<_>>();
-        MpcField::<F, S>::one() - not_self.unbounded_fan_in_and()
+        MpcField::<F, S>::one() - not_self.kary_and()
     }
 }
 
@@ -681,7 +682,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                     })
                     .collect::<Vec<_>>();
 
-                c_prime.unbounded_fan_in_and()
+                c_prime.kary_and()
             }
         };
         res
@@ -721,7 +722,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
                     .map(|b| Self::from_public(F::from(*b)))
                     .collect::<Vec<_>>();
 
-                let q = Self::one() - vec_r.bitwise_lt(&p_minus_c_field);
+                let q = Self::one() - vec_r.is_smaller_than_le(&p_minus_c_field);
 
                 // 4
                 let mut two_l = F::BigInt::from(1u64);

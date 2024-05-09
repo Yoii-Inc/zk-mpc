@@ -580,7 +580,7 @@ pub trait PolynomialCommitment<F: Field, P: Polynomial<F>>: Sized {
         Self::Randomness: 'a,
         Self::Commitment: 'a,
     {
-        let rng = &mut crate::optional_rng::OptionalRng(rng);
+        let rng = &mut optional_rng::OptionalRng(rng);
         let poly_rand_comm: BTreeMap<_, _> = labeled_polynomials
             .into_iter()
             .zip(rands)
