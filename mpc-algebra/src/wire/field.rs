@@ -3,6 +3,7 @@ use derivative::Derivative;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
 use rand::Rng;
+use core::panic;
 use std::fmt::{self, Debug, Display};
 use std::io::{self, Read, Write};
 use std::iter::{Product, Sum};
@@ -22,7 +23,7 @@ use ark_serialize::{
 
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
-use crate::{BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, LogicalOperations, Reveal};
+use crate::{BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, LessThan, LogicalOperations, Reveal};
 use crate::{EqualityZero, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -278,13 +279,14 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
             .zip(other.iter())
             .map(|(a, b)| *a + b - MpcField::<F, S>::from_public(F::from(2u8)) * a * b)
             .collect::<Vec<_>>();
+        let rev_c = c.into_iter().rev().collect::<Vec<_>>();
 
         // d_i = OR_{j=i}^{modulus_size-1} c_j
-        let d = c
-            .iter()
-            .enumerate()
-            .map(|(i, _)| c[i..].to_vec().unbounded_fan_in_or())
-            .collect::<Vec<_>>();
+        let mut d = vec![rev_c[0]];
+        for i in 0..modulus_size -1 {
+            d.push(vec![d[i],rev_c[i+1]].unbounded_fan_in_or());
+        }
+        d.reverse();
 
         let e = (0..modulus_size)
             .map(|i| {
@@ -297,6 +299,50 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcField<F, S>> {
             .collect::<Vec<_>>();
 
         e.iter().zip(other.iter()).map(|(e, b)| *e * b).sum()
+    }
+}
+
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,S> {
+    type Output = Self;
+    // check if shared value a is in the interval [0, modulus/2)
+    fn interval_test_half_modulus(&self) -> Self::Output {
+        // define double self as x
+        let x = *self * Self::from_public(F::from(2u8));
+
+        // generate pair of random bits & composed random number
+        let rng = &mut ark_std::test_rng();
+        let (vec_r, r) = Self::rand_number_bitwise(rng);
+
+        // calculate [c]_p = [x]_p + [r]_p and reveal it. Get least significant bits of c
+        let c = (r + x).reveal();
+        let mut vec_c = c.into_repr().to_bits_le().iter().map(|b| Self::from_public(F::from(*b))).collect::<Vec<Self>>();
+        vec_c.truncate(F::Params::MODULUS_BITS as usize);
+        // Get least significant bits of c
+        let lsb_c = *vec_c.first().unwrap();
+
+        // Get shared least significant bits of r
+        let lsb_r = *vec_r.first().unwrap();
+
+        // compute
+        // [lsb_x]_p = [c <B r]_p x (1-{lsb_c xor [lsb_r]_p}) +  (1-[c <B r]_p) x {lsb_c xor [lsb_r]_p}
+        let c_lt_r = vec_c.bitwise_lt(&vec_r);
+        // TODO: implement xor?
+        let lsb_c_xor_lsb_r = lsb_c + lsb_r - Self::from_public(F::from(2u8)) * lsb_c * lsb_r;
+        let one = Self::one();
+        let lsb_x = c_lt_r * (one - lsb_c_xor_lsb_r) + (one - c_lt_r) * lsb_c_xor_lsb_r;
+
+        // return 1 - lsb_x
+        one - lsb_x
+    }
+
+    fn less_than(&self, other: &Self) -> Self::Output {
+        // [z]=[other−self<p/2],[x]=[self<p/2],[y]=[other>p/2]
+        // ([z]∧[x])∨([z]∧[y])∨(¬[z]∧[x]∧[y])=[z(x+y)+(1−2*z)xy].
+        let z = (*other-self).interval_test_half_modulus();
+        let x = self.interval_test_half_modulus();
+        let y = Self::one() - other.interval_test_half_modulus();
+        z*(x+y)+(Self::one()-Self::from_public(F::from(2u8))*z)*x*y
     }
 }
 
@@ -317,7 +363,6 @@ impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcField<F, S>> {
             .iter()
             .map(|x| MpcField::<F, S>::one() - x)
             .collect::<Vec<_>>();
-
         MpcField::<F, S>::one() - not_self.unbounded_fan_in_and()
     }
 }
@@ -598,7 +643,6 @@ impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
 
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcField<F, S> {
     fn is_zero_shared(&self) -> Self {
-        let timer = start_timer!(|| "EqualityZero test");
         let res = match self {
             MpcField::Public(_) => {
                 panic!("public is not expected here");
@@ -640,7 +684,6 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                 c_prime.unbounded_fan_in_and()
             }
         };
-        end_timer!(timer);
         res
     }
 }

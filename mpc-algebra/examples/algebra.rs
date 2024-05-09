@@ -5,16 +5,17 @@ use ark_ff::{BigInteger, BigInteger256, Field, FpParameters, PrimeField, Uniform
 use ark_ff::{One, Zero};
 use ark_poly::reveal;
 use ark_std::PubUniformRand;
+use ark_std::{end_timer, start_timer};
 use log::debug;
 use mpc_algebra::pedersen::Randomness;
 use mpc_algebra::{
-    edwards2, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan,
-    CommitmentScheme as MpcCommitmentScheme, EqualityZero, LogicalOperations, MpcEdwardsProjective,
-    MpcField, Reveal, UniformBitRand,
+    edwards2, share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan,
+    CommitmentScheme as MpcCommitmentScheme, EqualityZero, LessThan, LogicalOperations,
+    MpcEdwardsProjective, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
-use rand::thread_rng;
+use rand::{thread_rng, Rng};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -80,7 +81,7 @@ fn test_sum() {
 }
 
 fn test_bit_rand() {
-    let mut rng = ark_std::test_rng();
+    let mut rng = thread_rng();
     let mut counter = [0, 0, 0];
 
     for _ in 0..1000 {
@@ -151,6 +152,48 @@ fn test_bitwise_lt() {
     }
 }
 
+fn test_interval_test_half_modulus() {
+    let rng = &mut thread_rng();
+    let mut half_modulus =
+        <<ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS;
+    half_modulus.div2();
+
+    let n = 10;
+    let timer = start_timer!(|| format!("interval_test_half_modulus test x {}", n));
+    for _ in 0..n {
+        let shared = MF::rand(rng);
+        let res = shared.interval_test_half_modulus();
+        assert_eq!(
+            res.reveal(),
+            if shared.reveal().into_repr() < half_modulus {
+                F::one()
+            } else {
+                F::zero()
+            }
+        );
+    }
+    end_timer!(timer);
+}
+
+fn test_less_than() {
+    let rng = &mut thread_rng();
+
+    let n = 10;
+    let timer = start_timer!(|| format!("less_than test x {}", n));
+    for _ in 0..n {
+        let a = MF::rand(rng);
+        let b = MF::rand(rng);
+
+        let res = a.less_than(&b);
+        if res.reveal().is_one() != (a.reveal() < b.reveal()) {
+            println!("a: {:?}, b: {:?}", a.reveal(), b.reveal());
+            println!("res: {:?}", res.reveal());
+            assert_eq!(res.reveal().is_one(), a.reveal() < b.reveal());
+        }
+    }
+    end_timer!(timer);
+}
+
 fn test_and() {
     let mut rng = ark_std::test_rng();
 
@@ -180,7 +223,7 @@ fn test_and() {
 }
 
 fn test_or() {
-    let mut rng = ark_std::test_rng();
+    let mut rng = thread_rng();
 
     let a00 = vec![MF::zero(), MF::zero()];
     let a10 = vec![MF::one(), MF::zero()];
@@ -197,7 +240,7 @@ fn test_or() {
 
         let res = a.unbounded_fan_in_or();
 
-        println!("unbounded or is {:?}", res.reveal());
+        // println!("unbounded or is {:?}", res.reveal());
         if res.reveal().is_zero() {
             counter[0] += 1;
         } else if res.reveal().is_one() {
@@ -220,8 +263,10 @@ fn test_equality_zero() {
     let res = a.is_zero_shared();
     assert!(res.reveal().is_zero());
 
+    let n = 10;
+    let timer = start_timer!(|| format!("is_zero_shared test x {}", n));
     // a is random number
-    for _ in 0..10 {
+    for _ in 0..n {
         let a = MF::rand(&mut rng);
 
         let res = a.is_zero_shared();
@@ -229,6 +274,7 @@ fn test_equality_zero() {
         assert_eq!(a.reveal().is_zero(), res.reveal().is_one());
         assert_eq!(!a.reveal().is_zero(), res.reveal().is_zero());
     }
+    end_timer!(timer);
 }
 
 fn test_carries() {
@@ -390,6 +436,10 @@ fn main() {
 
     test_bit_rand();
     println!("Test bit_rand passed");
+    test_less_than();
+    println!("Test less_than passed");
+    test_interval_test_half_modulus();
+    println!("Test interval_test_half_modulus passed");
     test_rand_number_bitwise();
     println!("Test rand_number_bitwise passed");
     test_bitwise_lt();
