@@ -141,7 +141,7 @@ fn test_bitwise_lt() {
             BigInteger256::from_bits_le(&b.iter().map(|x| x.reveal().is_one()).collect::<Vec<_>>());
 
         let res_1 = a_bigint < b_bigint;
-        let res_2 = a.bitwise_lt(&b);
+        let res_2 = a.is_smaller_than_le(&b);
 
         assert_eq!(res_1, res_2.reveal().is_one());
     }
@@ -155,9 +155,10 @@ fn test_interval_test_half_modulus() {
 
     let n = 10;
     let timer = start_timer!(|| format!("interval_test_half_modulus test x {}", n));
+    // TODO: Test boundary conditions
     for _ in 0..n {
         let shared = MF::rand(rng);
-        let res = shared.interval_test_half_modulus();
+        let res = shared.is_smaller_or_equal_than_mod_minus_one_div_two();
         assert_eq!(res.reveal(), if shared.reveal().into_repr() < half_modulus {F::one()} else {F::zero()});
     }
     end_timer!(timer);
@@ -172,7 +173,7 @@ fn test_less_than() {
         let a = MF::rand(rng);
         let b = MF::rand(rng);
 
-        let res = a.less_than(&b);
+        let res = a.is_smaller_than(&b);
         if res.reveal().is_one() !=  (a.reveal() < b.reveal()) {
             println!("a: {:?}, b: {:?}", a.reveal(), b.reveal());
             println!("res: {:?}", res.reveal());
@@ -189,16 +190,16 @@ fn test_and() {
     let a10 = vec![MF::one(), MF::zero()];
     let a11 = vec![MF::one(), MF::one()];
 
-    assert_eq!(a00.unbounded_fan_in_and().reveal(), F::zero());
-    assert_eq!(a10.unbounded_fan_in_and().reveal(), F::zero());
-    assert_eq!(a11.unbounded_fan_in_and().reveal(), F::one());
+    assert_eq!(a00.kary_and().reveal(), F::zero());
+    assert_eq!(a10.kary_and().reveal(), F::zero());
+    assert_eq!(a11.kary_and().reveal(), F::one());
 
     let mut counter = [0, 0];
 
     for _ in 0..100 {
         let a = (0..3).map(|_| MF::bit_rand(&mut rng)).collect::<Vec<_>>();
 
-        let res = a.unbounded_fan_in_and();
+        let res = a.kary_and();
 
         println!("unbounded and is {:?}", res.reveal());
         if res.reveal().is_zero() {
@@ -217,16 +218,16 @@ fn test_or() {
     let a10 = vec![MF::one(), MF::zero()];
     let a11 = vec![MF::one(), MF::one()];
 
-    assert_eq!(a00.unbounded_fan_in_or().reveal(), F::zero());
-    assert_eq!(a10.unbounded_fan_in_or().reveal(), F::one());
-    assert_eq!(a11.unbounded_fan_in_or().reveal(), F::one());
+    assert_eq!(a00.kary_or().reveal(), F::zero());
+    assert_eq!(a10.kary_or().reveal(), F::one());
+    assert_eq!(a11.kary_or().reveal(), F::one());
 
     let mut counter = [0, 0];
 
     for _ in 0..100 {
         let a = (0..3).map(|_| MF::bit_rand(&mut rng)).collect::<Vec<_>>();
 
-        let res = a.unbounded_fan_in_or();
+        let res = a.kary_or();
 
         // println!("unbounded or is {:?}", res.reveal());
         if res.reveal().is_zero() {

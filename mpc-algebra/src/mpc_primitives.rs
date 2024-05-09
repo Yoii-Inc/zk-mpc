@@ -9,22 +9,22 @@ pub trait UniformBitRand: Sized {
 pub trait BitwiseLessThan {
     type Output;
 
-    fn bitwise_lt(&self, other: &Self) -> Self::Output;
+    fn is_smaller_than_le(&self, other: &Self) -> Self::Output;
 }
 
 pub trait LessThan : UniformBitRand {
     type Output;
     
-    fn interval_test_half_modulus(&self) -> Self::Output;
-    fn less_than(&self, other: &Self) -> Self::Output;
+    fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output;
+    fn is_smaller_than(&self, other: &Self) -> Self::Output;
 }
 
 pub trait LogicalOperations {
     type Output;
 
-    fn unbounded_fan_in_and(&self) -> Self::Output;
+    fn kary_and(&self) -> Self::Output;
 
-    fn unbounded_fan_in_or(&self) -> Self::Output;
+    fn kary_or(&self) -> Self::Output;
 }
 
 pub trait EqualityZero {
