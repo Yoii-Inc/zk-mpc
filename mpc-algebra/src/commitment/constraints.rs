@@ -1,13 +1,13 @@
-use crate::{commitment::CommitmentScheme, FieldShare};
-use ark_ff::PrimeField;
-use ark_r1cs_std::prelude::*;
+use crate::{commitment::CommitmentScheme, MpcEqGadget};
+use ark_ff::{Field, PrimeField};
+use ark_r1cs_std::{alloc::AllocVar, R1CSVar, ToBytesGadget};
+// use ark_r1cs_std::prelude::*;
 use ark_relations::r1cs::SynthesisError;
 use core::fmt::Debug;
 
-pub trait CommitmentGadget<C: CommitmentScheme, ConstraintF: PrimeField, S: FieldShare<ConstraintF>>
-{
+pub trait CommitmentGadget<C: CommitmentScheme, ConstraintF: PrimeField> {
     type InputVar;
-    type OutputVar: EqGadget<ConstraintF>
+    type OutputVar: MpcEqGadget<ConstraintF>
         + ToBytesGadget<ConstraintF>
         + AllocVar<C::Output, ConstraintF>
         + R1CSVar<ConstraintF>

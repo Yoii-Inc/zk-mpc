@@ -54,10 +54,11 @@ impl<C: ProjectiveCurve> ToBytes for Randomness<C> {
 
 impl<C: ProjectiveCurve, W: Window> CommitmentScheme for Commitment<C, W>
 where
-    <C as ProjectiveCurve>::ScalarField: Reveal + BitDecomposition<Output = Vec<C::ScalarField>>,
-    C: Reveal,
-    <C as Reveal>::Base: ProjectiveCurve,
-    <C::ScalarField as Reveal>::Base: PrimeField,
+    // <C as ProjectiveCurve>::ScalarField: Reveal + BitDecomposition<Output = Vec<C::ScalarField>>,
+    // C: Reveal,
+    // <C as Reveal>::Base: ProjectiveCurve,
+    // <C::ScalarField as Reveal>::Base: PrimeField,
+    <C as ProjectiveCurve>::ScalarField: BitDecomposition<Output = Vec<C::ScalarField>>,
 {
     // Input is expected to be a vector of field elements. Each field element represents bool.
     type Input = Vec<C::ScalarField>;

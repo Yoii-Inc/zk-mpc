@@ -22,14 +22,9 @@ use crate::r1cs_helper::mpc_bits::MpcToBitsGadget;
 use core::{borrow::Borrow, marker::PhantomData};
 
 #[derive(Derivative)]
-#[derivative(Clone(
-    bound = "C: ProjectiveCurve, GG: MpcCurveVar<C, ConstraintF<C>, S>, S: FieldShare<ConstraintF<C>>"
-))]
-pub struct CRHParametersVar<
-    C: ProjectiveCurve,
-    GG: MpcCurveVar<C, ConstraintF<C>, S>,
-    S: FieldShare<ConstraintF<C>>,
-> where
+#[derivative(Clone(bound = "C: ProjectiveCurve, GG: MpcCurveVar<C, ConstraintF<C>>"))]
+pub struct CRHParametersVar<C: ProjectiveCurve, GG: MpcCurveVar<C, ConstraintF<C>>>
+where
     <<C as ProjectiveCurve>::BaseField as Field>::BasePrimeField: SquareRootField,
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
 {
@@ -40,17 +35,11 @@ pub struct CRHParametersVar<
     // remove later
     #[doc(hidden)]
     _curve: PhantomData<C>,
-    #[doc(hidden)]
-    _share: PhantomData<S>,
 }
 
 type ConstraintF<C> = <<C as ProjectiveCurve>::BaseField as Field>::BasePrimeField;
-pub struct CRHGadget<
-    C: ProjectiveCurve,
-    GG: MpcCurveVar<C, ConstraintF<C>, S>,
-    S: FieldShare<ConstraintF<C>>,
-    W: Window,
-> where
+pub struct CRHGadget<C: ProjectiveCurve, GG: MpcCurveVar<C, ConstraintF<C>>, W: Window>
+where
     <<C as ProjectiveCurve>::BaseField as Field>::BasePrimeField: SquareRootField,
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
 {
@@ -59,27 +48,24 @@ pub struct CRHGadget<
     #[doc(hidden)]
     _group_var: PhantomData<*const GG>,
     #[doc(hidden)]
-    _share: PhantomData<*const S>,
-    #[doc(hidden)]
     _window: PhantomData<*const W>,
 }
 
-impl<C, GG, S, W> CRHGadgetTrait<CRH<C, S, W>, ConstraintF<C>, S> for CRHGadget<C, GG, S, W>
+impl<C, GG, W> CRHGadgetTrait<CRH<C, W>, ConstraintF<C>> for CRHGadget<C, GG, W>
 where
     C: ProjectiveCurve,
     <<C as ProjectiveCurve>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
-    GG: MpcCurveVar<C, ConstraintF<C>, S>,
-    S: FieldShare<ConstraintF<C>>,
+    GG: MpcCurveVar<C, ConstraintF<C>>,
     W: Window,
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
 {
     type OutputVar = GG;
-    type ParametersVar = CRHParametersVar<C, GG, S>;
+    type ParametersVar = CRHParametersVar<C, GG>;
 
     #[tracing::instrument(target = "r1cs", skip(parameters, input))]
     fn evaluate(
         parameters: &Self::ParametersVar,
-        input: &[MpcUInt8<ConstraintF<C>, S>],
+        input: &[MpcUInt8<ConstraintF<C>>],
     ) -> Result<Self::OutputVar, SynthesisError> {
         let mut padded_input = input.to_vec();
         // Pad the input if it is not the current length.
@@ -93,7 +79,7 @@ where
         assert_eq!(parameters.params.generators.len(), W::NUM_WINDOWS);
 
         // Allocate new variable for the result.
-        let input_in_bits: Vec<MpcBoolean<_, _>> = padded_input
+        let input_in_bits: Vec<MpcBoolean<_>> = padded_input
             .iter()
             .flat_map(|b| b.to_bits_le().unwrap())
             .collect();
@@ -104,23 +90,22 @@ where
     }
 }
 
-impl<C, GG, S, W> TwoToOneCRHGadget<CRH<C, S, W>, ConstraintF<C>, S> for CRHGadget<C, GG, S, W>
+impl<C, GG, W> TwoToOneCRHGadget<CRH<C, W>, ConstraintF<C>> for CRHGadget<C, GG, W>
 where
     C: ProjectiveCurve,
     <<C as ProjectiveCurve>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
-    GG: MpcCurveVar<C, ConstraintF<C>, S>,
-    S: FieldShare<ConstraintF<C>>,
+    GG: MpcCurveVar<C, ConstraintF<C>>,
     W: Window,
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
 {
     type OutputVar = GG;
-    type ParametersVar = CRHParametersVar<C, GG, S>;
+    type ParametersVar = CRHParametersVar<C, GG>;
 
     #[tracing::instrument(target = "r1cs", skip(parameters))]
     fn evaluate(
         parameters: &Self::ParametersVar,
-        left_input: &[MpcUInt8<ConstraintF<C>, S>],
-        right_input: &[MpcUInt8<ConstraintF<C>, S>],
+        left_input: &[MpcUInt8<ConstraintF<C>>],
+        right_input: &[MpcUInt8<ConstraintF<C>>],
     ) -> Result<Self::OutputVar, SynthesisError> {
         // assume equality of left and right length
         assert_eq!(left_input.len(), right_input.len());
@@ -129,16 +114,15 @@ where
             .into_iter()
             .chain(right_input.to_vec().into_iter())
             .collect();
-        <Self as CRHGadgetTrait<_, _, _>>::evaluate(parameters, &chained_input)
+        <Self as CRHGadgetTrait<_, _>>::evaluate(parameters, &chained_input)
     }
 }
 
-impl<C, GG, S> AllocVar<Parameters<C>, ConstraintF<C>> for CRHParametersVar<C, GG, S>
+impl<C, GG> AllocVar<Parameters<C>, ConstraintF<C>> for CRHParametersVar<C, GG>
 where
     C: ProjectiveCurve,
-    GG: MpcCurveVar<C, ConstraintF<C>, S>,
+    GG: MpcCurveVar<C, ConstraintF<C>>,
     <<C as ProjectiveCurve>::BaseField as Field>::BasePrimeField: SquareRootField,
-    S: FieldShare<ConstraintF<C>>,
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
 {
     #[tracing::instrument(target = "r1cs", skip(_cs, f))]
@@ -152,7 +136,6 @@ where
             params,
             _group_g: PhantomData,
             _curve: PhantomData,
-            _share: PhantomData,
         })
     }
 }

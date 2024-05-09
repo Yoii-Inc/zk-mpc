@@ -9,10 +9,10 @@ use ark_relations::r1cs::SynthesisError;
 
 use ark_r1cs_std::prelude::*;
 
-pub trait CRHGadget<H: CRH, ConstraintF: PrimeField, S: FieldShare<ConstraintF>>: Sized {
-    type OutputVar: MpcEqGadget<ConstraintF, S>
+pub trait CRHGadget<H: CRH, ConstraintF: PrimeField>: Sized {
+    type OutputVar: MpcEqGadget<ConstraintF>
         + ToBytesGadget<ConstraintF>
-        + MpcCondSelectGadget<ConstraintF, S>
+        + MpcCondSelectGadget<ConstraintF>
         + AllocVar<H::Output, ConstraintF>
         + R1CSVar<ConstraintF>
         + Debug
@@ -23,16 +23,14 @@ pub trait CRHGadget<H: CRH, ConstraintF: PrimeField, S: FieldShare<ConstraintF>>
 
     fn evaluate(
         parameters: &Self::ParametersVar,
-        input: &[MpcUInt8<ConstraintF, S>],
+        input: &[MpcUInt8<ConstraintF>],
     ) -> Result<Self::OutputVar, SynthesisError>;
 }
 
-pub trait TwoToOneCRHGadget<H: TwoToOneCRH, ConstraintF: PrimeField, S: FieldShare<ConstraintF>>:
-    Sized
-{
-    type OutputVar: MpcEqGadget<ConstraintF, S>
+pub trait TwoToOneCRHGadget<H: TwoToOneCRH, ConstraintF: PrimeField>: Sized {
+    type OutputVar: MpcEqGadget<ConstraintF>
         + ToBytesGadget<ConstraintF>
-        + MpcCondSelectGadget<ConstraintF, S>
+        + MpcCondSelectGadget<ConstraintF>
         + AllocVar<H::Output, ConstraintF>
         + R1CSVar<ConstraintF>
         + Debug
@@ -43,7 +41,7 @@ pub trait TwoToOneCRHGadget<H: TwoToOneCRH, ConstraintF: PrimeField, S: FieldSha
 
     fn evaluate(
         parameters: &Self::ParametersVar,
-        left_input: &[MpcUInt8<ConstraintF, S>],
-        right_input: &[MpcUInt8<ConstraintF, S>],
+        left_input: &[MpcUInt8<ConstraintF>],
+        right_input: &[MpcUInt8<ConstraintF>],
     ) -> Result<Self::OutputVar, SynthesisError>;
 }
