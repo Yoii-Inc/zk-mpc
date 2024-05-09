@@ -1,9 +1,9 @@
-use crate::{FieldShare, MpcBoolean};
+use crate::MpcBoolean;
 use ark_ff::PrimeField;
 use ark_relations::r1cs::SynthesisError;
 use ark_std::vec::Vec;
 /// Generates constraints for selecting between one of two values.
-pub trait MpcCondSelectGadget<F: PrimeField, S: FieldShare<F>>
+pub trait MpcCondSelectGadget<F: PrimeField>
 where
     Self: Sized,
     Self: Clone,
@@ -15,7 +15,7 @@ where
     /// `Self::conditionally_select(cond, true_value, false_value)?` can be more
     /// succinctly written as `cond.select(&true_value, &false_value)?`.
     fn conditionally_select(
-        cond: &MpcBoolean<F, S>,
+        cond: &MpcBoolean<F>,
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError>;
@@ -27,7 +27,7 @@ where
     /// To get the 6th element of `values`, convert unsigned integer 6 (`0b110`) to `position = [True, True, False]`,
     /// and call `conditionally_select_power_of_two_vector(position, values)`.
     fn conditionally_select_power_of_two_vector(
-        position: &[MpcBoolean<F, S>],
+        position: &[MpcBoolean<F>],
         values: &[Self],
     ) -> Result<Self, SynthesisError> {
         let m = values.len();
@@ -66,7 +66,7 @@ where
 }
 
 /// Performs a lookup in a 4-element table using two bits.
-pub trait MpcTwoBitLookupGadget<F: PrimeField, S: FieldShare<F>>
+pub trait MpcTwoBitLookupGadget<F: PrimeField>
 where
     Self: Sized,
 {
@@ -83,7 +83,7 @@ where
     ///
     /// This method panics if `bits.len() != 2` or `constants.len() != 4`.
     fn two_bit_lookup(
-        bits: &[MpcBoolean<F, S>],
+        bits: &[MpcBoolean<F>],
         constants: &[Self::TableConstant],
     ) -> Result<Self, SynthesisError>;
 }

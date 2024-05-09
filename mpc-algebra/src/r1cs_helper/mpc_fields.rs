@@ -8,7 +8,7 @@ use core::{
     ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
-use crate::{FieldShare, MpcBoolean, MpcCondSelectGadget, MpcEqGadget, MpcToBitsGadget};
+use crate::{MpcBoolean, MpcCondSelectGadget, MpcEqGadget, MpcToBitsGadget};
 
 pub trait FieldOpsBounds<'a, F, T: 'a>:
     Sized
@@ -25,16 +25,16 @@ pub trait FieldOpsBounds<'a, F, T: 'a>:
 }
 
 /// A variable representing a field. Corresponds to the native type `F`.
-pub trait MpcFieldVar<F: Field, ConstraintF: PrimeField + SquareRootField, S: FieldShare<ConstraintF>>:
+pub trait MpcFieldVar<F: Field, ConstraintF: PrimeField + SquareRootField>:
     'static
     + Clone
-    + From<MpcBoolean<ConstraintF, S>>
+    + From<MpcBoolean<ConstraintF>>
     + R1CSVar<ConstraintF, Value = F>
-    + MpcEqGadget<ConstraintF, S>
-    + MpcToBitsGadget<ConstraintF, S>
+    + MpcEqGadget<ConstraintF>
+    + MpcToBitsGadget<ConstraintF>
     + AllocVar<F, ConstraintF>
     // + ToBytesGadget<ConstraintF>
-    + MpcCondSelectGadget<ConstraintF, S>
+    + MpcCondSelectGadget<ConstraintF>
     + for<'a> FieldOpsBounds<'a, F, Self>
     + for<'a> AddAssign<&'a Self>
     + for<'a> SubAssign<&'a Self>
@@ -51,7 +51,7 @@ pub trait MpcFieldVar<F: Field, ConstraintF: PrimeField + SquareRootField, S: Fi
     fn zero() -> Self;
 
     /// Returns a `Boolean` representing whether `self == Self::zero()`.
-    fn is_zero(&self) -> Result<MpcBoolean<ConstraintF, S>, SynthesisError> {
+    fn is_zero(&self) -> Result<MpcBoolean<ConstraintF>, SynthesisError> {
         self.is_eq(&Self::zero())
     }
 
@@ -59,7 +59,7 @@ pub trait MpcFieldVar<F: Field, ConstraintF: PrimeField + SquareRootField, S: Fi
     fn one() -> Self;
 
     /// Returns a `Boolean` representing whether `self == Self::one()`.
-    fn is_one(&self) -> Result<MpcBoolean<ConstraintF, S>, SynthesisError> {
+    fn is_one(&self) -> Result<MpcBoolean<ConstraintF>, SynthesisError> {
         self.is_eq(&Self::one())
     }
 
@@ -142,7 +142,7 @@ pub trait MpcFieldVar<F: Field, ConstraintF: PrimeField + SquareRootField, S: Fi
 
     /// Comptues `self^bits`, where `bits` is a *little-endian* bit-wise
     /// decomposition of the exponent.
-    fn pow_le(&self, bits: &[MpcBoolean<ConstraintF, S>]) -> Result<Self, SynthesisError> {
+    fn pow_le(&self, bits: &[MpcBoolean<ConstraintF>]) -> Result<Self, SynthesisError> {
         let mut res = Self::one();
         let mut power = self.clone();
         for bit in bits {

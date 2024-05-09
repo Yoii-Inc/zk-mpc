@@ -4,7 +4,7 @@ use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
 use crate::mpc_bits::MpcToBitsGadget;
 use crate::r1cs_helper::mpc_fp::MpcAllocatedFp;
-use crate::{FieldShare, MpcBoolean, MpcCondSelectGadget, MpcEqGadget, MpcField};
+use crate::{MpcBoolean, MpcCondSelectGadget, MpcEqGadget};
 use ark_r1cs_std::{prelude::*, Assignment, ToConstraintFieldGadget};
 use ark_std::vec::Vec;
 use core::{borrow::Borrow, convert::TryFrom};
@@ -12,19 +12,16 @@ use core::{borrow::Borrow, convert::TryFrom};
 /// Represents an interpretation of 8 `Boolean` objects as an
 /// unsigned integer.
 #[derive(Clone, Debug)]
-pub struct MpcUInt8<F: PrimeField, S>
-where
-    S: FieldShare<F>,
-{
+pub struct MpcUInt8<F: PrimeField> {
     /// Little-endian representation: least significant bit first
-    pub(crate) bits: [MpcBoolean<F, S>; 8],
+    pub(crate) bits: [MpcBoolean<F>; 8],
     pub(crate) value: Option<u8>,
 }
 
-impl<F: PrimeField, S: FieldShare<F>> R1CSVar<MpcField<F, S>> for MpcUInt8<F, S> {
+impl<F: PrimeField> R1CSVar<F> for MpcUInt8<F> {
     type Value = u8;
 
-    fn cs(&self) -> ConstraintSystemRef<MpcField<F, S>> {
+    fn cs(&self) -> ConstraintSystemRef<F> {
         self.bits.as_ref().cs()
     }
 
@@ -42,7 +39,7 @@ impl<F: PrimeField, S: FieldShare<F>> R1CSVar<MpcField<F, S>> for MpcUInt8<F, S>
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcUInt8<F, S> {
+impl<F: PrimeField> MpcUInt8<F> {
     /// Construct a constant vector of `UInt8` from a vector of `u8`
     ///
     /// This *does not* create any new variables or constraints.
@@ -108,7 +105,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcUInt8<F, S> {
 
     /// Allocates a slice of `u8`'s as private witnesses.
     pub fn new_witness_vec(
-        cs: impl Into<Namespace<MpcField<F, S>>>,
+        cs: impl Into<Namespace<F>>,
         values: &[impl Into<Option<u8>> + Copy],
     ) -> Result<Vec<Self>, SynthesisError> {
         let ns = cs.into();
@@ -146,39 +143,38 @@ impl<F: PrimeField, S: FieldShare<F>> MpcUInt8<F, S> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new_input_vec(
-        cs: impl Into<Namespace<MpcField<F, S>>>,
-        values: &[u8],
-    ) -> Result<Vec<Self>, SynthesisError>
-    where
-        F: PrimeField + SquareRootField,
-    {
-        let ns = cs.into();
-        let cs = ns.cs();
-        let values_len = values.len();
-        let field_elements: Vec<MpcField<F, S>> =
-            ToConstraintField::<MpcField<F, S>>::to_field_elements(values).unwrap();
+    // pub fn new_input_vec(
+    //     cs: impl Into<Namespace<F>>,
+    //     values: &[u8],
+    // ) -> Result<Vec<Self>, SynthesisError>
+    // where
+    //     F: PrimeField + SquareRootField,
+    // {
+    //     let ns = cs.into();
+    //     let cs = ns.cs();
+    //     let values_len = values.len();
+    //     let field_elements: Vec<F> = ToConstraintField::<F>::to_field_elements(values).unwrap();
 
-        let max_size = 8 * (F::Params::CAPACITY / 8) as usize;
-        let mut allocated_bits = Vec::new();
-        for field_element in field_elements.into_iter() {
-            let fe = MpcAllocatedFp::new_input(cs.clone(), || Ok(field_element))?;
-            let fe_bits = fe.to_bits_le()?;
+    //     let max_size = 8 * (F::Params::CAPACITY / 8) as usize;
+    //     let mut allocated_bits = Vec::new();
+    //     for field_element in field_elements.into_iter() {
+    //         let fe = MpcAllocatedFp::new_input(cs.clone(), || Ok(field_element))?;
+    //         let fe_bits = fe.to_bits_le()?;
 
-            // Remove the most significant bit, because we know it should be zero
-            // because `values.to_field_elements()` only
-            // packs field elements up to the penultimate bit.
-            // That is, the most significant bit (`ConstraintF::NUM_BITS`-th bit) is
-            // unset, so we can just pop it off.
-            allocated_bits.extend_from_slice(&fe_bits[0..max_size]);
-        }
+    //         // Remove the most significant bit, because we know it should be zero
+    //         // because `values.to_field_elements()` only
+    //         // packs field elements up to the penultimate bit.
+    //         // That is, the most significant bit (`ConstraintF::NUM_BITS`-th bit) is
+    //         // unset, so we can just pop it off.
+    //         allocated_bits.extend_from_slice(&fe_bits[0..max_size]);
+    //     }
 
-        // Chunk up slices of 8 bit into bytes.
-        Ok(allocated_bits[0..(8 * values_len)]
-            .chunks(8)
-            .map(Self::from_bits_le)
-            .collect())
-    }
+    //     // Chunk up slices of 8 bit into bytes.
+    //     Ok(allocated_bits[0..(8 * values_len)]
+    //         .chunks(8)
+    //         .map(Self::from_bits_le)
+    //         .collect())
+    // }
 
     /// Converts a little-endian byte order representation of bits into a
     /// `UInt8`.
@@ -207,9 +203,9 @@ impl<F: PrimeField, S: FieldShare<F>> MpcUInt8<F, S> {
     /// # }
     /// ```
     #[tracing::instrument(target = "r1cs")]
-    pub fn from_bits_le(bits: &[MpcBoolean<F, S>]) -> Self {
+    pub fn from_bits_le(bits: &[MpcBoolean<F>]) -> Self {
         assert_eq!(bits.len(), 8);
-        let bits = <&[MpcBoolean<F, S>; 8]>::try_from(bits).unwrap().clone();
+        let bits = <&[MpcBoolean<F>; 8]>::try_from(bits).unwrap().clone();
 
         let mut value = Some(0u8);
         for (i, b) in bits.iter().enumerate() {
@@ -288,11 +284,9 @@ impl<F: PrimeField, S: FieldShare<F>> MpcUInt8<F, S> {
 //     }
 // }
 
-impl<ConstraintF: PrimeField, S: FieldShare<ConstraintF>> MpcEqGadget<ConstraintF, S>
-    for MpcUInt8<ConstraintF, S>
-{
+impl<ConstraintF: PrimeField> MpcEqGadget<ConstraintF> for MpcUInt8<ConstraintF> {
     #[tracing::instrument(target = "r1cs")]
-    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<ConstraintF, S>, SynthesisError> {
+    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<ConstraintF>, SynthesisError> {
         self.bits.as_ref().is_eq(&other.bits)
     }
 
@@ -300,7 +294,7 @@ impl<ConstraintF: PrimeField, S: FieldShare<ConstraintF>> MpcEqGadget<Constraint
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        condition: &MpcBoolean<ConstraintF, S>,
+        condition: &MpcBoolean<ConstraintF>,
     ) -> Result<(), SynthesisError> {
         self.bits.conditional_enforce_equal(&other.bits, condition)
     }
@@ -309,7 +303,7 @@ impl<ConstraintF: PrimeField, S: FieldShare<ConstraintF>> MpcEqGadget<Constraint
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        condition: &MpcBoolean<ConstraintF, S>,
+        condition: &MpcBoolean<ConstraintF>,
     ) -> Result<(), SynthesisError> {
         self.bits
             .conditional_enforce_not_equal(&other.bits, condition)
@@ -344,12 +338,10 @@ impl<ConstraintF: PrimeField, S: FieldShare<ConstraintF>> MpcEqGadget<Constraint
 //     }
 // }
 
-impl<ConstraintF: PrimeField, S: FieldShare<ConstraintF>> MpcCondSelectGadget<ConstraintF, S>
-    for MpcUInt8<ConstraintF, S>
-{
+impl<ConstraintF: PrimeField> MpcCondSelectGadget<ConstraintF> for MpcUInt8<ConstraintF> {
     #[tracing::instrument(target = "r1cs", skip(cond, true_value, false_value))]
     fn conditionally_select(
-        cond: &MpcBoolean<ConstraintF, S>,
+        cond: &MpcBoolean<ConstraintF>,
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -374,11 +366,9 @@ impl<ConstraintF: PrimeField, S: FieldShare<ConstraintF>> MpcCondSelectGadget<Co
     }
 }
 
-impl<ConstraintF: PrimeField, S: FieldShare<ConstraintF>> AllocVar<u8, MpcField<ConstraintF, S>>
-    for MpcUInt8<ConstraintF, S>
-{
+impl<ConstraintF: PrimeField> AllocVar<u8, ConstraintF> for MpcUInt8<ConstraintF> {
     fn new_variable<T: Borrow<u8>>(
-        cs: impl Into<Namespace<MpcField<ConstraintF, S>>>,
+        cs: impl Into<Namespace<ConstraintF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {

@@ -31,20 +31,16 @@ pub trait GroupOpsBounds<'a, F, T: 'a>:
 
 /// A variable that represents a curve point for
 /// the curve `C`.
-pub trait MpcCurveVar<
-    C: ProjectiveCurve,
-    ConstraintF: PrimeField + SquareRootField,
-    S: FieldShare<ConstraintF>,
->:
+pub trait MpcCurveVar<C: ProjectiveCurve, ConstraintF: PrimeField + SquareRootField>:
     'static
     + Sized
     + Clone
     + Debug
     + R1CSVar<ConstraintF, Value = C>
-    + MpcToBitsGadget<ConstraintF, S>
+    + MpcToBitsGadget<ConstraintF>
     + ToBytesGadget<ConstraintF>
-    + MpcEqGadget<ConstraintF, S>
-    + MpcCondSelectGadget<ConstraintF, S>
+    + MpcEqGadget<ConstraintF>
+    + MpcCondSelectGadget<ConstraintF>
     + AllocVar<C, ConstraintF>
     + AllocVar<C::Affine, ConstraintF>
     + for<'a> GroupOpsBounds<'a, C, Self>
@@ -61,7 +57,7 @@ pub trait MpcCurveVar<
 
     /// Returns a `Boolean` representing whether `self == Self::zero()`.
     #[tracing::instrument(target = "r1cs")]
-    fn is_zero(&self) -> Result<MpcBoolean<ConstraintF, S>, SynthesisError> {
+    fn is_zero(&self) -> Result<MpcBoolean<ConstraintF>, SynthesisError> {
         self.is_eq(&Self::zero())
     }
 
@@ -100,7 +96,7 @@ pub trait MpcCurveVar<
     #[tracing::instrument(target = "r1cs", skip(bits))]
     fn scalar_mul_le<'a>(
         &self,
-        bits: impl Iterator<Item = &'a MpcBoolean<ConstraintF, S>>,
+        bits: impl Iterator<Item = &'a MpcBoolean<ConstraintF>>,
     ) -> Result<Self, SynthesisError> {
         // TODO: in the constant case we should call precomputed_scalar_mul_le,
         // but rn there's a bug when doing this with TE curves.
@@ -129,7 +125,7 @@ pub trait MpcCurveVar<
     ) -> Result<(), SynthesisError>
     where
         I: Iterator<Item = (B, &'a C)>,
-        B: Borrow<MpcBoolean<ConstraintF, S>>,
+        B: Borrow<MpcBoolean<ConstraintF>>,
         C: 'a,
     {
         // Computes the standard little-endian double-and-add algorithm
@@ -157,7 +153,7 @@ pub trait MpcCurveVar<
         scalars: I,
     ) -> Result<Self, SynthesisError>
     where
-        T: 'a + MpcToBitsGadget<ConstraintF, S> + ?Sized,
+        T: 'a + MpcToBitsGadget<ConstraintF> + ?Sized,
         I: Iterator<Item = &'a T>,
         B: Borrow<[C]>,
     {
