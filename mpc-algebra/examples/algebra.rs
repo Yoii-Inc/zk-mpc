@@ -32,7 +32,6 @@ type S = AdditiveFieldShare<F>;
 type MF = MpcField<F, S>;
 type MBF = MpcBooleanField<F, S>;
 
-
 fn test_add() {
     // init communication protocol
 
@@ -198,7 +197,7 @@ fn test_less_than() {
 fn test_and() {
     let mut rng = ark_std::test_rng();
 
-    let a00 = vec![MBF::pub_false(),MBF::pub_true()];
+    let a00 = vec![MBF::pub_false(), MBF::pub_true()];
     let a10 = vec![MBF::pub_true(), MBF::pub_false()];
     let a11 = vec![MBF::pub_true(), MBF::pub_true()];
 
@@ -262,7 +261,10 @@ fn test_xor() {
         let res = a ^ b;
 
         println!("unbounded and is {:?}", res.reveal());
-        assert_eq!(res.reveal().is_one(),a.reveal().is_one() ^ b.reveal().is_one());
+        assert_eq!(
+            res.reveal().is_one(),
+            a.reveal().is_one() ^ b.reveal().is_one()
+        );
         if res.reveal().is_zero() {
             counter[0] += 1;
         } else if res.reveal().is_one() {
@@ -271,7 +273,6 @@ fn test_xor() {
     }
     println!("AND counter is {:?}", counter);
 }
-
 
 fn test_equality_zero() {
     let mut rng = ark_std::test_rng();
@@ -381,7 +382,7 @@ fn test_share() {
 
     for i in 0..100 {
         let init = F::pub_rand(rng);
-        let share = MF::from_sum_to_splited_share(init, rng);
+        let share = MF::king_share(init, rng);
         let revealed = share.reveal();
 
         assert_eq!(revealed, init);

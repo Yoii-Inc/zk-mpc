@@ -116,20 +116,6 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
         MpcField::Shared(S::from_add_shared(b))
     }
     #[inline]
-    fn from_sum_to_splited_share<R: Rng>(sum: Self::Base, rng: &mut R) -> Self {
-        let mut share = Self::from_add_shared(T::zero());
-
-        let r = MpcField::rand(rng);
-        let revealed_r = r.reveal();
-        if Net::am_king() {
-            share += r + MpcField::from_add_shared(sum - revealed_r);
-        } else {
-            share += r;
-        }
-
-        share
-    }
-    #[inline]
     fn unwrap_as_public(self) -> Self::Base {
         match self {
             Self::Shared(s) => s.unwrap_as_public(),
@@ -137,12 +123,15 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
         }
     }
     #[inline]
-    fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
-        todo!()
+    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        Self::Shared(S::king_share(f, rng))
     }
     #[inline]
-    fn king_share_batch<R: Rng>(_f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
-        todo!()
+    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        S::king_share_batch(f, rng)
+            .into_iter()
+            .map(Self::Shared)
+            .collect()
     }
     fn init_protocol() {
         todo!()

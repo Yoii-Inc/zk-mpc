@@ -21,12 +21,6 @@ pub trait Reveal: Sized {
     fn from_add_shared(b: Self::Base) -> Self;
     /// Lift public data (same in all machines) into shared data.
     fn from_public(b: Self::Base) -> Self;
-
-    /// (For test only.) Generate a random share of the base type. Their sum is indicated value.
-    fn from_sum_to_splited_share<R: Rng>(sum: Self::Base, rng: &mut R) -> Self {
-        unimplemented!("No implementation for {}", std::any::type_name::<Self>())
-    }
-
     /// If this share type has some underlying value of the base type, grabs it.
     ///
     /// The semantics of this are highly dependent on the sharing system.
