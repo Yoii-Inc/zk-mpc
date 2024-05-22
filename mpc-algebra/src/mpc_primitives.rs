@@ -1,9 +1,11 @@
 use rand::Rng;
 
 pub trait UniformBitRand: Sized {
+    type BaseField;
+
     fn bit_rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
     // little-endian
-    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self);
+    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField);
 }
 
 pub trait BitwiseLessThan {
@@ -12,7 +14,7 @@ pub trait BitwiseLessThan {
     fn is_smaller_than_le(&self, other: &Self) -> Self::Output;
 }
 
-pub trait LessThan : UniformBitRand {
+pub trait LessThan {
     type Output;
     
     fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output;
@@ -28,13 +30,14 @@ pub trait LogicalOperations {
 }
 
 pub trait EqualityZero {
-    fn is_zero_shared(&self) -> Self;
+    type Output;
+    fn is_zero_shared(&self) -> Self::Output;
 }
 
 pub trait BitDecomposition {
-    type Output;
+    type BooleanField;
 
-    fn bit_decomposition(&self) -> Self::Output;
+    fn bit_decomposition(&self) -> Vec<Self::BooleanField>;
 }
 
 pub trait BitAdd {

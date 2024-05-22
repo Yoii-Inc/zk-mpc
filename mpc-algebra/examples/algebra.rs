@@ -6,6 +6,7 @@ use ark_ff::{One, Zero};
 use ark_poly::reveal;
 use ark_std::{end_timer, start_timer};
 use log::debug;
+use mpc_algebra::boolean_field::MpcBooleanField;
 use mpc_algebra::{
     share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LessThan,
     LogicalOperations, MpcField, Reveal, UniformBitRand,
@@ -29,6 +30,8 @@ struct Opt {
 type F = ark_bls12_377::Fr;
 type S = AdditiveFieldShare<F>;
 type MF = MpcField<F, S>;
+type MBF = MpcBooleanField<F, S>;
+
 
 fn test_add() {
     // init communication protocol
@@ -66,7 +69,7 @@ fn test_div() {
 }
 
 fn test_sum() {
-    let a = vec![
+    let a = [
         MF::from_public(F::from(1u64)),
         MF::from_public(F::from(2u64)),
         MF::from_public(F::from(3u64)),
@@ -82,7 +85,7 @@ fn test_bit_rand() {
     let mut counter = [0, 0, 0];
 
     for _ in 0..1000 {
-        let a = MF::bit_rand(&mut rng).reveal();
+        let a = MBF::bit_rand(&mut rng).reveal();
 
         if a.is_zero() {
             counter[0] += 1;
@@ -101,7 +104,7 @@ fn test_rand_number_bitwise() {
     let mut rng = thread_rng();
 
     for _ in 0..10 {
-        let (a, b) = MF::rand_number_bitwise(&mut rng);
+        let (a, b) = MBF::rand_number_bitwise(&mut rng);
 
         let revealed_a = a.iter().map(|x| x.reveal()).collect::<Vec<_>>();
         let revealed_b = b.reveal();
@@ -130,10 +133,10 @@ fn test_bitwise_lt() {
 
     for _ in 0..10 {
         let a = (0..modulus_size)
-            .map(|_| MF::bit_rand(rng))
+            .map(|_| MBF::bit_rand(rng))
             .collect::<Vec<_>>();
         let b = (0..modulus_size)
-            .map(|_| MF::bit_rand(rng))
+            .map(|_| MBF::bit_rand(rng))
             .collect::<Vec<_>>();
 
         let a_bigint =
@@ -195,9 +198,9 @@ fn test_less_than() {
 fn test_and() {
     let mut rng = ark_std::test_rng();
 
-    let a00 = vec![MF::zero(), MF::zero()];
-    let a10 = vec![MF::one(), MF::zero()];
-    let a11 = vec![MF::one(), MF::one()];
+    let a00 = vec![MBF::pub_false(),MBF::pub_true()];
+    let a10 = vec![MBF::pub_true(), MBF::pub_false()];
+    let a11 = vec![MBF::pub_true(), MBF::pub_true()];
 
     assert_eq!(a00.kary_and().reveal(), F::zero());
     assert_eq!(a10.kary_and().reveal(), F::zero());
@@ -206,7 +209,7 @@ fn test_and() {
     let mut counter = [0, 0];
 
     for _ in 0..100 {
-        let a = (0..3).map(|_| MF::bit_rand(&mut rng)).collect::<Vec<_>>();
+        let a = (0..3).map(|_| MBF::bit_rand(&mut rng)).collect::<Vec<_>>();
 
         let res = a.kary_and();
 
@@ -223,9 +226,9 @@ fn test_and() {
 fn test_or() {
     let mut rng = thread_rng();
 
-    let a00 = vec![MF::zero(), MF::zero()];
-    let a10 = vec![MF::one(), MF::zero()];
-    let a11 = vec![MF::one(), MF::one()];
+    let a00 = vec![MBF::pub_false(), MBF::pub_false()];
+    let a10 = vec![MBF::pub_true(), MBF::pub_false()];
+    let a11 = vec![MBF::pub_true(), MBF::pub_true()];
 
     assert_eq!(a00.kary_or().reveal(), F::zero());
     assert_eq!(a10.kary_or().reveal(), F::one());
@@ -234,7 +237,7 @@ fn test_or() {
     let mut counter = [0, 0];
 
     for _ in 0..100 {
-        let a = (0..3).map(|_| MF::bit_rand(&mut rng)).collect::<Vec<_>>();
+        let a = (0..3).map(|_| MBF::bit_rand(&mut rng)).collect::<Vec<_>>();
 
         let res = a.kary_or();
 
@@ -247,6 +250,28 @@ fn test_or() {
     }
     println!("OR counter is {:?}", counter);
 }
+
+fn test_xor() {
+    let mut rng = ark_std::test_rng();
+    let mut counter = [0, 0];
+
+    for _ in 0..100 {
+        let a = MBF::bit_rand(&mut rng);
+        let b = MBF::bit_rand(&mut rng);
+
+        let res = a ^ b;
+
+        println!("unbounded and is {:?}", res.reveal());
+        assert_eq!(res.reveal().is_one(),a.reveal().is_one() ^ b.reveal().is_one());
+        if res.reveal().is_zero() {
+            counter[0] += 1;
+        } else if res.reveal().is_one() {
+            counter[1] += 1;
+        }
+    }
+    println!("AND counter is {:?}", counter);
+}
+
 
 fn test_equality_zero() {
     let mut rng = ark_std::test_rng();
@@ -277,12 +302,15 @@ fn test_equality_zero() {
 
 fn test_carries() {
     // a = 0101 = 5, b = 1100= 12
-    let mut a = vec![MF::from_add_shared(F::from(0u64)); 4];
-    let mut b = vec![MF::from_add_shared(F::from(0u64)); 4];
-    a[0] += MF::from_public(F::from(1u64));
-    a[2] += MF::one();
-    b[2] += MF::one();
-    b[3] += MF::one();
+    let mut a = vec![MBF::from_add_shared(F::zero()); 4];
+    let mut b = vec![MBF::from_add_shared(F::zero()); 4];
+    // TODO: improve how to initialize
+    a[0] = a[0] | MBF::pub_true();
+    a[2] = a[2] | MBF::pub_true();
+    b[2] = b[2] | MBF::pub_true();
+    b[3] = b[3] | MBF::pub_true();
+
+    // TODO: better way to initialize
 
     let c = a.carries(&b);
 
@@ -290,14 +318,14 @@ fn test_carries() {
     assert_eq!(c.reveal(), vec![F::zero(), F::zero(), F::one(), F::one()]);
 
     // a = 010011 = 19, b = 101010= 42
-    let mut a = vec![MF::from_add_shared(F::from(0u64)); 6];
-    let mut b = vec![MF::from_add_shared(F::from(0u64)); 6];
-    a[0] += MF::one();
-    a[1] += MF::one();
-    a[4] += MF::one();
-    b[1] += MF::one();
-    b[3] += MF::one();
-    b[5] += MF::one();
+    let mut a = vec![MBF::from_add_shared(F::from(0u64)); 6];
+    let mut b = vec![MBF::from_add_shared(F::from(0u64)); 6];
+    a[0] = a[0] | MBF::pub_true();
+    a[1] = a[1] | MBF::pub_true();
+    a[4] = a[4] | MBF::pub_true();
+    b[1] = b[1] | MBF::pub_true();
+    b[3] = b[3] | MBF::pub_true();
+    b[5] = b[5] | MBF::pub_true();
 
     let c = a.carries(&b);
 
@@ -318,8 +346,8 @@ fn test_carries() {
 fn test_bit_add() {
     let rng = &mut thread_rng();
 
-    let (rand_a, a) = MF::rand_number_bitwise(rng);
-    let (rand_b, b) = MF::rand_number_bitwise(rng);
+    let (rand_a, a) = MBF::rand_number_bitwise(rng);
+    let (rand_b, b) = MBF::rand_number_bitwise(rng);
 
     let c_vec = rand_a.bit_add(&rand_b);
 
@@ -393,6 +421,8 @@ fn main() {
     println!("Test and passed");
     test_or();
     println!("Test or passed");
+    test_xor();
+    println!("Test xor passed");
     test_equality_zero();
     println!("Test equality_zero passed");
 
