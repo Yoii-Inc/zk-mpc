@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use ark_ff::PubUniformRand;
 use ark_ff::{BigInteger, BigInteger256, Field, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
 use ark_poly::reveal;
@@ -7,7 +8,8 @@ use ark_std::{end_timer, start_timer};
 use log::debug;
 use mpc_algebra::boolean_field::MpcBooleanField;
 use mpc_algebra::{
-    share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LessThan, LogicalOperations, MpcField, Reveal, UniformBitRand
+    share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LessThan,
+    LogicalOperations, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -29,7 +31,6 @@ type F = ark_bls12_377::Fr;
 type S = AdditiveFieldShare<F>;
 type MF = MpcField<F, S>;
 type MBF = MpcBooleanField<F, S>;
-
 
 fn test_add() {
     // init communication protocol
@@ -162,7 +163,14 @@ fn test_interval_test_half_modulus() {
     for _ in 0..n {
         let shared = MF::rand(rng);
         let res = shared.is_smaller_or_equal_than_mod_minus_one_div_two();
-        assert_eq!(res.reveal(), if shared.reveal().into_repr() < half_modulus {F::one()} else {F::zero()});
+        assert_eq!(
+            res.reveal(),
+            if shared.reveal().into_repr() < half_modulus {
+                F::one()
+            } else {
+                F::zero()
+            }
+        );
     }
     end_timer!(timer);
 }
@@ -177,7 +185,7 @@ fn test_less_than() {
         let b = MF::rand(rng);
 
         let res = a.is_smaller_than(&b);
-        if res.reveal().is_one() !=  (a.reveal() < b.reveal()) {
+        if res.reveal().is_one() != (a.reveal() < b.reveal()) {
             println!("a: {:?}, b: {:?}", a.reveal(), b.reveal());
             println!("res: {:?}", res.reveal());
             assert_eq!(res.reveal().is_one(), a.reveal() < b.reveal());
@@ -189,7 +197,7 @@ fn test_less_than() {
 fn test_and() {
     let mut rng = ark_std::test_rng();
 
-    let a00 = vec![MBF::pub_false(),MBF::pub_true()];
+    let a00 = vec![MBF::pub_false(), MBF::pub_true()];
     let a10 = vec![MBF::pub_true(), MBF::pub_false()];
     let a11 = vec![MBF::pub_true(), MBF::pub_true()];
 
@@ -253,7 +261,10 @@ fn test_xor() {
         let res = a ^ b;
 
         println!("unbounded and is {:?}", res.reveal());
-        assert_eq!(res.reveal().is_one(),a.reveal().is_one() ^ b.reveal().is_one());
+        assert_eq!(
+            res.reveal().is_one(),
+            a.reveal().is_one() ^ b.reveal().is_one()
+        );
         if res.reveal().is_zero() {
             counter[0] += 1;
         } else if res.reveal().is_one() {
@@ -262,7 +273,6 @@ fn test_xor() {
     }
     println!("AND counter is {:?}", counter);
 }
-
 
 fn test_equality_zero() {
     let mut rng = ark_std::test_rng();
@@ -367,6 +377,18 @@ fn test_bit_decomposition() {
     assert_eq!(res, random.reveal());
 }
 
+fn test_share() {
+    let rng = &mut ark_std::test_rng();
+
+    for i in 0..100 {
+        let init = F::pub_rand(rng);
+        let share = MF::king_share(init, rng);
+        let revealed = share.reveal();
+
+        assert_eq!(revealed, init);
+    }
+}
+
 fn main() {
     env_logger::builder().format_timestamp(None).init();
     debug!("Start");
@@ -411,4 +433,7 @@ fn main() {
     println!("Test bit_add passed");
     test_bit_decomposition();
     println!("Test bit_decomposition passed");
+
+    test_share();
+    println!("Test share passed");
 }
