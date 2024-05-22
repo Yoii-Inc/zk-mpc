@@ -2,9 +2,7 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-mod circuits;
-mod groth16;
-mod input;
+use zk_mpc::marlin;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
@@ -20,5 +18,8 @@ struct Opt {
 fn main() {
     let opt = Opt::from_args();
     Net::init_from_file(opt.input.to_str().unwrap(), opt.id);
-    // groth16::mpc_test_prove_and_verify(1);
+    marlin::mpc_test_prove_and_verify(1);
+    marlin::mpc_test_prove_and_verify_pedersen(1);
+    marlin::test_equality_zero(1);
+    marlin::test_bit_decomposition(1);
 }

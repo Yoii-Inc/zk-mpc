@@ -2,8 +2,8 @@ set -ex
 trap "exit" INT TERM
 trap "kill 0" EXIT
 
-cargo build --bin online --release
-BIN=./target/release/online
+cargo build --example online --release
+BIN=./target/release/examples/online
 
 
 PROCS=()
