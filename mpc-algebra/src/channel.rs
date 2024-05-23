@@ -28,7 +28,7 @@ pub trait MpcSerNet: MpcNet {
         })
     }
 
-    fn recieve_from_king<T: CanonicalSerialize + CanonicalDeserialize>(out: Option<Vec<T>>) -> T {
+    fn receive_from_king<T: CanonicalSerialize + CanonicalDeserialize>(out: Option<Vec<T>>) -> T {
         let bytes_in = Self::recv_bytes_from_king(out.map(|outs| {
             outs.iter()
                 .map(|out| {
@@ -73,7 +73,7 @@ pub trait MpcSerNet: MpcNet {
         f: impl Fn(Vec<T>) -> Vec<T>,
     ) -> T {
         let king_response = Self::send_to_king(x).map(f);
-        Self::recieve_from_king(king_response)
+        Self::receive_from_king(king_response)
     }
 }
 
