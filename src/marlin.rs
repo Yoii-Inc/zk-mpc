@@ -10,7 +10,7 @@ use blake2::Blake2s;
 // use mpc_algebra::honest_but_curious::*;
 use mpc_algebra::malicious_majority::*;
 use mpc_algebra::{FromLocal, Reveal};
-use mpc_net::{MpcMultiNet, MpcNet};
+use mpc_net::{LocalTestNet, MPCNet};
 
 use ark_std::{One, Zero};
 
@@ -206,7 +206,7 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
 
         //// input
         let x = MFr::rand(rng);
-        let input_bit = match MpcMultiNet::party_id() {
+        let input_bit = match LocalTestNet::party_id() {
             0 => x
                 .clone()
                 .reveal()

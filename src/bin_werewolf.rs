@@ -20,7 +20,7 @@ use serialize::{write_r, write_to_file};
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 
-use mpc_net::{MpcMultiNet as Net, MpcNet};
+use mpc_net::{LocalTestNet as Net, MPCNet};
 
 mod marlin;
 use marlin::*;
