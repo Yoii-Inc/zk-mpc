@@ -74,7 +74,6 @@ where
     // <C as reveal::Reveal>::Base: ProjectiveCurve,
     // <<C as ProjectiveCurve>::ScalarField as reveal::Reveal>::Base: ark_ff::PrimeField,
 {
-    type InputVar = Vec<MpcBoolean<ConstraintF<C>>>;
     type OutputVar = GG;
     type ParametersVar = ParametersVar<C, GG>;
     type RandomnessVar = RandomnessVar<ConstraintF<C>>;
@@ -82,22 +81,21 @@ where
     #[tracing::instrument(target = "r1cs", skip(parameters, r))]
     fn commit(
         parameters: &Self::ParametersVar,
-        //input: &[UInt8<ConstraintF<C>>],
-        input: &Self::InputVar,
+        input: &[MpcUInt8<ConstraintF<C>>],
         r: &Self::RandomnessVar,
     ) -> Result<Self::OutputVar, SynthesisError> {
         assert!((input.len() * 8) <= (W::WINDOW_SIZE * W::NUM_WINDOWS));
 
         let mut padded_input = input.to_vec();
         // Pad if input length is less than `W::WINDOW_SIZE * W::NUM_WINDOWS`.
-        if (input.len()) < W::WINDOW_SIZE * W::NUM_WINDOWS {
+        if (input.len() * 8) < W::WINDOW_SIZE * W::NUM_WINDOWS {
             let current_length = input.len();
-            for _ in current_length..(W::WINDOW_SIZE * W::NUM_WINDOWS) {
-                padded_input.push(MpcBoolean::constant(false));
+            for _ in current_length..(W::WINDOW_SIZE * W::NUM_WINDOWS / 8) {
+                padded_input.push(MpcUInt8::constant(0u8));
             }
         }
 
-        assert_eq!(padded_input.len(), W::WINDOW_SIZE * W::NUM_WINDOWS);
+        assert_eq!(padded_input.len() * 8, W::WINDOW_SIZE * W::NUM_WINDOWS);
         assert_eq!(parameters.params.generators.len(), W::NUM_WINDOWS);
 
         // Allocate new variable for commitment output.

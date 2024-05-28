@@ -48,3 +48,12 @@ impl<F: PrimeField + SquareRootField> MpcToBitsGadget<F> for MpcUInt8<F> {
         Ok(self.bits.to_vec())
     }
 }
+
+impl<F: PrimeField + SquareRootField> MpcToBitsGadget<F> for [MpcUInt8<F>] {
+    /// Interprets `self` as an integer, and outputs the little-endian
+    /// bit-wise decomposition of that integer.
+    fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
+        let bits = self.iter().flat_map(|b| &b.bits).cloned().collect();
+        Ok(bits)
+    }
+}

@@ -1,4 +1,4 @@
-use crate::{commitment::CommitmentScheme, MpcEqGadget};
+use crate::{commitment::CommitmentScheme, MpcEqGadget, MpcUInt8};
 use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::{alloc::AllocVar, R1CSVar, ToBytesGadget};
 // use ark_r1cs_std::prelude::*;
@@ -6,7 +6,6 @@ use ark_relations::r1cs::SynthesisError;
 use core::fmt::Debug;
 
 pub trait CommitmentGadget<C: CommitmentScheme, ConstraintF: PrimeField> {
-    type InputVar;
     type OutputVar: MpcEqGadget<ConstraintF>
         + ToBytesGadget<ConstraintF>
         + AllocVar<C::Output, ConstraintF>
@@ -19,7 +18,7 @@ pub trait CommitmentGadget<C: CommitmentScheme, ConstraintF: PrimeField> {
 
     fn commit(
         parameters: &Self::ParametersVar,
-        input: &Self::InputVar,
+        input: &[MpcUInt8<ConstraintF>],
         r: &Self::RandomnessVar,
     ) -> Result<Self::OutputVar, SynthesisError>;
 }

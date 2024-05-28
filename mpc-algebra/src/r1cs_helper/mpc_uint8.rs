@@ -394,6 +394,16 @@ impl<ConstraintF: PrimeField> AllocVar<u8, ConstraintF> for MpcUInt8<ConstraintF
     }
 }
 
+impl<ConstraintF: PrimeField> AllocVar<[ConstraintF; 4], ConstraintF> for MpcUInt8<ConstraintF> {
+    fn new_variable<T: Borrow<[ConstraintF; 4]>>(
+        cs: impl Into<Namespace<ConstraintF>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        todo!();
+    }
+}
+
 // /// Parses the `Vec<UInt8<ConstraintF>>` in fixed-sized `ConstraintF::Params::CAPACITY` chunks and
 // /// converts each chunk, which is assumed to be little-endian, to its `FpVar<ConstraintF>`
 // /// representation.

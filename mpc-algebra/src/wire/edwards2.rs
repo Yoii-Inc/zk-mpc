@@ -23,16 +23,22 @@ use std::iter::Sum;
 use std::marker::PhantomData;
 use std::ops::*;
 
+use crate::groups::curves::twisted_edwards::MpcAffineVar;
+use crate::honest_but_curious;
 use crate::wire::field::MpcField;
 use crate::AffProjShare;
 use crate::AffineMsm;
 use crate::GroupShare;
+use crate::MpcFpVar;
 use crate::ProjectiveMsm;
 use crate::Reveal;
 use crate::{AdditiveFieldShare, AdditiveGroupShare, MpcGroup};
 
 pub type MpcEdwardsProjective = MpcGroupProjective<EdwardsParameters>;
 pub type MpcEdwardsAffine = MpcGroupAffine<EdwardsParameters>;
+
+type AdditiveFqVar = MpcFpVar<honest_but_curious::MpcField<ark_ed_on_bls12_377::Fq>>;
+pub type AdditiveMpcEdwardsVar = MpcAffineVar<EdwardsParameters, AdditiveFqVar>;
 
 #[derive(Derivative)]
 #[derivative(
