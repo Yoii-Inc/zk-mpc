@@ -1,40 +1,43 @@
 use rand::Rng;
 
 pub trait UniformBitRand: Sized {
+    type BaseField;
+
     fn bit_rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
     // little-endian
-    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self);
+    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField);
 }
 
 pub trait BitwiseLessThan {
     type Output;
 
-    fn bitwise_lt(&self, other: &Self) -> Self::Output;
+    fn is_smaller_than_le(&self, other: &Self) -> Self::Output;
 }
 
-pub trait LessThan : UniformBitRand {
+pub trait LessThan {
     type Output;
     
-    fn interval_test_half_modulus(&self) -> Self::Output;
-    fn less_than(&self, other: &Self) -> Self::Output;
+    fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output;
+    fn is_smaller_than(&self, other: &Self) -> Self::Output;
 }
 
 pub trait LogicalOperations {
     type Output;
 
-    fn unbounded_fan_in_and(&self) -> Self::Output;
+    fn kary_and(&self) -> Self::Output;
 
-    fn unbounded_fan_in_or(&self) -> Self::Output;
+    fn kary_or(&self) -> Self::Output;
 }
 
 pub trait EqualityZero {
-    fn is_zero_shared(&self) -> Self;
+    type Output;
+    fn is_zero_shared(&self) -> Self::Output;
 }
 
 pub trait BitDecomposition {
-    type Output;
+    type BooleanField;
 
-    fn bit_decomposition(&self) -> Self::Output;
+    fn bit_decomposition(&self) -> Vec<Self::BooleanField>;
 }
 
 pub trait BitAdd {

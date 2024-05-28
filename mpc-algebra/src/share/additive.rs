@@ -13,6 +13,7 @@ use ark_serialize::{
 };
 use ark_std::UniformRand;
 use derivative::Derivative;
+use rand::Rng;
 
 use crate::reveal::Reveal;
 use crate::{BeaverSource, DenseOrSparsePolynomial, DensePolynomial, Msm, SparsePolynomial};
@@ -92,6 +93,29 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
 
     fn unwrap_as_public(self) -> Self::Base {
         self.val
+    }
+    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        let mut r: Vec<F> = (0..(Net::n_parties() - 1)).map(|_| F::rand(rng)).collect();
+        let sum_r: F = r.iter().sum();
+        r.push(f - sum_r);
+        Self::from_add_shared(Net::recieve_from_king(if Net::am_king() {
+            Some(r)
+        } else {
+            None
+        }))
+    }
+    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
+            .map(|_| (0..f.len()).map(|_| F::rand(rng)).collect())
+            .collect();
+        let final_shares: Vec<Self::Base> = (0..rs[0].len())
+            .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
+            .collect();
+        rs.push(final_shares);
+        Net::recieve_from_king(if Net::am_king() { Some(rs) } else { None })
+            .into_iter()
+            .map(Self::from_add_shared)
+            .collect()
     }
 }
 
@@ -193,7 +217,7 @@ macro_rules! impl_field_basics {
             }
         }
         impl<T: $bound> UniformRand for $share<T> {
-            fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+            fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
                 Self::from_add_shared(<T as UniformRand>::rand(rng))
             }
         }
@@ -338,6 +362,29 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
     fn unwrap_as_public(self) -> Self::Base {
         self.val
     }
+    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
+        let sum_r: G = r.iter().sum();
+        r.push(f - sum_r);
+        Self::from_add_shared(Net::recieve_from_king(if Net::am_king() {
+            Some(r)
+        } else {
+            None
+        }))
+    }
+    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
+            .map(|_| (0..f.len()).map(|_| Self::Base::rand(rng)).collect())
+            .collect();
+        let final_shares: Vec<Self::Base> = (0..rs[0].len())
+            .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
+            .collect();
+        rs.push(final_shares);
+        Net::recieve_from_king(if Net::am_king() { Some(rs) } else { None })
+            .into_iter()
+            .map(Self::from_add_shared)
+            .collect()
+    }
 }
 
 macro_rules! impl_group_basics {
@@ -392,7 +439,7 @@ macro_rules! impl_group_basics {
             }
         }
         impl<T: $bound, M> UniformRand for $share<T, M> {
-            fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
+            fn rand<R: Rng + ?Sized>(_rng: &mut R) -> Self {
                 todo!()
             }
         }

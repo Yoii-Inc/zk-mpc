@@ -21,7 +21,6 @@ pub trait Reveal: Sized {
     fn from_add_shared(b: Self::Base) -> Self;
     /// Lift public data (same in all machines) into shared data.
     fn from_public(b: Self::Base) -> Self;
-
     /// If this share type has some underlying value of the base type, grabs it.
     ///
     /// The semantics of this are highly dependent on the sharing system.

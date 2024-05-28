@@ -3,7 +3,9 @@ use std::borrow::Borrow;
 use ark_ff::{Field, PrimeField, SquareRootField};
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
-    impl_ops, R1CSVar, ToConstraintFieldGadget,
+    fields::FieldOpsBounds,
+    impl_ops,
+    R1CSVar,
 };
 use ark_r1cs_std::{impl_bounded_ops, Assignment};
 use ark_relations::{
@@ -140,7 +142,7 @@ impl<F: PrimeField> MpcAllocatedFp<F> {
     #[tracing::instrument(target = "r1cs")]
     pub fn add(&self, other: &Self) -> Self {
         let value = match (self.value, other.value) {
-            (Some(val1), Some(val2)) => Some(val1 + &val2),
+            (Some(val1), Some(val2)) => Some(val1 + val2),
             (..) => None,
         };
 
@@ -157,7 +159,7 @@ impl<F: PrimeField> MpcAllocatedFp<F> {
     #[tracing::instrument(target = "r1cs")]
     pub fn sub(&self, other: &Self) -> Self {
         let value = match (self.value, other.value) {
-            (Some(val1), Some(val2)) => Some(val1 - &val2),
+            (Some(val1), Some(val2)) => Some(val1 - val2),
             (..) => None,
         };
 
@@ -174,7 +176,7 @@ impl<F: PrimeField> MpcAllocatedFp<F> {
     #[tracing::instrument(target = "r1cs")]
     pub fn mul(&self, other: &Self) -> Self {
         let product = MpcAllocatedFp::new_witness(self.cs.clone(), || {
-            Ok(self.value.get()? * &other.value.get()?)
+            Ok(self.value.get()? * other.value.get()?)
         })
         .unwrap();
         self.cs
@@ -440,11 +442,15 @@ impl<F: PrimeField + SquareRootField + EqualityZero> MpcAllocatedFp<F> {
         let is_zero_value = self.value.get()?.is_zero_shared();
 
         let is_not_zero =
+<<<<<<< HEAD
             MpcBoolean::new_witness(self.cs.clone(), || Ok(F::one() - is_zero_value))?;
+=======
+            MpcBoolean::new_witness(self.cs.clone(), || Ok((!is_zero_value).field()))?;
+>>>>>>> main
 
         let multiplier = self
             .cs
-            .new_witness_variable(|| (self.value.get()? + is_zero_value).inverse().get())?;
+            .new_witness_variable(|| (self.value.get()? + is_zero_value.field()).inverse().get())?;
 
         self.cs
             .enforce_constraint(lc!() + self.variable, lc!() + multiplier, is_not_zero.lc())?;
@@ -531,8 +537,7 @@ impl<F: PrimeField + SquareRootField + BitDecomposition<Output = Vec<F>>> MpcToB
     #[tracing::instrument(target = "r1cs")]
     fn to_non_unique_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
         let cs = self.cs.clone();
-        use ark_ff::BitIteratorBE;
-        let mut bits = if let Some(value) = self.value {
+        let bits = if let Some(value) = self.value {
             // let field_char = BitIteratorBE::new(F::characteristic());
             // let bits: Vec<_> = BitIteratorBE::new(value.into_repr())
             //     .zip(field_char)
@@ -551,7 +556,7 @@ impl<F: PrimeField + SquareRootField + BitDecomposition<Output = Vec<F>>> MpcToB
 
         let bits: Vec<_> = bits
             .into_iter()
-            .map(|b| MpcBoolean::new_witness(cs.clone(), || b.get()))
+            .map(|b| MpcBoolean::new_witness(cs.clone(), || b.get().map(|b| b.field())))
             .collect::<Result<_, _>>()?;
 
         let mut lc = LinearCombination::zero();
@@ -667,9 +672,9 @@ impl<F: PrimeField> MpcTwoBitLookupGadget<F> for MpcAllocatedFp<F> {
         })?;
         let one = Variable::One;
         b.cs().enforce_constraint(
-            lc!() + b[1].lc() * (c[3] - &c[2] - &c[1] + &c[0]) + (c[1] - &c[0], one),
+            lc!() + b[1].lc() * (c[3] - c[2] - c[1] + c[0]) + (c[1] - c[0], one),
             lc!() + b[0].lc(),
-            lc!() + result.variable - (c[0], one) + b[1].lc() * (c[0] - &c[2]),
+            lc!() + result.variable - (c[0], one) + b[1].lc() * (c[0] - c[2]),
         )?;
 
         Ok(result)
