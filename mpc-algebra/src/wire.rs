@@ -5,6 +5,8 @@ pub mod group;
 pub use group::*;
 pub mod pairing;
 pub use pairing::*;
+pub mod uint8;
+pub use uint8::*;
 // pub mod edwards;
 // pub use edwards::*;
 pub mod edwards2;
