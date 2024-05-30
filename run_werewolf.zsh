@@ -2,8 +2,8 @@ set -ex
 trap "exit" INT TERM
 trap "kill 0" EXIT
 
-cargo build --bin bin-werewolf --release
-BIN=./target/release/bin-werewolf
+cargo build --example bin-werewolf --release
+BIN=./target/release/examples/bin-werewolf
 
 PROCS=()
 
