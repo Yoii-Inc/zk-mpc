@@ -1,5 +1,7 @@
 use rand::Rng;
 
+use crate::boolean_field::BooleanWire;
+
 pub trait UniformBitRand: Sized {
     type BaseField;
 
@@ -16,7 +18,7 @@ pub trait BitwiseLessThan {
 
 pub trait LessThan {
     type Output;
-    
+
     fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output;
     fn is_smaller_than(&self, other: &Self) -> Self::Output;
 }
@@ -30,12 +32,12 @@ pub trait LogicalOperations {
 }
 
 pub trait EqualityZero {
-    type Output;
+    type Output: BooleanWire<Base = Self>;
     fn is_zero_shared(&self) -> Self::Output;
 }
 
 pub trait BitDecomposition {
-    type BooleanField;
+    type BooleanField: BooleanWire<Base = Self>;
 
     fn bit_decomposition(&self) -> Vec<Self::BooleanField>;
 }

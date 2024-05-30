@@ -4,8 +4,7 @@ use ark_ff::{Field, PrimeField, SquareRootField};
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
     fields::FieldOpsBounds,
-    impl_ops,
-    R1CSVar,
+    impl_ops, R1CSVar,
 };
 use ark_r1cs_std::{impl_bounded_ops, Assignment};
 use ark_relations::{
@@ -17,6 +16,7 @@ use ark_std::{One, Zero};
 use ark_ff::FpParameters;
 
 use crate::{
+    boolean_field::BooleanWire,
     mpc_eq::MpcEqGadget,
     mpc_select::{MpcCondSelectGadget, MpcTwoBitLookupGadget},
     BitDecomposition, EqualityZero, FieldShare, MpcBoolean, MpcField, MpcToBitsGadget, Reveal,

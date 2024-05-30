@@ -1,36 +1,50 @@
+use crate::{BitAdd, BitwiseLessThan, FieldShare, MpcField, Reveal, UniformBitRand};
+use ark_ff::{
+    BigInteger, Field, FpParameters, One, PrimeField, SquareRootField, UniformRand, Zero,
+};
 use core::panic;
-use std::ops::{BitAnd, BitOr, BitXor, Not};
-use ark_ff::{BigInteger, Field, FpParameters, One, PrimeField, SquareRootField, UniformRand, Zero};
 use mpc_trait::MpcWire;
 use rand::Rng;
-use crate::{BitAdd, BitwiseLessThan, FieldShare, MpcField, Reveal, UniformBitRand};
+use std::ops::{BitAnd, BitOr, BitXor, Not};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct MpcBooleanField<F: Field, S: FieldShare<F>>(MpcField<F,S>);
+pub struct MpcBooleanField<F: Field, S: FieldShare<F>>(MpcField<F, S>);
 
-impl<F: Field, S: FieldShare<F>> MpcBooleanField<F, S> {
-    pub fn pub_true() -> Self {
+pub trait BooleanWire: Not + From<bool> {
+    type Base;
+
+    fn pub_true() -> Self;
+    fn pub_false() -> Self;
+    fn field(&self) -> Self::Base;
+    fn and(self, other: Self) -> Self;
+    fn or(self, other: Self) -> Self;
+    fn xor(self, other: Self) -> Self;
+}
+
+impl<F: Field, S: FieldShare<F>> BooleanWire for MpcBooleanField<F, S> {
+    type Base = MpcField<F, S>;
+
+    fn pub_true() -> Self {
         Self(MpcField::one())
     }
 
-    pub fn pub_false() -> Self {
+    fn pub_false() -> Self {
         Self(MpcField::zero())
     }
 
-    pub fn field(&self) -> MpcField<F, S> {
+    fn field(&self) -> MpcField<F, S> {
         self.0
     }
 
-    pub fn and(self, other: Self) -> Self {
+    fn and(self, other: Self) -> Self {
         Self(self.0 * other.0)
     }
-    
-    pub fn or(self, other: Self) -> Self {
+    fn or(self, other: Self) -> Self {
         Self(self.0 + other.0 - (self.0 * other.0))
     }
 
-    pub fn xor(self, other: Self) -> Self {
-        Self(self.0 + other.0 - (self.0 * other.0 * MpcField::from_public(F::from(2u8))))
+    fn xor(self, other: Self) -> Self {
+        Self(self.0 + other.0 - (self.0 * other.0 * MpcField::from(2u8)))
     }
 }
 
@@ -38,7 +52,7 @@ impl<F: Field, S: FieldShare<F>> Not for MpcBooleanField<F, S> {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self (MpcField::one() - self.0)
+        Self(MpcField::one() - self.0)
     }
 }
 
@@ -109,8 +123,8 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcBooleanField<F,
 
         // d_i = OR_{j=i}^{modulus_size-1} c_j
         let mut d = vec![rev_c[0]];
-        for i in 0..modulus_size -1 {
-            d.push(d[i]|rev_c[i+1]);
+        for i in 0..modulus_size - 1 {
+            d.push(d[i] | rev_c[i + 1]);
         }
         d.reverse();
 
@@ -122,9 +136,14 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcBooleanField<F,
                     d[i].field() - d[i + 1].field()
                 }
             })
-            .collect::<Vec<MpcField<F,S>>>();
+            .collect::<Vec<MpcField<F, S>>>();
 
-        Self::Output::from(e.iter().zip(other.iter()).map(|(&e, &b)| e * b.field()).sum::<MpcField<F,S>>())
+        Self::Output::from(
+            e.iter()
+                .zip(other.iter())
+                .map(|(&e, &b)| e * b.field())
+                .sum::<MpcField<F, S>>(),
+        )
     }
 }
 
@@ -144,7 +163,10 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
             }
         }
 
-        Self((r / Self::BaseField::from_public(root_r2) + Self::BaseField::one()) / Self::BaseField::from_public(F::from(2u8)))
+        Self(
+            (r / Self::BaseField::from_public(root_r2) + Self::BaseField::one())
+                / Self::BaseField::from_public(F::from(2u8)),
+        )
     }
 
     fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField) {
@@ -163,29 +185,39 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
                 .map(|_| Self::bit_rand(rng))
                 .collect::<Vec<_>>();
 
-            if bits.clone().is_smaller_than_le(&modulus_bits).field().reveal().is_one() {
+            if bits
+                .clone()
+                .is_smaller_than_le(&modulus_bits)
+                .field()
+                .reveal()
+                .is_one()
+            {
                 break bits;
             }
         };
 
         // bits to field elemetn (little endian)
-        let num = valid_bits.iter().map(|b|b.field()).rev().fold(Self::BaseField::zero(), |acc, x| {
-            acc * Self::BaseField::from_public(F::from(2u8)) + x
-        });
+        let num = valid_bits
+            .iter()
+            .map(|b| b.field())
+            .rev()
+            .fold(Self::BaseField::zero(), |acc, x| {
+                acc * Self::BaseField::from_public(F::from(2u8)) + x
+            });
 
         (valid_bits, num)
     }
 }
 
-impl <F: Field, S: FieldShare<F>> MpcWire for MpcBooleanField<F, S> {
+impl<F: Field, S: FieldShare<F>> MpcWire for MpcBooleanField<F, S> {
     fn is_shared(&self) -> bool {
         self.field().is_shared()
     }
-    
+
     fn publicize(&mut self) {
         self.field().publicize();
     }
-    
+
     fn publicize_cow<'b>(&'b self) -> std::borrow::Cow<'b, Self> {
         if self.is_shared() {
             let mut s = self.clone();
@@ -196,7 +228,6 @@ impl <F: Field, S: FieldShare<F>> MpcWire for MpcBooleanField<F, S> {
         }
     }
 }
-
 
 impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
     type Output = Self;
@@ -215,7 +246,8 @@ impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
 
                 let p_vec = (0..l)
                     .map(|i| {
-                        self[i].field() + other[i].field() - MpcField::<F, S>::from_public(F::from(2u64)) * s_vec[i].field()
+                        self[i].field() + other[i].field()
+                            - MpcField::<F, S>::from_public(F::from(2u64)) * s_vec[i].field()
                     })
                     .collect::<Vec<_>>();
 
@@ -225,8 +257,8 @@ impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
                         Some(*is_s)
                     })
                     .collect::<Vec<_>>();
-                
-                ret.into_iter().map(MpcBooleanField::<F,S>::from).collect()
+
+                ret.into_iter().map(MpcBooleanField::<F, S>::from).collect()
             }
             false => {
                 panic!("public is not expected here");
@@ -247,12 +279,14 @@ impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
                     .map(|i| {
                         if i == 0 {
                             (self[0].field() + other[0].field()
-                                - MpcField::<F, S>::from_public(F::from(2u64)) * c_vec[0].field()).into()
+                                - MpcField::<F, S>::from_public(F::from(2u64)) * c_vec[0].field())
+                            .into()
                         } else if i == l {
                             c_vec[l - 1]
                         } else {
                             (self[i].field() + other[i].field() + c_vec[i - 1].field()
-                                - MpcField::<F, S>::from_public(F::from(2u64)) * c_vec[i].field()).into()
+                                - MpcField::<F, S>::from_public(F::from(2u64)) * c_vec[i].field())
+                            .into()
                         }
                     })
                     .collect()
@@ -263,7 +297,6 @@ impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
         }
     }
 }
-
 
 impl<F: Field, S: FieldShare<F>> Reveal for MpcBooleanField<F, S> {
     type Base = F;
@@ -280,7 +313,6 @@ impl<F: Field, S: FieldShare<F>> Reveal for MpcBooleanField<F, S> {
         } else {
             panic!("not boolean")
         }
-        
     }
     #[inline]
     fn from_add_shared(b: Self::Base) -> Self {
@@ -289,8 +321,8 @@ impl<F: Field, S: FieldShare<F>> Reveal for MpcBooleanField<F, S> {
     #[inline]
     fn unwrap_as_public(self) -> Self::Base {
         match self.field() {
-            MpcField::<F,S>::Shared(s) => s.unwrap_as_public(),
-            MpcField::<F,S>::Public(s) => s,
+            MpcField::<F, S>::Shared(s) => s.unwrap_as_public(),
+            MpcField::<F, S>::Public(s) => s,
         }
     }
     #[inline]
@@ -302,9 +334,9 @@ impl<F: Field, S: FieldShare<F>> Reveal for MpcBooleanField<F, S> {
         todo!()
     }
     fn init_protocol() {
-        MpcField::<F,S>::init_protocol()
+        MpcField::<F, S>::init_protocol()
     }
     fn deinit_protocol() {
-        MpcField::<F,S>::deinit_protocol()
+        MpcField::<F, S>::deinit_protocol()
     }
 }
