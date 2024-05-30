@@ -1,5 +1,5 @@
-pub mod field;
 pub mod boolean_field;
+pub mod field;
 pub use field::*;
 pub mod group;
 pub use group::*;

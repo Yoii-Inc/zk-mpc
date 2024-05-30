@@ -70,7 +70,7 @@ where
     ConstraintF<C>: PrimeField + SquareRootField,
     // <C as ProjectiveCurve>::ScalarField: Reveal,
     <C as ProjectiveCurve>::ScalarField:
-        mpc_primitives::BitDecomposition<Output = Vec<<C as ProjectiveCurve>::ScalarField>>,
+        mpc_primitives::BitDecomposition<BooleanField = Vec<<C as ProjectiveCurve>::ScalarField>>,
     // <C as reveal::Reveal>::Base: ProjectiveCurve,
     // <<C as ProjectiveCurve>::ScalarField as reveal::Reveal>::Base: ark_ff::PrimeField,
 {

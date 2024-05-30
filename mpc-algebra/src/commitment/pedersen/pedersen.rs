@@ -4,12 +4,13 @@ use ark_ff::{bytes::ToBytes, BitIteratorLE, Field, FpParameters, PrimeField, ToC
 use ark_std::io::{Result as IoResult, Write};
 use ark_std::marker::PhantomData;
 use ark_std::rand::Rng;
-use ark_std::{end_timer, start_timer, One, Zero};
+use ark_std::{cfg_chunks, end_timer, start_timer, One, Zero};
 use ark_std::{PubUniformRand, UniformRand};
 use derivative::Derivative;
 use mpc_trait::MpcWire;
 
 use crate::crh::{pedersen, pedersen::Window, CRH};
+use crate::wire::boolean_field::BooleanWire;
 use crate::{BitDecomposition, CommitmentScheme, FieldShare, MpcField, Reveal};
 
 // pub use ark_crypto_primitives::crh::pedersen::Window;
@@ -58,7 +59,7 @@ where
     // C: Reveal,
     // <C as Reveal>::Base: ProjectiveCurve,
     // <C::ScalarField as Reveal>::Base: PrimeField,
-    <C as ProjectiveCurve>::ScalarField: BitDecomposition<Output = Vec<C::ScalarField>>,
+    <C as ProjectiveCurve>::ScalarField: BitDecomposition,
 {
     // Input is expected to be a vector of field elements. Each field element represents bool.
     type Input = Vec<C::ScalarField>;
@@ -132,9 +133,23 @@ where
             .iter()
             .map(|x| x.into_affine())
             .collect::<Vec<_>>();
-        let bits = randomness.0.bit_decomposition();
+        let bits = randomness
+            .0
+            .bit_decomposition()
+            .iter()
+            .map(|x| x.field())
+            .collect::<Vec<_>>();
 
-        result += C::Affine::multi_scalar_mul(&iter_bases[..], &bits);
+        result += cfg_chunks!(bits, W::WINDOW_SIZE)
+            .map(|bits| {
+                let mut encoded = C::zero();
+
+                encoded += C::Affine::multi_scalar_mul(&iter_bases, bits);
+                encoded
+            })
+            .sum::<C>();
+
+        // result += C::Affine::multi_scalar_mul(&iter_bases, &bits);
 
         end_timer!(randomize_time);
         end_timer!(commit_time);

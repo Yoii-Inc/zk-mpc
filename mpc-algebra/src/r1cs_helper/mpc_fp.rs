@@ -3,7 +3,6 @@ use std::borrow::Borrow;
 use ark_ff::{Field, PrimeField, SquareRootField};
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
-    fields::FieldOpsBounds,
     impl_ops, R1CSVar,
 };
 use ark_r1cs_std::{impl_bounded_ops, Assignment};
@@ -442,11 +441,7 @@ impl<F: PrimeField + SquareRootField + EqualityZero> MpcAllocatedFp<F> {
         let is_zero_value = self.value.get()?.is_zero_shared();
 
         let is_not_zero =
-<<<<<<< HEAD
-            MpcBoolean::new_witness(self.cs.clone(), || Ok(F::one() - is_zero_value))?;
-=======
             MpcBoolean::new_witness(self.cs.clone(), || Ok((!is_zero_value).field()))?;
->>>>>>> main
 
         let multiplier = self
             .cs
@@ -519,9 +514,7 @@ impl<F: PrimeField + SquareRootField + EqualityZero> MpcAllocatedFp<F> {
 //     }
 // }
 
-impl<F: PrimeField + SquareRootField + BitDecomposition<Output = Vec<F>>> MpcToBitsGadget<F>
-    for MpcAllocatedFp<F>
-{
+impl<F: PrimeField + SquareRootField + BitDecomposition> MpcToBitsGadget<F> for MpcAllocatedFp<F> {
     /// Outputs the unique bit-wise decomposition of `self` in *little-endian*
     /// form.
     ///
@@ -752,7 +745,7 @@ impl<F: PrimeField> AllocVar<F, F> for MpcAllocatedFp<F> {
 
 impl<F: PrimeField + SquareRootField + EqualityZero> MpcFieldVar<F, F> for MpcFpVar<F>
 where
-    F: BitDecomposition<Output = Vec<F>>,
+    F: BitDecomposition<BooleanField = Vec<F>>,
 {
     fn constant(f: F) -> Self {
         Self::Constant(f)
@@ -1006,7 +999,7 @@ impl<F: PrimeField + SquareRootField + EqualityZero> MpcFpVar<F> {
 
 impl<F: PrimeField + SquareRootField + EqualityZero> MpcToBitsGadget<F> for MpcFpVar<F>
 where
-    F: BitDecomposition<Output = Vec<F>>,
+    F: BitDecomposition<BooleanField = Vec<F>>,
 {
     fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
         match self {
