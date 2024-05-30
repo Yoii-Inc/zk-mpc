@@ -158,9 +158,8 @@ fn test_bitwise_lt() {
 
 fn test_interval_test_half_modulus() {
     let rng = &mut thread_rng();
-    let mut half_modulus =
-        <<ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS;
-    half_modulus.div2();
+    let half_modulus =
+        <<ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS_MINUS_ONE_DIV_TWO;
 
     let n = 10;
     let timer = start_timer!(|| format!("interval_test_half_modulus test x {}", n));

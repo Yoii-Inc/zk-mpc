@@ -2,38 +2,28 @@ use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
-
 use ark_ff::FpParameters;
 use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
-use ark_std::UniformRand;
-
-use circuits::{DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit};
 use core::panic;
-
 use mpc_algebra::malicious_majority::*;
 use mpc_algebra::Reveal;
+use mpc_net::{MpcMultiNet as Net, MpcNet};
 use serde::Deserialize;
-use serialize::{write_r, write_to_file};
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
-
-use mpc_net::{MpcMultiNet as Net, MpcNet};
-
-mod marlin;
-use marlin::*;
-
-use crate::input::MpcInputTrait;
-use crate::input::WerewolfKeyInput;
-use crate::input::WerewolfMpcInput;
-
-mod circuits;
-mod input;
-mod preprocessing;
-mod serialize;
-mod she;
+use zk_mpc::circuits::{DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit};
+use zk_mpc::input::MpcInputTrait;
+use zk_mpc::input::WerewolfKeyInput;
+use zk_mpc::input::WerewolfMpcInput;
+use zk_mpc::marlin::LocalMarlin;
+use zk_mpc::marlin::MFr;
+use zk_mpc::marlin::MpcMarlin;
+use zk_mpc::preprocessing;
+use zk_mpc::serialize::{write_r, write_to_file};
+use zk_mpc::she;
 
 #[derive(Debug, StructOpt)]
 struct Opt {

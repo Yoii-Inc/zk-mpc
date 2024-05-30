@@ -59,18 +59,18 @@ name = "main"
 path = "src/main.rs"
 
 
-[[bin]]
+[[example]]
 name = "bin-test-marlin"
-path = "src/bin_test_marlin.rs"
+path = "examples/bin_test_marlin.rs"
 
-[[bin]]
+[[example]]
 name = "bin-test-groth16"
-path = "src/bin_test_groth16.rs"
+path = "examples/bin_test_groth16.rs"
 
-[[bin]]
+[[example]]
 name = "online"
-path = "src/online.rs"
+path = "examples/online.rs"
 
-[[bin]]
+[[example]]
 name = "bin-werewolf"
-path = "src/bin_werewolf.rs"
+path = "examples/bin_werewolf.rs"

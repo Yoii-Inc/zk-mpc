@@ -4,22 +4,16 @@ use ark_ff::{BigInteger, FpParameters, PrimeField};
 use ark_marlin::IndexProverKey;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
-
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
-
 use serde::Deserialize;
 use std::{fs::File, path::PathBuf, vec};
 use structopt::StructOpt;
-
-mod circuits;
-use circuits::LocalOrMPC;
-mod input;
-use input::*;
-mod marlin;
-use marlin::*;
-
-use crate::circuits::circuit::MyCircuit;
+use zk_mpc::{
+    circuits::{circuit::MyCircuit, LocalOrMPC},
+    input::{MpcInputTrait, SampleMpcInput},
+    marlin::{pf_publicize, LocalMarlin, MFr, MpcMarlin},
+};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
