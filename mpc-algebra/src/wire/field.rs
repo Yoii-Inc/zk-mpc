@@ -21,7 +21,7 @@ use ark_serialize::{
     CanonicalSerializeWithFlags,
 };
 
-use crate::boolean_field::MpcBooleanField;
+use crate::boolean_field::{BooleanWire, MpcBooleanField};
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
 use crate::{
