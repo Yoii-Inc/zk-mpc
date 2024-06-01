@@ -5,6 +5,7 @@ use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
 use ark_ec::{group::Group, PairingEngine, ProjectiveCurve};
+use ark_ff::BigInteger;
 use ark_ff::{Field, FromBytes, ToBytes};
 use ark_poly::UVPolynomial;
 use ark_serialize::{
@@ -157,6 +158,15 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
         let den = Self::poly_share2(den);
         num.divide_with_q_and_r(&den)
             .map(|(q, r)| (Self::d_poly_unshare(q), Self::d_poly_unshare(r)))
+    }
+
+    fn modulus_conversion<F2: ark_ff::PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
+    where
+        F: ark_ff::PrimeField,
+    {
+        // bad implementation, so it's just for testing
+        let bits = self.val.into_repr().to_bits_le();
+        S2::from_add_shared(F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap())
     }
 }
 
