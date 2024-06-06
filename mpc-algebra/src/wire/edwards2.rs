@@ -5,7 +5,7 @@ use ark_ec::twisted_edwards_extended::GroupProjective;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ed_on_bls12_377::EdwardsParameters;
 use ark_ff::PrimeField;
-use ark_ff::{FromBytes, PubUniformRand, ToBytes, UniformRand, Zero};
+use ark_ff::{FromBytes, One, PubUniformRand, ToBytes, UniformRand, Zero};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
@@ -782,5 +782,60 @@ impl<P: Parameters> From<MpcGroupProjective<P>> for MpcGroupAffine<P> {
                 .val
                 .map(|s| s.into(), AdditiveAffProjShare::sh_proj_to_aff),
         }
+    }
+}
+
+type hbc_BaseField<P: Parameters> = honest_but_curious::MpcField<P::BaseField>;
+
+impl<P: Parameters> MpcGroupProjective<P> {
+    pub fn convert_xytz(
+        &self,
+    ) -> (
+        hbc_BaseField<P>,
+        hbc_BaseField<P>,
+        hbc_BaseField<P>,
+        hbc_BaseField<P>,
+    ) {
+        // TODO: implement correctly.
+        let revealed_x = self.reveal().x;
+        let revealed_y = self.reveal().y;
+        let revealed_t = self.reveal().t;
+        let revealed_z = self.reveal().z;
+
+        let x = MpcField::from_public(revealed_x);
+        let y = MpcField::from_public(revealed_y);
+        let z = MpcField::from_public(revealed_z);
+        let t = MpcField::from_public(revealed_t);
+        (x, y, t, z)
+    }
+}
+
+impl<P: Parameters> MpcGroupAffine<P> {
+    pub fn convert_xy(&self) -> (hbc_BaseField<P>, hbc_BaseField<P>) {
+        let revealed_x = self.reveal().x;
+        let revealed_y = self.reveal().y;
+
+        // 1. get unprocessed x, y
+        let unprocessd_x = self.val.unwrap_as_public().x;
+        let unprocessd_y = self.val.unwrap_as_public().y;
+
+        // TODO: 2. generate shares and communicate
+        let rng = &mut ark_std::test_rng();
+        let vec_x = vec![hbc_BaseField::<P>::zero(); Net::n_parties()];
+        let vec_y = vec![hbc_BaseField::<P>::zero(); Net::n_parties()];
+
+        // 3. summand and make converted share
+        // addition of elliptic curve points in (x,y) form.
+        let (sum_x, sum_y) = vec_x.iter().zip(vec_y.iter()).fold(
+            (hbc_BaseField::<P>::zero(), hbc_BaseField::<P>::one()),
+            |(acc_x, acc_y), (&x, &y)| {
+                let m = (y - acc_y) / (x - acc_x);
+                let sum_x = m * m - x - acc_x;
+                let sum_y = m * (acc_x - sum_x) - acc_y;
+                (sum_x, sum_y)
+            },
+        );
+
+        (sum_x, sum_y)
     }
 }

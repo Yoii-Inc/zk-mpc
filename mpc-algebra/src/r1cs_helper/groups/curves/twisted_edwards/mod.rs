@@ -579,29 +579,32 @@ where
         I: Iterator<Item = (B, &'a MpcTEProjective<P>)>,
         B: Borrow<MpcBoolean<<hbc_BaseField<P> as Field>::BasePrimeField>>,
     {
-        // let (bits, multiples): (Vec<_>, Vec<_>) = scalar_bits_with_base_multiples
-        //     .map(|(bit, base)| (bit.borrow().clone(), *base))
-        //     .unzip();
-        // let zero: TEAffine<P> = TEProjective::zero().into_affine();
-        // for (bits, multiples) in bits.chunks(2).zip(multiples.chunks(2)) {
-        //     if bits.len() == 2 {
-        //         let mut table = [multiples[0], multiples[1], multiples[0] + multiples[1]];
+        let (bits, multiples): (Vec<_>, Vec<_>) = scalar_bits_with_base_multiples
+            .map(|(bit, base)| (bit.borrow().clone(), *base))
+            .unzip();
+        let zero: MpcTEAffine<P> = MpcTEProjective::zero().into_affine();
+        for (bits, multiples) in bits.chunks(2).zip(multiples.chunks(2)) {
+            if bits.len() == 2 {
+                let mut table = [multiples[0], multiples[1], multiples[0] + multiples[1]];
 
-        //         MpcTEProjective::batch_normalization(&mut table);
-        //         let x_s = [zero.x, table[0].x, table[1].x, table[2].x];
-        //         let y_s = [zero.y, table[0].y, table[1].y, table[2].y];
+                // TODO: batch normalization
+                // MpcTEProjective::batch_normalization(&mut table);
+                let zero_xy = zero.convert_xy();
+                let table0_xy = table[0].convert_xytz();
+                let table1_xy = table[1].convert_xytz();
+                let table2_xy = table[2].convert_xytz();
+                let x_s = [zero_xy.0, table0_xy.0, table1_xy.0, table2_xy.0];
+                let y_s = [zero_xy.1, table0_xy.1, table1_xy.1, table2_xy.1];
 
-        //         let x = F::two_bit_lookup(&bits, &x_s)?;
-        //         let y = F::two_bit_lookup(&bits, &y_s)?;
-        //         *self += Self::new(x, y);
-        //     } else if bits.len() == 1 {
-        //         let bit = &bits[0];
-        //         let tmp = &*self + multiples[0];
-        //         *self = bit.select(&tmp, &*self)?;
-        //     }
-        // }
-
-        todo!();
+                let x = F::two_bit_lookup(&bits, &x_s)?;
+                let y = F::two_bit_lookup(&bits, &y_s)?;
+                *self += Self::new(x, y);
+            } else if bits.len() == 1 {
+                let bit = &bits[0];
+                let tmp = &*self + multiples[0];
+                *self = bit.select(&tmp, &*self)?;
+            }
+        }
 
         Ok(())
     }

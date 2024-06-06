@@ -164,7 +164,7 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
     where
         F: ark_ff::PrimeField,
     {
-        // bad implementation, so it's just for testing
+        // TODO: bad implementation, so it's just for testing
         let bits = self.val.into_repr().to_bits_le();
         S2::from_add_shared(F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap())
     }
