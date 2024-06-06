@@ -625,8 +625,8 @@ impl<F: PrimeField> MpcCondSelectGadget<F> for MpcAllocatedFp<F> {
             _ => {
                 let cs = cond.cs();
                 let result = Self::new_witness(cs.clone(), || {
-                    cond.value()
-                        .and_then(|c| if c { true_val } else { false_val }.value.get())
+                    Ok(cond.value_field()? * true_val.value()?
+                        + (F::one() - cond.value_field()?) * false_val.value()?)
                 })?;
                 // a = self; b = other; c = cond;
                 //
@@ -657,11 +657,11 @@ impl<F: PrimeField> MpcTwoBitLookupGadget<F> for MpcAllocatedFp<F> {
         debug_assert_eq!(b.len(), 2);
         debug_assert_eq!(c.len(), 4);
         let result = Self::new_witness(b.cs(), || {
-            println!("twobit look up ");
-            let lsb = usize::from(b[0].value()?);
-            let msb = usize::from(b[1].value()?);
-            let index = lsb + (msb << 1);
-            Ok(c[index])
+            let res = (c[0] + (c[1] - c[0]) * b[0].value_field().unwrap())
+                * (F::one() - b[1].value_field().unwrap())
+                + (c[2] + (c[3] - c[2]) * b[0].value_field().unwrap())
+                    * b[1].value_field().unwrap();
+            Ok(res)
         })?;
         let one = Variable::One;
         b.cs().enforce_constraint(
@@ -743,9 +743,8 @@ impl<F: PrimeField> AllocVar<F, F> for MpcAllocatedFp<F> {
     }
 }
 
-impl<F: PrimeField + SquareRootField + EqualityZero> MpcFieldVar<F, F> for MpcFpVar<F>
-where
-    F: BitDecomposition<BooleanField = Vec<F>>,
+impl<F: PrimeField + SquareRootField + EqualityZero + BitDecomposition> MpcFieldVar<F, F>
+    for MpcFpVar<F>
 {
     fn constant(f: F) -> Self {
         Self::Constant(f)
@@ -997,9 +996,8 @@ impl<F: PrimeField + SquareRootField + EqualityZero> MpcFpVar<F> {
 //     }
 // }
 
-impl<F: PrimeField + SquareRootField + EqualityZero> MpcToBitsGadget<F> for MpcFpVar<F>
-where
-    F: BitDecomposition<BooleanField = Vec<F>>,
+impl<F: PrimeField + SquareRootField + EqualityZero + BitDecomposition> MpcToBitsGadget<F>
+    for MpcFpVar<F>
 {
     fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
         match self {

@@ -809,6 +809,37 @@ impl<F: PrimeField> MpcBoolean<F> {
     ) -> Result<T, SynthesisError> {
         T::conditionally_select(&self, first, second)
     }
+
+    /// Allocates a slice of `u8`'s as private witnesses.
+    pub fn new_witness_vec(
+        cs: impl Into<Namespace<F>>,
+        values: &[impl Into<Option<F>> + Copy],
+    ) -> Result<Vec<Self>, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+        let mut output_vec = Vec::with_capacity(values.len());
+        for value in values {
+            let bit: Option<F> = Into::into(*value);
+            output_vec.push(Self::new_witness(cs.clone(), || bit.get())?);
+        }
+        Ok(output_vec)
+    }
+
+    pub fn new_input_vec(
+        cs: impl Into<Namespace<F>>,
+        values: &[impl Into<Option<F>> + Copy],
+    ) -> Result<Vec<Self>, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+        let values_len = values.len();
+        let mut output_vec = Vec::with_capacity(values_len);
+
+        for value in values {
+            let bit: Option<F> = Into::into(*value);
+            output_vec.push(Self::new_input(cs.clone(), || bit.get())?);
+        }
+        Ok(output_vec)
+    }
 }
 
 impl<F: PrimeField> From<MpcAllocatedBool<F>> for MpcBoolean<F> {

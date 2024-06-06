@@ -275,7 +275,7 @@ impl ConstraintSynthesizer<Fr> for LocalPedersenComCircuit {
 #[derive(Clone)]
 pub struct MpcPedersenComCircuit {
     pub param: Option<PedersenParam_hbc>,
-    pub input: Vec<hbc::MpcField<Fr>>,
+    pub input: Vec<hbc::MpcU8Field<Fr>>,
     pub open: PedersenRandomness_hbc,
     pub commit: PedersenCommitment_hbc,
 }
@@ -313,7 +313,7 @@ impl ConstraintSynthesizer<hbc::MpcField<Fr>> for MpcPedersenComCircuit {
         // vec<scalarfield>で入ってくるので，Vec<MpcUInt8>に変換する
         assert_eq!(self.input.len() % 8, 0);
 
-        for input_byte in self.input.chunks(8) {
+        for input_byte in self.input.iter() {
             input_var.push(MpcUInt8::new_witness(cs.clone(), || Ok(*input_byte)).unwrap());
         }
         // for input_byte in self.input.iter() {

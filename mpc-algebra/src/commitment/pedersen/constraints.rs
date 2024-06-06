@@ -1,9 +1,10 @@
+use crate::mpc_primitives::ModulusConversion;
 use crate::{
     commitment::{
         constraints::CommitmentGadget,
         pedersen::{Commitment, Parameters, Randomness},
     },
-    mpc_primitives, reveal, MpcUInt8, Reveal,
+    mpc_primitives, MpcUInt8,
 };
 
 use crate::crh::pedersen::Window;
@@ -13,6 +14,7 @@ use crate::crh::pedersen::Window;
 //     crh::pedersen::Window,
 // };
 use ark_ec::ProjectiveCurve;
+use ark_ff::BigInteger;
 use ark_ff::{
     fields::{Field, PrimeField},
     to_bytes, SquareRootField, Zero,
@@ -23,12 +25,13 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 // use ark_r1cs_std::prelude::*;
 use crate::groups::GroupOpsBounds;
 
+use crate::mpc_primitives::BitDecomposition;
 use crate::r1cs_helper::groups::MpcCurveVar;
+use crate::wire::boolean_field::BooleanWire;
+use crate::MpcBoolean;
 
 use core::{borrow::Borrow, marker::PhantomData};
 use derivative::Derivative;
-
-use crate::{FieldShare, MpcBoolean, MpcToBitsGadget};
 
 type ConstraintF<C> = <<C as ProjectiveCurve>::BaseField as Field>::BasePrimeField;
 
@@ -68,11 +71,8 @@ where
     W: Window,
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
     ConstraintF<C>: PrimeField + SquareRootField,
-    // <C as ProjectiveCurve>::ScalarField: Reveal,
     <C as ProjectiveCurve>::ScalarField:
-        mpc_primitives::BitDecomposition<BooleanField = Vec<<C as ProjectiveCurve>::ScalarField>>,
-    // <C as reveal::Reveal>::Base: ProjectiveCurve,
-    // <<C as ProjectiveCurve>::ScalarField as reveal::Reveal>::Base: ark_ff::PrimeField,
+        mpc_primitives::BitDecomposition + mpc_primitives::ModulusConversion<ConstraintF<C>>,
 {
     type OutputVar = GG;
     type ParametersVar = ParametersVar<C, GG>;
@@ -145,20 +145,32 @@ impl<C, F> AllocVar<Randomness<C>, F> for RandomnessVar<F>
 where
     C: ProjectiveCurve,
     F: PrimeField,
+    <C as ark_ec::ProjectiveCurve>::ScalarField:
+        mpc_primitives::BitDecomposition + ModulusConversion<F>,
 {
     fn new_variable<T: Borrow<Randomness<C>>>(
         cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
-        let r = to_bytes![&f().map(|b| b.borrow().0).unwrap_or(C::ScalarField::zero())].unwrap();
+        let r = f().map(|r| r.borrow().0).unwrap_or(C::ScalarField::zero());
+
+        let bits_r = r
+            .bit_decomposition()
+            .iter()
+            .map(|b| b.field().modulus_conversion())
+            .collect::<Vec<_>>();
+
+        // padding
+        let mut bits_r = bits_r;
+        for _ in bits_r.len()..F::BigInt::NUM_LIMBS * 64 {
+            bits_r.push(F::zero());
+        }
+
         match mode {
-            // AllocationMode::Constant => Ok(Self(UInt8::constant_vec(&r))),
-            // AllocationMode::Input => UInt8::new_input_vec(cs, &r).map(Self),
-            // AllocationMode::Witness => UInt8::new_witness_vec(cs, &r).map(Self),
-            AllocationMode::Constant => todo!(),
-            AllocationMode::Input => todo!(),
-            AllocationMode::Witness => todo!(),
+            AllocationMode::Constant => unimplemented!(),
+            AllocationMode::Input => MpcBoolean::new_input_vec(cs, &bits_r).map(Self),
+            AllocationMode::Witness => MpcBoolean::new_witness_vec(cs, &bits_r).map(Self),
         }
     }
 }

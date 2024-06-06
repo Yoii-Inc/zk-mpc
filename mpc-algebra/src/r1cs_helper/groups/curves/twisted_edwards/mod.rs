@@ -300,23 +300,27 @@ where
         let ns = cs.into();
         let cs = ns.cs();
 
-        // let (x, y) = match f() {
-        //     Ok(ge) => {
-        //         let ge: MpcTEAffine<P> = ge.into();
-        //         (Ok(ge.x), Ok(ge.y))
-        //     }
-        //     _ => (
-        //         Err(SynthesisError::AssignmentMissing),
-        //         Err(SynthesisError::AssignmentMissing),
-        //     ),
-        // };
+        let (x, y) = match f() {
+            Ok(ge) => {
+                let ge: MpcTEAffine<P> = ge.into();
 
-        // let x = F::new_variable(ark_relations::ns!(cs, "x"), || x, mode)?;
-        // let y = F::new_variable(ark_relations::ns!(cs, "y"), || y, mode)?;
+                // TODO: Remove reveal operation.
+                let revealed_ge = ge.reveal();
+                (Ok(revealed_ge.x), Ok(revealed_ge.y))
+            }
+            _ => (
+                Err(SynthesisError::AssignmentMissing),
+                Err(SynthesisError::AssignmentMissing),
+            ),
+        };
 
-        // Ok(Self::new(x, y))
+        let wrapped_x = hbc_BaseField::<P>::from_public(x.unwrap());
+        let wrapped_y = hbc_BaseField::<P>::from_public(y.unwrap());
 
-        todo!()
+        let x = F::new_variable(ark_relations::ns!(cs, "x"), || Ok(wrapped_x), mode)?;
+        let y = F::new_variable(ark_relations::ns!(cs, "y"), || Ok(wrapped_y), mode)?;
+
+        Ok(Self::new(x, y))
     }
 }
 
@@ -898,11 +902,10 @@ where
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError> {
-        // let x = cond.select(&true_value.x, &false_value.x)?;
-        // let y = cond.select(&true_value.y, &false_value.y)?;
-        todo!();
+        let x = cond.select(&true_value.x, &false_value.x)?;
+        let y = cond.select(&true_value.y, &false_value.y)?;
 
-        // Ok(Self::new(x, y))
+        Ok(Self::new(x, y))
     }
 }
 
