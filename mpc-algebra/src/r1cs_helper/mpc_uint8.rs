@@ -1,13 +1,11 @@
-use ark_ff::{FpParameters, PrimeField, SquareRootField, ToConstraintField};
-
+use ark_ff::PrimeField;
+use ark_r1cs_std::{prelude::*, Assignment};
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-
-use crate::mpc_bits::MpcToBitsGadget;
-use crate::r1cs_helper::mpc_fp::MpcAllocatedFp;
-use crate::{MpcBoolean, MpcCondSelectGadget, MpcEqGadget};
-use ark_r1cs_std::{prelude::*, Assignment, ToConstraintFieldGadget};
 use ark_std::vec::Vec;
 use core::{borrow::Borrow, convert::TryFrom};
+
+use crate::wire::boolean_field::BooleanWire;
+use crate::{MpcBoolean, MpcCondSelectGadget, MpcEqGadget};
 
 /// Represents an interpretation of 8 `Boolean` objects as an
 /// unsigned integer.
@@ -394,13 +392,33 @@ impl<ConstraintF: PrimeField> AllocVar<u8, ConstraintF> for MpcUInt8<ConstraintF
     }
 }
 
-impl<ConstraintF: PrimeField> AllocVar<[ConstraintF; 4], ConstraintF> for MpcUInt8<ConstraintF> {
-    fn new_variable<T: Borrow<[ConstraintF; 4]>>(
-        cs: impl Into<Namespace<ConstraintF>>,
+impl<ConstraintLocalF: PrimeField>
+    AllocVar<
+        crate::honest_but_curious::MpcU8Field<ConstraintLocalF>,
+        crate::honest_but_curious::MpcField<ConstraintLocalF>,
+    > for MpcUInt8<crate::honest_but_curious::MpcField<ConstraintLocalF>>
+{
+    fn new_variable<T: Borrow<crate::honest_but_curious::MpcU8Field<ConstraintLocalF>>>(
+        cs: impl Into<Namespace<crate::honest_but_curious::MpcField<ConstraintLocalF>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
-        todo!();
+        let ns = cs.into();
+        let cs = ns.cs();
+        let value: Option<crate::honest_but_curious::MpcU8Field<_>> = f().map(|f| *f.borrow()).ok();
+
+        let mut values = [None; 8];
+        if let Some(val) = value {
+            for (i, bit) in val.get().iter_mut().enumerate() {
+                values[i] = Some(bit.field());
+            }
+        }
+
+        let mut bits = [MpcBoolean::FALSE; 8];
+        for (b, v) in bits.iter_mut().zip(&values) {
+            *b = MpcBoolean::new_variable(cs.clone(), || v.get(), mode)?;
+        }
+        Ok(Self { bits, value: None })
     }
 }
 
