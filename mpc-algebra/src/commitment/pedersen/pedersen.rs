@@ -166,3 +166,46 @@ impl<ConstraintF: Field, C: ProjectiveCurve + ToConstraintField<ConstraintF>>
         Some(Vec::new())
     }
 }
+
+impl<C: ProjectiveCurve + Reveal> Reveal for Parameters<C>
+where
+    <C as Reveal>::Base: ProjectiveCurve,
+{
+    type Base = ark_crypto_primitives::commitment::pedersen::Parameters<<C as Reveal>::Base>;
+
+    fn reveal(self) -> Self::Base {
+        Self::Base {
+            randomness_generator: self.randomness_generator.reveal(),
+            generators: self.generators.reveal(),
+        }
+    }
+
+    fn from_add_shared(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+
+    fn from_public(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+}
+
+impl<C: ProjectiveCurve + Reveal> Reveal for Randomness<C>
+where
+    <C as Reveal>::Base: ProjectiveCurve,
+    <C as ProjectiveCurve>::ScalarField:
+        Reveal<Base = <<C as Reveal>::Base as ProjectiveCurve>::ScalarField>,
+{
+    type Base = ark_crypto_primitives::commitment::pedersen::Randomness<<C as Reveal>::Base>;
+
+    fn reveal(self) -> Self::Base {
+        Self::Base { 0: self.0.reveal() }
+    }
+
+    fn from_add_shared(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+
+    fn from_public(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+}

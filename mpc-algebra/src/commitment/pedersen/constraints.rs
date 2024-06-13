@@ -27,6 +27,7 @@ use crate::groups::GroupOpsBounds;
 
 use crate::mpc_primitives::BitDecomposition;
 use crate::r1cs_helper::groups::MpcCurveVar;
+use crate::r1cs_helper::mpc_bits::MpcToBitsGadget;
 use crate::wire::boolean_field::BooleanWire;
 use crate::MpcBoolean;
 
@@ -100,7 +101,11 @@ where
 
         // Allocate new variable for commitment output.
 
-        let input_in_bits = padded_input.chunks(W::WINDOW_SIZE);
+        let input_in_bits: Vec<MpcBoolean<_>> = padded_input
+            .iter()
+            .flat_map(|byte| byte.to_bits_le().unwrap())
+            .collect();
+        let input_in_bits = input_in_bits.chunks(W::WINDOW_SIZE);
         let mut result =
             GG::precomputed_base_multiscalar_mul_le(&parameters.params.generators, input_in_bits)?;
 
