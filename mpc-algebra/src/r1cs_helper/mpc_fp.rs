@@ -3,7 +3,6 @@ use std::borrow::Borrow;
 use ark_ff::{Field, PrimeField, SquareRootField};
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
-    fields::FieldOpsBounds,
     impl_ops, R1CSVar,
 };
 use ark_r1cs_std::{impl_bounded_ops, Assignment};
@@ -18,8 +17,9 @@ use ark_ff::FpParameters;
 use crate::{
     boolean_field::BooleanWire,
     mpc_eq::MpcEqGadget,
+    mpc_fields::{FieldOpsBounds, MpcFieldVar},
     mpc_select::{MpcCondSelectGadget, MpcTwoBitLookupGadget},
-    BitDecomposition, EqualityZero, FieldShare, MpcBoolean, MpcField, MpcToBitsGadget, Reveal,
+    BitDecomposition, EqualityZero, MpcBoolean, MpcToBitsGadget, Reveal,
 };
 
 // TODO: MpcAllocatedFp is required?
@@ -28,22 +28,18 @@ use crate::{
 /// value can be an arbitrary field element.
 #[derive(Debug, Clone)]
 #[must_use]
-pub struct MpcAllocatedFp<F: PrimeField, S: FieldShare<F>> {
-    pub(crate) value: Option<MpcField<F, S>>,
+pub struct MpcAllocatedFp<F: PrimeField> {
+    pub(crate) value: Option<F>,
     /// The allocated variable corresponding to `self` in `self.cs`.
     pub variable: Variable,
     /// The constraint system that `self` was allocated in.
-    pub cs: ConstraintSystemRef<MpcField<F, S>>,
+    pub cs: ConstraintSystemRef<F>,
 }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
+impl<F: PrimeField> MpcAllocatedFp<F> {
     /// Constructs a new `AllocatedFp` from a (optional) value, a low-level
     /// Variable, and a `ConstraintSystemRef`.
-    pub fn new(
-        value: Option<MpcField<F, S>>,
-        variable: Variable,
-        cs: ConstraintSystemRef<MpcField<F, S>>,
-    ) -> Self {
+    pub fn new(value: Option<F>, variable: Variable, cs: ConstraintSystemRef<F>) -> Self {
         Self {
             value,
             variable,
@@ -55,18 +51,18 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
 /// Represent variables corresponding to a field element in `F`.
 #[derive(Clone, Debug)]
 #[must_use]
-pub enum MpcFpVar<F: PrimeField, S: FieldShare<F>> {
+pub enum MpcFpVar<F: PrimeField> {
     /// Represents a constant in the constraint system, which means that
     /// it does not have a corresponding variable.
-    Constant(MpcField<F, S>),
+    Constant(F),
     /// Represents an allocated variable constant in the constraint system.
-    Var(MpcAllocatedFp<F, S>),
+    Var(MpcAllocatedFp<F>),
 }
 
-impl<F: PrimeField, S: FieldShare<F>> R1CSVar<MpcField<F, S>> for MpcFpVar<F, S> {
-    type Value = MpcField<F, S>;
+impl<F: PrimeField> R1CSVar<F> for MpcFpVar<F> {
+    type Value = F;
 
-    fn cs(&self) -> ConstraintSystemRef<MpcField<F, S>> {
+    fn cs(&self) -> ConstraintSystemRef<F> {
         match self {
             Self::Constant(_) => ConstraintSystemRef::None,
             Self::Var(a) => a.cs.clone(),
@@ -98,16 +94,16 @@ impl<F: PrimeField, S: FieldShare<F>> R1CSVar<MpcField<F, S>> for MpcFpVar<F, S>
 //     }
 // }
 
-impl<F: PrimeField, S: FieldShare<F>> From<MpcBoolean<F, S>> for MpcFpVar<F, S> {
-    fn from(other: MpcBoolean<F, S>) -> Self {
-        if let MpcBoolean::<F, S>::Constant(b) = other {
-            Self::Constant(MpcField::<F, S>::from(b as u8))
+impl<F: PrimeField> From<MpcBoolean<F>> for MpcFpVar<F> {
+    fn from(other: MpcBoolean<F>) -> Self {
+        if let MpcBoolean::<F>::Constant(b) = other {
+            Self::Constant(F::from(b as u8))
         } else {
             // `other` is a variable
             let cs = other.cs();
             let variable = cs.new_lc(other.lc()).unwrap();
             Self::Var(MpcAllocatedFp::new(
-                other.value().ok().map(|b| MpcField::<F, S>::from(b as u8)),
+                other.value().ok().map(|b| F::from(b as u8)),
                 variable,
                 cs,
             ))
@@ -115,37 +111,27 @@ impl<F: PrimeField, S: FieldShare<F>> From<MpcBoolean<F, S>> for MpcFpVar<F, S> 
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> From<MpcAllocatedFp<F, S>> for MpcFpVar<F, S> {
-    fn from(other: MpcAllocatedFp<F, S>) -> Self {
+impl<F: PrimeField> From<MpcAllocatedFp<F>> for MpcFpVar<F> {
+    fn from(other: MpcAllocatedFp<F>) -> Self {
         Self::Var(other)
     }
 }
 
-impl<'a, F: PrimeField, S: FieldShare<F>> FieldOpsBounds<'a, MpcField<F, S>, Self>
-    for MpcFpVar<F, S>
-{
-}
-impl<'a, F: PrimeField, S: FieldShare<F>> FieldOpsBounds<'a, MpcField<F, S>, MpcFpVar<F, S>>
-    for &'a MpcFpVar<F, S>
-{
-}
+impl<'a, F: PrimeField> FieldOpsBounds<'a, F, Self> for MpcFpVar<F> {}
+impl<'a, F: PrimeField> FieldOpsBounds<'a, F, MpcFpVar<F>> for &'a MpcFpVar<F> {}
 
-impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
+impl<F: PrimeField> MpcAllocatedFp<F> {
     /// Constructs `Self` from a `Boolean`: if `other` is false, this outputs
     /// `zero`, else it outputs `one`.
-    pub fn from(other: MpcBoolean<F, S>) -> Self {
+    pub fn from(other: MpcBoolean<F>) -> Self {
         let cs = other.cs();
         let variable = cs.new_lc(other.lc()).unwrap();
-        Self::new(
-            other.value().ok().map(|b| MpcField::<F, S>::from(b as u8)),
-            variable,
-            cs,
-        )
+        Self::new(other.value().ok().map(|b| F::from(b as u8)), variable, cs)
     }
 
     /// Returns the value assigned to `self` in the underlying constraint system
     /// (if a value was assigned).
-    pub fn value(&self) -> Result<MpcField<F, S>, SynthesisError> {
+    pub fn value(&self) -> Result<F, SynthesisError> {
         self.cs.assigned_value(self.variable).get()
     }
 
@@ -206,7 +192,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     ///
     /// This does not create any constraints.
     #[tracing::instrument(target = "r1cs")]
-    pub fn add_constant(&self, other: MpcField<F, S>) -> Self {
+    pub fn add_constant(&self, other: F) -> Self {
         if other.is_zero() {
             self.clone()
         } else {
@@ -223,7 +209,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     ///
     /// This does not create any constraints.
     #[tracing::instrument(target = "r1cs")]
-    pub fn sub_constant(&self, other: MpcField<F, S>) -> Self {
+    pub fn sub_constant(&self, other: F) -> Self {
         self.add_constant(-other)
     }
 
@@ -231,7 +217,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     ///
     /// This does not create any constraints.
     #[tracing::instrument(target = "r1cs")]
-    pub fn mul_constant(&self, other: MpcField<F, S>) -> Self {
+    pub fn mul_constant(&self, other: F) -> Self {
         if other.is_one() {
             self.clone()
         } else {
@@ -287,11 +273,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     #[tracing::instrument(target = "r1cs")]
     pub fn inverse(&self) -> Result<Self, SynthesisError> {
         let inverse = Self::new_witness(self.cs.clone(), || {
-            Ok(self
-                .value
-                .get()?
-                .inverse()
-                .unwrap_or_else(MpcField::<F, S>::zero))
+            Ok(self.value.get()?.inverse().unwrap_or_else(F::zero))
         })?;
 
         self.cs.enforce_constraint(
@@ -336,7 +318,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     ///
     /// This requires three constraints.
     #[tracing::instrument(target = "r1cs")]
-    pub fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+    pub fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F>, SynthesisError> {
         Ok(self.is_neq(other)?.not())
     }
 
@@ -344,7 +326,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     ///
     /// This requires three constraints.
     #[tracing::instrument(target = "r1cs")]
-    pub fn is_neq(&self, other: &Self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+    pub fn is_neq(&self, other: &Self) -> Result<MpcBoolean<F>, SynthesisError> {
         unimplemented!();
         // let is_not_equal = MpcBoolean::new_witness(self.cs.clone(), || {
         //     Ok(self.value.get()? != other.value.get()?)
@@ -419,7 +401,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     pub fn conditional_enforce_equal(
         &self,
         other: &Self,
-        should_enforce: &MpcBoolean<F, S>,
+        should_enforce: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         self.cs.enforce_constraint(
             lc!() + self.variable - other.variable,
@@ -435,13 +417,13 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     pub fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        should_enforce: &MpcBoolean<F, S>,
+        should_enforce: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         let multiplier = Self::new_witness(self.cs.clone(), || {
             if should_enforce.value()? {
                 (self.value.get()? - other.value.get()?).inverse().get()
             } else {
-                Ok(MpcField::<F, S>::zero())
+                Ok(F::zero())
             }
         })?;
 
@@ -454,8 +436,8 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
     }
 }
 
-impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
-    pub fn is_zero(&self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+impl<F: PrimeField + SquareRootField + EqualityZero> MpcAllocatedFp<F> {
+    pub fn is_zero(&self) -> Result<MpcBoolean<F>, SynthesisError> {
         let is_zero_value = self.value.get()?.is_zero_shared();
 
         let is_not_zero =
@@ -532,23 +514,21 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcAllocatedFp<F, S> {
 //     }
 // }
 
-impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcToBitsGadget<F, S>
-    for MpcAllocatedFp<F, S>
-{
+impl<F: PrimeField + SquareRootField + BitDecomposition> MpcToBitsGadget<F> for MpcAllocatedFp<F> {
     /// Outputs the unique bit-wise decomposition of `self` in *little-endian*
     /// form.
     ///
     /// This method enforces that the output is in the field, i.e.
     /// it invokes `Boolean::enforce_in_field_le` on the bit decomposition.
     #[tracing::instrument(target = "r1cs")]
-    fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F, S>>, SynthesisError> {
+    fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
         let bits = self.to_non_unique_bits_le()?;
         MpcBoolean::enforce_in_field_le(&bits)?;
         Ok(bits)
     }
 
     #[tracing::instrument(target = "r1cs")]
-    fn to_non_unique_bits_le(&self) -> Result<Vec<MpcBoolean<F, S>>, SynthesisError> {
+    fn to_non_unique_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
         let cs = self.cs.clone();
         let bits = if let Some(value) = self.value {
             // let field_char = BitIteratorBE::new(F::characteristic());
@@ -573,7 +553,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcToBitsGadget<F, S>
             .collect::<Result<_, _>>()?;
 
         let mut lc = LinearCombination::zero();
-        let mut coeff = MpcField::<F, S>::one();
+        let mut coeff = F::one();
 
         for bit in bits.iter() {
             lc = &lc + bit.lc() * coeff;
@@ -631,11 +611,11 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcToBitsGadget<F, S>
 //     }
 // }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcAllocatedFp<F, S> {
+impl<F: PrimeField> MpcCondSelectGadget<F> for MpcAllocatedFp<F> {
     #[inline]
     #[tracing::instrument(target = "r1cs")]
     fn conditionally_select(
-        cond: &MpcBoolean<F, S>,
+        cond: &MpcBoolean<F>,
         true_val: &Self,
         false_val: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -645,8 +625,8 @@ impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcAllocated
             _ => {
                 let cs = cond.cs();
                 let result = Self::new_witness(cs.clone(), || {
-                    cond.value()
-                        .and_then(|c| if c { true_val } else { false_val }.value.get())
+                    Ok(cond.value_field()? * true_val.value()?
+                        + (F::one() - cond.value_field()?) * false_val.value()?)
                 })?;
                 // a = self; b = other; c = cond;
                 //
@@ -667,21 +647,21 @@ impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcAllocated
 
 /// Uses two bits to perform a lookup into a table
 /// `b` is little-endian: `b[0]` is LSB.
-impl<F: PrimeField, S: FieldShare<F>> MpcTwoBitLookupGadget<F, S> for MpcAllocatedFp<F, S> {
-    type TableConstant = MpcField<F, S>;
+impl<F: PrimeField> MpcTwoBitLookupGadget<F> for MpcAllocatedFp<F> {
+    type TableConstant = F;
     #[tracing::instrument(target = "r1cs")]
     fn two_bit_lookup(
-        b: &[MpcBoolean<F, S>],
+        b: &[MpcBoolean<F>],
         c: &[Self::TableConstant],
     ) -> Result<Self, SynthesisError> {
         debug_assert_eq!(b.len(), 2);
         debug_assert_eq!(c.len(), 4);
         let result = Self::new_witness(b.cs(), || {
-            println!("twobit look up ");
-            let lsb = usize::from(b[0].value()?);
-            let msb = usize::from(b[1].value()?);
-            let index = lsb + (msb << 1);
-            Ok(c[index])
+            let res = (c[0] + (c[1] - c[0]) * b[0].value_field().unwrap())
+                * (F::one() - b[1].value_field().unwrap())
+                + (c[2] + (c[3] - c[2]) * b[0].value_field().unwrap())
+                    * b[1].value_field().unwrap();
+            Ok(res)
         })?;
         let one = Variable::One;
         b.cs().enforce_constraint(
@@ -735,11 +715,9 @@ impl<F: PrimeField, S: FieldShare<F>> MpcTwoBitLookupGadget<F, S> for MpcAllocat
 //     }
 // }
 
-impl<F: PrimeField, S: FieldShare<F>> AllocVar<MpcField<F, S>, MpcField<F, S>>
-    for MpcAllocatedFp<F, S>
-{
-    fn new_variable<T: Borrow<MpcField<F, S>>>(
-        cs: impl Into<Namespace<MpcField<F, S>>>,
+impl<F: PrimeField> AllocVar<F, F> for MpcAllocatedFp<F> {
+    fn new_variable<T: Borrow<F>>(
+        cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -765,116 +743,118 @@ impl<F: PrimeField, S: FieldShare<F>> AllocVar<MpcField<F, S>, MpcField<F, S>>
     }
 }
 
-// impl<F: PrimeField, S: FieldShare<F>> FieldVar<MpcField<F, S>, MpcField<F, S>> for MpcFpVar<F, S> {
-//     fn constant(f: F) -> Self {
-//         Self::Constant(f)
-//     }
+impl<F: PrimeField + SquareRootField + EqualityZero + BitDecomposition> MpcFieldVar<F, F>
+    for MpcFpVar<F>
+{
+    fn constant(f: F) -> Self {
+        Self::Constant(f)
+    }
 
-//     fn zero() -> Self {
-//         Self::Constant(F::zero())
-//     }
+    fn zero() -> Self {
+        Self::Constant(F::zero())
+    }
 
-//     fn one() -> Self {
-//         Self::Constant(F::one())
-//     }
+    fn one() -> Self {
+        Self::Constant(F::one())
+    }
 
-//     #[tracing::instrument(target = "r1cs")]
-//     fn double(&self) -> Result<Self, SynthesisError> {
-//         match self {
-//             Self::Constant(c) => Ok(Self::Constant(c.double())),
-//             Self::Var(v) => Ok(Self::Var(v.double()?)),
-//         }
-//     }
+    #[tracing::instrument(target = "r1cs")]
+    fn double(&self) -> Result<Self, SynthesisError> {
+        match self {
+            Self::Constant(c) => Ok(Self::Constant(c.double())),
+            Self::Var(v) => Ok(Self::Var(v.double()?)),
+        }
+    }
 
-//     #[tracing::instrument(target = "r1cs")]
-//     fn negate(&self) -> Result<Self, SynthesisError> {
-//         match self {
-//             Self::Constant(c) => Ok(Self::Constant(-*c)),
-//             Self::Var(v) => Ok(Self::Var(v.negate())),
-//         }
-//     }
+    #[tracing::instrument(target = "r1cs")]
+    fn negate(&self) -> Result<Self, SynthesisError> {
+        match self {
+            Self::Constant(c) => Ok(Self::Constant(-*c)),
+            Self::Var(v) => Ok(Self::Var(v.negate())),
+        }
+    }
 
-//     #[tracing::instrument(target = "r1cs")]
-//     fn square(&self) -> Result<Self, SynthesisError> {
-//         match self {
-//             Self::Constant(c) => Ok(Self::Constant(c.square())),
-//             Self::Var(v) => Ok(Self::Var(v.square()?)),
-//         }
-//     }
+    #[tracing::instrument(target = "r1cs")]
+    fn square(&self) -> Result<Self, SynthesisError> {
+        match self {
+            Self::Constant(c) => Ok(Self::Constant(c.square())),
+            Self::Var(v) => Ok(Self::Var(v.square()?)),
+        }
+    }
 
-//     /// Enforce that `self * other == result`.
-//     #[tracing::instrument(target = "r1cs")]
-//     fn mul_equals(&self, other: &Self, result: &Self) -> Result<(), SynthesisError> {
-//         use FpVar::*;
-//         match (self, other, result) {
-//             (Constant(_), Constant(_), Constant(_)) => Ok(()),
-//             (Constant(_), Constant(_), _) | (Constant(_), Var(_), _) | (Var(_), Constant(_), _) => {
-//                 result.enforce_equal(&(self * other))
-//             } // this multiplication should be free
-//             (Var(v1), Var(v2), Var(v3)) => v1.mul_equals(v2, v3),
-//             (Var(v1), Var(v2), Constant(f)) => {
-//                 let cs = v1.cs.clone();
-//                 let v3 = AllocatedFp::new_constant(cs, f).unwrap();
-//                 v1.mul_equals(v2, &v3)
-//             }
-//         }
-//     }
+    /// Enforce that `self * other == result`.
+    #[tracing::instrument(target = "r1cs")]
+    fn mul_equals(&self, other: &Self, result: &Self) -> Result<(), SynthesisError> {
+        use MpcFpVar::*;
+        match (self, other, result) {
+            (Constant(_), Constant(_), Constant(_)) => Ok(()),
+            (Constant(_), Constant(_), _) | (Constant(_), Var(_), _) | (Var(_), Constant(_), _) => {
+                result.enforce_equal(&(self * other))
+            } // this multiplication should be free
+            (Var(v1), Var(v2), Var(v3)) => v1.mul_equals(v2, v3),
+            (Var(v1), Var(v2), Constant(f)) => {
+                let cs = v1.cs.clone();
+                let v3 = MpcAllocatedFp::new_constant(cs, f).unwrap();
+                v1.mul_equals(v2, &v3)
+            }
+        }
+    }
 
-//     /// Enforce that `self * self == result`.
-//     #[tracing::instrument(target = "r1cs")]
-//     fn square_equals(&self, result: &Self) -> Result<(), SynthesisError> {
-//         use FpVar::*;
-//         match (self, result) {
-//             (Constant(_), Constant(_)) => Ok(()),
-//             (Constant(f), Var(r)) => {
-//                 let cs = r.cs.clone();
-//                 let v = AllocatedFp::new_witness(cs, || Ok(f))?;
-//                 v.square_equals(&r)
-//             }
-//             (Var(v), Constant(f)) => {
-//                 let cs = v.cs.clone();
-//                 let r = AllocatedFp::new_witness(cs, || Ok(f))?;
-//                 v.square_equals(&r)
-//             }
-//             (Var(v1), Var(v2)) => v1.square_equals(v2),
-//         }
-//     }
+    /// Enforce that `self * self == result`.
+    #[tracing::instrument(target = "r1cs")]
+    fn square_equals(&self, result: &Self) -> Result<(), SynthesisError> {
+        use MpcFpVar::*;
+        match (self, result) {
+            (Constant(_), Constant(_)) => Ok(()),
+            (Constant(f), Var(r)) => {
+                let cs = r.cs.clone();
+                let v = MpcAllocatedFp::new_witness(cs, || Ok(f))?;
+                v.square_equals(&r)
+            }
+            (Var(v), Constant(f)) => {
+                let cs = v.cs.clone();
+                let r = MpcAllocatedFp::new_witness(cs, || Ok(f))?;
+                v.square_equals(&r)
+            }
+            (Var(v1), Var(v2)) => v1.square_equals(v2),
+        }
+    }
 
-//     #[tracing::instrument(target = "r1cs")]
-//     fn inverse(&self) -> Result<Self, SynthesisError> {
-//         match self {
-//             FpVar::Var(v) => v.inverse().map(FpVar::Var),
-//             FpVar::Constant(f) => f.inverse().get().map(FpVar::Constant),
-//         }
-//     }
+    #[tracing::instrument(target = "r1cs")]
+    fn inverse(&self) -> Result<Self, SynthesisError> {
+        match self {
+            MpcFpVar::Var(v) => v.inverse().map(MpcFpVar::Var),
+            MpcFpVar::Constant(f) => f.inverse().get().map(MpcFpVar::Constant),
+        }
+    }
 
-//     #[tracing::instrument(target = "r1cs")]
-//     fn frobenius_map(&self, power: usize) -> Result<Self, SynthesisError> {
-//         match self {
-//             FpVar::Var(v) => v.frobenius_map(power).map(FpVar::Var),
-//             FpVar::Constant(f) => {
-//                 let mut f = *f;
-//                 f.frobenius_map(power);
-//                 Ok(FpVar::Constant(f))
-//             }
-//         }
-//     }
+    #[tracing::instrument(target = "r1cs")]
+    fn frobenius_map(&self, power: usize) -> Result<Self, SynthesisError> {
+        match self {
+            MpcFpVar::Var(v) => v.frobenius_map(power).map(MpcFpVar::Var),
+            MpcFpVar::Constant(f) => {
+                let mut f = *f;
+                f.frobenius_map(power);
+                Ok(MpcFpVar::Constant(f))
+            }
+        }
+    }
 
-//     #[tracing::instrument(target = "r1cs")]
-//     fn frobenius_map_in_place(&mut self, power: usize) -> Result<&mut Self, SynthesisError> {
-//         *self = self.frobenius_map(power)?;
-//         Ok(self)
-//     }
-// }
+    #[tracing::instrument(target = "r1cs")]
+    fn frobenius_map_in_place(&mut self, power: usize) -> Result<&mut Self, SynthesisError> {
+        *self = self.frobenius_map(power)?;
+        Ok(self)
+    }
+}
 
 impl_ops!(
-    MpcFpVar<F,S>,
-    MpcField<F,S>,
+    MpcFpVar<F>,
+    F,
     Add,
     add,
     AddAssign,
     add_assign,
-    |this: &'a MpcFpVar<F,S>, other: &'a MpcFpVar<F,S>| {
+    |this: &'a MpcFpVar<F>, other: &'a MpcFpVar<F>| {
         use MpcFpVar::*;
         match (this, other) {
             (Constant(c1), Constant(c2)) => Constant(*c1 + *c2),
@@ -882,19 +862,18 @@ impl_ops!(
             (Var(v1), Var(v2)) => Var(v1.add(v2)),
         }
     },
-    |this: &'a MpcFpVar<F,S>, other: MpcField<F, S>| { this + &MpcFpVar::Constant(other) },
-    F: PrimeField,
-    S: FieldShare<F>
+    |this: &'a MpcFpVar<F>, other: F| { this + &MpcFpVar::Constant(other) },
+    F: PrimeField
 );
 
 impl_ops!(
-    MpcFpVar<F,S>,
-    MpcField<F,S>,
+    MpcFpVar<F>,
+    F,
     Sub,
     sub,
     SubAssign,
     sub_assign,
-    |this: &'a MpcFpVar<F,S>, other: &'a MpcFpVar<F,S>| {
+    |this: &'a MpcFpVar<F>, other: &'a MpcFpVar<F>| {
         use MpcFpVar::*;
         match (this, other) {
             (Constant(c1), Constant(c2)) => Constant(*c1 - *c2),
@@ -903,19 +882,18 @@ impl_ops!(
             (Var(v1), Var(v2)) => Var(v1.sub(v2)),
         }
     },
-    |this: &'a MpcFpVar<F,S>, other: MpcField<F, S>| { this - &MpcFpVar::Constant(other) },
-    F: PrimeField,
-    S: FieldShare<F>
+    |this: &'a MpcFpVar<F>, other: F| { this - &MpcFpVar::Constant(other) },
+    F: PrimeField
 );
 
 impl_ops!(
-    MpcFpVar<F,S>,
-    MpcField<F,S>,
+    MpcFpVar<F>,
+    F,
     Mul,
     mul,
     MulAssign,
     mul_assign,
-    |this: &'a MpcFpVar<F,S>, other: &'a MpcFpVar<F,S>| {
+    |this: &'a MpcFpVar<F>, other: &'a MpcFpVar<F>| {
         use MpcFpVar::*;
 
         match (this, other) {
@@ -924,24 +902,23 @@ impl_ops!(
             (Var(v1), Var(v2)) => Var(v1.mul(v2)),
         }
     },
-    |this: &'a MpcFpVar<F,S>, other: MpcField<F,S>| {
+    |this: &'a MpcFpVar<F>, other: F| {
         if other.is_zero() {
             // rewrite
-            MpcFpVar::Constant(MpcField::<F,S>::zero())
+            MpcFpVar::Constant(F::zero())
         } else {
             this * &MpcFpVar::Constant(other)
         }
     },
-    F: PrimeField,
-    S: FieldShare<F>
+    F: PrimeField
 );
 
 /// *************************************************************************
 /// *************************************************************************
 
-impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcFpVar<F, S> {
+impl<F: PrimeField> MpcEqGadget<F> for MpcFpVar<F> {
     #[tracing::instrument(target = "r1cs")]
-    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F>, SynthesisError> {
         match (self, other) {
             (Self::Constant(c1), Self::Constant(c2)) => Ok(MpcBoolean::Constant(c1 == c2)),
             (Self::Constant(c), Self::Var(v)) | (Self::Var(v), Self::Constant(c)) => {
@@ -957,7 +934,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcFpVar<F, S> {
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        should_enforce: &MpcBoolean<F, S>,
+        should_enforce: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         match (self, other) {
             (Self::Constant(_), Self::Constant(_)) => Ok(()),
@@ -974,7 +951,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcFpVar<F, S> {
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        should_enforce: &MpcBoolean<F, S>,
+        should_enforce: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         match (self, other) {
             (Self::Constant(_), Self::Constant(_)) => Ok(()),
@@ -988,8 +965,8 @@ impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcFpVar<F, S> {
     }
 }
 
-impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcFpVar<F, S> {
-    pub fn is_zero(&self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+impl<F: PrimeField + SquareRootField + EqualityZero> MpcFpVar<F> {
+    pub fn is_zero(&self) -> Result<MpcBoolean<F>, SynthesisError> {
         match self {
             Self::Constant(c1) => Ok(MpcBoolean::Constant(c1.is_zero())),
             Self::Var(v1) => v1.is_zero(),
@@ -1019,15 +996,17 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcFpVar<F, S> {
 //     }
 // }
 
-impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcToBitsGadget<F, S> for MpcFpVar<F, S> {
-    fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F, S>>, SynthesisError> {
+impl<F: PrimeField + SquareRootField + EqualityZero + BitDecomposition> MpcToBitsGadget<F>
+    for MpcFpVar<F>
+{
+    fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
         match self {
             Self::Constant(_) => self.to_non_unique_bits_le(),
             Self::Var(v) => v.to_bits_le(),
         }
     }
 
-    fn to_non_unique_bits_le(&self) -> Result<Vec<MpcBoolean<F, S>>, SynthesisError> {
+    fn to_non_unique_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
         use ark_ff::BitIteratorLE;
         match self {
             Self::Constant(c) => Ok(BitIteratorLE::new(&c.into_repr())
@@ -1066,10 +1045,10 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcToBitsGadget<F, S> fo
 //     }
 // }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcFpVar<F, S> {
+impl<F: PrimeField> MpcCondSelectGadget<F> for MpcFpVar<F> {
     #[tracing::instrument(target = "r1cs")]
     fn conditionally_select(
-        cond: &MpcBoolean<F, S>,
+        cond: &MpcBoolean<F>,
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -1104,12 +1083,12 @@ impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcFpVar<F, 
 
 /// Uses two bits to perform a lookup into a table
 /// `b` is little-endian: `b[0]` is LSB.
-impl<F: PrimeField, S: FieldShare<F>> MpcTwoBitLookupGadget<F, S> for MpcFpVar<F, S> {
-    type TableConstant = MpcField<F, S>;
+impl<F: PrimeField> MpcTwoBitLookupGadget<F> for MpcFpVar<F> {
+    type TableConstant = F;
 
     #[tracing::instrument(target = "r1cs")]
     fn two_bit_lookup(
-        b: &[MpcBoolean<F, S>],
+        b: &[MpcBoolean<F>],
         c: &[Self::TableConstant],
     ) -> Result<Self, SynthesisError> {
         debug_assert_eq!(b.len(), 2);
@@ -1158,9 +1137,9 @@ impl<F: PrimeField, S: FieldShare<F>> MpcTwoBitLookupGadget<F, S> for MpcFpVar<F
 //     }
 // }
 
-impl<F: PrimeField, S: FieldShare<F>> AllocVar<MpcField<F, S>, MpcField<F, S>> for MpcFpVar<F, S> {
-    fn new_variable<T: Borrow<MpcField<F, S>>>(
-        cs: impl Into<Namespace<MpcField<F, S>>>,
+impl<F: PrimeField> AllocVar<F, F> for MpcFpVar<F> {
+    fn new_variable<T: Borrow<F>>(
+        cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {

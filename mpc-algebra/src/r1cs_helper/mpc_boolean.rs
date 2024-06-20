@@ -11,9 +11,7 @@ use ark_relations::{
 use ark_std::{One, Zero};
 use core::borrow::Borrow;
 
-use crate::{
-    mpc_eq::MpcEqGadget, mpc_fp::MpcFpVar, mpc_select::MpcCondSelectGadget, FieldShare, MpcField,
-};
+use crate::{mpc_eq::MpcEqGadget, mpc_fp::MpcFpVar, mpc_select::MpcCondSelectGadget, MpcField};
 
 use crate::reveal::Reveal;
 
@@ -25,9 +23,9 @@ use crate::reveal::Reveal;
 /// more traits.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[must_use]
-pub struct MpcAllocatedBool<F: PrimeField, S: FieldShare<F>> {
+pub struct MpcAllocatedBool<F: PrimeField> {
     pub variable: Variable,
-    pub cs: ConstraintSystemRef<MpcField<F, S>>,
+    pub cs: ConstraintSystemRef<F>,
 }
 
 pub(crate) fn bool_to_field<F: PrimeField>(val: impl Borrow<bool>) -> F {
@@ -39,7 +37,7 @@ pub(crate) fn bool_to_field<F: PrimeField>(val: impl Borrow<bool>) -> F {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
+impl<F: PrimeField> MpcAllocatedBool<F> {
     /// Get the assigned value for `self`.
     pub fn value(&self) -> Result<bool, SynthesisError> {
         let value = self.cs.assigned_value(self.variable).get()?;
@@ -54,7 +52,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
         }
     }
 
-    pub fn value_field(&self) -> Result<MpcField<F, S>, SynthesisError> {
+    pub fn value_field(&self) -> Result<F, SynthesisError> {
         let value = self.cs.assigned_value(self.variable).get()?;
         Ok(value)
     }
@@ -65,8 +63,8 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     }
 
     /// Allocate a witness variable without a booleanity check.
-    fn new_witness_without_booleanity_check<T: Borrow<MpcField<F, S>>>(
-        cs: ConstraintSystemRef<MpcField<F, S>>,
+    fn new_witness_without_booleanity_check<T: Borrow<F>>(
+        cs: ConstraintSystemRef<F>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
     ) -> Result<Self, SynthesisError> {
         let variable = cs.new_witness_variable(|| Ok(*f()?.borrow()))?;
@@ -80,7 +78,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
             // Ok(self.value()? ^ b.value()?)
             Ok(self.value_field()? + b.value_field()?
-                - MpcField::from_public(F::from(2_u32)) * self.value_field()? * b.value_field()?)
+                - F::from(2_u32) * self.value_field()? * b.value_field()?)
         })?;
 
         // Constrain (a + a) * (b) = (a + b - c)
@@ -133,8 +131,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     pub fn or(&self, b: &Self) -> Result<Self, SynthesisError> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
             // Ok(self.value()? | b.value()?)
-            Ok(MpcField::one()
-                - (MpcField::one() - self.value_field()?) * (MpcField::one() - b.value_field()?))
+            Ok(F::one() - (F::one() - self.value_field()?) * (F::one() - b.value_field()?))
         })?;
 
         // Constrain (1 - a) * (1 - b) = (c), ensuring c is 1 iff
@@ -153,7 +150,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     pub fn and_not(&self, b: &Self) -> Result<Self, SynthesisError> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
             // Ok(self.value()? & !b.value()?)
-            Ok(self.value_field()? * (MpcField::one() - b.value_field()?))
+            Ok(self.value_field()? * (F::one() - b.value_field()?))
         })?;
 
         // Constrain (a) * (1 - b) = (c), ensuring c is 1 iff
@@ -172,7 +169,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     pub fn nor(&self, b: &Self) -> Result<Self, SynthesisError> {
         let result = Self::new_witness_without_booleanity_check(self.cs.clone(), || {
             // Ok(!(self.value()? | b.value()?))
-            Ok((MpcField::one() - self.value_field()?) * (MpcField::one() - b.value_field()?))
+            Ok((F::one() - self.value_field()?) * (F::one() - b.value_field()?))
         })?;
 
         // Constrain (1 - a) * (1 - b) = (c), ensuring c is 1 iff
@@ -187,17 +184,15 @@ impl<F: PrimeField, S: FieldShare<F>> MpcAllocatedBool<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> AllocVar<MpcField<F, S>, MpcField<F, S>>
-    for MpcAllocatedBool<F, S>
-{
+impl<F: PrimeField> AllocVar<F, F> for MpcAllocatedBool<F> {
     /// Produces a new variable of the appropriate kind
     /// (instance or witness), with a booleanity check.
     ///
     /// N.B.: we could omit the booleanity check when allocating `self`
     /// as a new public input, but that places an additional burden on
     /// protocol designers. Better safe than sorry!
-    fn new_variable<T: Borrow<MpcField<F, S>>>(
-        cs: impl Into<Namespace<MpcField<F, S>>>,
+    fn new_variable<T: Borrow<F>>(
+        cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -229,10 +224,10 @@ impl<F: PrimeField, S: FieldShare<F>> AllocVar<MpcField<F, S>, MpcField<F, S>>
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcAllocatedBool<F, S> {
+impl<F: PrimeField> MpcCondSelectGadget<F> for MpcAllocatedBool<F> {
     #[tracing::instrument(target = "r1cs")]
     fn conditionally_select(
-        cond: &MpcBoolean<F, S>,
+        cond: &MpcBoolean<F>,
         true_val: &Self,
         false_val: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -252,19 +247,19 @@ impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcAllocated
 /// to be either zero or one.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[must_use]
-pub enum MpcBoolean<F: PrimeField, S: FieldShare<F>> {
+pub enum MpcBoolean<F: PrimeField> {
     /// Existential view of the boolean variable.
-    Is(MpcAllocatedBool<F, S>),
+    Is(MpcAllocatedBool<F>),
     /// Negated view of the boolean variable.
-    Not(MpcAllocatedBool<F, S>),
+    Not(MpcAllocatedBool<F>),
     /// Constant (not an allocated variable).
     Constant(bool),
 }
 
-impl<F: PrimeField, S: FieldShare<F>> R1CSVar<MpcField<F, S>> for MpcBoolean<F, S> {
+impl<F: PrimeField> R1CSVar<F> for MpcBoolean<F> {
     type Value = bool;
 
-    fn cs(&self) -> ConstraintSystemRef<MpcField<F, S>> {
+    fn cs(&self) -> ConstraintSystemRef<F> {
         match self {
             Self::Is(a) | Self::Not(a) => a.cs.clone(),
             _ => ConstraintSystemRef::None,
@@ -280,7 +275,7 @@ impl<F: PrimeField, S: FieldShare<F>> R1CSVar<MpcField<F, S>> for MpcBoolean<F, 
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcBoolean<F, S> {
+impl<F: PrimeField> MpcBoolean<F> {
     /// The constant `true`.
     pub const TRUE: Self = MpcBoolean::Constant(true);
 
@@ -294,7 +289,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcBoolean<F, S> {
     /// * `Boolean::Constant(false) => lc!()`
     /// * `Boolean::Is(v) => lc!() + v.variable()`
     /// * `Boolean::Not(v) => lc!() + Variable::One - v.variable()`
-    pub fn lc(&self) -> LinearCombination<MpcField<F, S>> {
+    pub fn lc(&self) -> LinearCombination<F> {
         match self {
             MpcBoolean::Constant(false) => lc!(),
             MpcBoolean::Constant(true) => lc!() + Variable::One,
@@ -303,17 +298,17 @@ impl<F: PrimeField, S: FieldShare<F>> MpcBoolean<F, S> {
         }
     }
 
-    pub fn value_field(&self) -> Result<MpcField<F, S>, SynthesisError> {
+    pub fn value_field(&self) -> Result<F, SynthesisError> {
         match self {
             MpcBoolean::Constant(c) => {
                 if *c {
-                    Ok(MpcField::one())
+                    Ok(F::one())
                 } else {
-                    Ok(MpcField::zero())
+                    Ok(F::zero())
                 }
             }
             MpcBoolean::Is(ref v) => v.value_field(),
-            MpcBoolean::Not(ref v) => Ok(MpcField::one() - v.value_field()?),
+            MpcBoolean::Not(ref v) => Ok(F::one() - v.value_field()?),
         }
     }
 
@@ -654,7 +649,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcBoolean<F, S> {
 
     /// Convert a little-endian bitwise representation of a field element to `FpVar<F>`
     #[tracing::instrument(target = "r1cs", skip(bits))]
-    pub fn le_bits_to_fp_var(bits: &[Self]) -> Result<FpVar<MpcField<F, S>>, SynthesisError>
+    pub fn le_bits_to_fp_var(bits: &[Self]) -> Result<FpVar<F>, SynthesisError>
     where
         F: PrimeField,
     {
@@ -676,13 +671,13 @@ impl<F: PrimeField, S: FieldShare<F>> MpcBoolean<F, S> {
                     value
                 })
                 .collect::<Vec<_>>();
-            value = Some(MpcField::<F, S>::from_le_bytes_mod_order(&bytes));
+            value = Some(F::from_le_bytes_mod_order(&bytes));
         }
 
         if bits.is_constant() {
             Ok(FpVar::constant(value.unwrap()))
         } else {
-            let mut power = MpcField::<F, S>::one();
+            let mut power = F::one();
             // Compute a linear combination for the new field variable, again
             // via double and add.
             let mut combined_lc = LinearCombination::zero();
@@ -695,7 +690,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcBoolean<F, S> {
             // If the number of bits is less than the size of the field,
             // then we do not need to enforce that the element is less than
             // the modulus.
-            if bits.len() >= <MpcField<F, S> as PrimeField>::Params::MODULUS_BITS as usize {
+            if bits.len() >= F::Params::MODULUS_BITS as usize {
                 Self::enforce_in_field_le(bits)?;
             }
             Ok(AllocatedFp::new(value, variable, cs.clone()).into())
@@ -807,26 +802,55 @@ impl<F: PrimeField, S: FieldShare<F>> MpcBoolean<F, S> {
     /// ```
     ///
     #[tracing::instrument(target = "r1cs", skip(first, second))]
-    pub fn select<T: MpcCondSelectGadget<F, S>>(
+    pub fn select<T: MpcCondSelectGadget<F>>(
         &self,
         first: &T,
         second: &T,
     ) -> Result<T, SynthesisError> {
         T::conditionally_select(&self, first, second)
     }
+
+    /// Allocates a slice of `u8`'s as private witnesses.
+    pub fn new_witness_vec(
+        cs: impl Into<Namespace<F>>,
+        values: &[impl Into<Option<F>> + Copy],
+    ) -> Result<Vec<Self>, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+        let mut output_vec = Vec::with_capacity(values.len());
+        for value in values {
+            let bit: Option<F> = Into::into(*value);
+            output_vec.push(Self::new_witness(cs.clone(), || bit.get())?);
+        }
+        Ok(output_vec)
+    }
+
+    pub fn new_input_vec(
+        cs: impl Into<Namespace<F>>,
+        values: &[impl Into<Option<F>> + Copy],
+    ) -> Result<Vec<Self>, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+        let values_len = values.len();
+        let mut output_vec = Vec::with_capacity(values_len);
+
+        for value in values {
+            let bit: Option<F> = Into::into(*value);
+            output_vec.push(Self::new_input(cs.clone(), || bit.get())?);
+        }
+        Ok(output_vec)
+    }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> From<MpcAllocatedBool<F, S>> for MpcBoolean<F, S> {
-    fn from(b: MpcAllocatedBool<F, S>) -> Self {
+impl<F: PrimeField> From<MpcAllocatedBool<F>> for MpcBoolean<F> {
+    fn from(b: MpcAllocatedBool<F>) -> Self {
         MpcBoolean::Is(b)
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> AllocVar<MpcField<F, S>, MpcField<F, S>>
-    for MpcBoolean<F, S>
-{
-    fn new_variable<T: Borrow<MpcField<F, S>>>(
-        cs: impl Into<Namespace<MpcField<F, S>>>,
+impl<F: PrimeField> AllocVar<F, F> for MpcBoolean<F> {
+    fn new_variable<T: Borrow<F>>(
+        cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -839,9 +863,9 @@ impl<F: PrimeField, S: FieldShare<F>> AllocVar<MpcField<F, S>, MpcField<F, S>>
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcBoolean<F, S> {
+impl<F: PrimeField> MpcEqGadget<F> for MpcBoolean<F> {
     #[tracing::instrument(target = "r1cs")]
-    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F>, SynthesisError> {
         // self | other | XNOR(self, other) | self == other
         // -----|-------|-------------------|--------------
         //   0  |   0   |         1         |      1
@@ -855,7 +879,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcBoolean<F, S> {
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        condition: &MpcBoolean<F, S>,
+        condition: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         use MpcBoolean::*;
         let one = Variable::One;
@@ -891,7 +915,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcBoolean<F, S> {
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        should_enforce: &MpcBoolean<F, S>,
+        should_enforce: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         use MpcBoolean::*;
         let one = Variable::One;
@@ -943,10 +967,10 @@ impl<F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S> for MpcBoolean<F, S> {
 //     }
 // }
 
-impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcBoolean<F, S> {
+impl<F: PrimeField> MpcCondSelectGadget<F> for MpcBoolean<F> {
     #[tracing::instrument(target = "r1cs")]
     fn conditionally_select(
-        cond: &MpcBoolean<F, S>,
+        cond: &MpcBoolean<F>,
         true_val: &Self,
         false_val: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -962,7 +986,7 @@ impl<F: PrimeField, S: FieldShare<F>> MpcCondSelectGadget<F, S> for MpcBoolean<F
                 (x, &Constant(true)) => cond.not().or(x),
                 (a, b) => {
                     let cs = cond.cs();
-                    let result: MpcBoolean<F, S> =
+                    let result: MpcBoolean<F> =
                         MpcAllocatedBool::new_witness_without_booleanity_check(cs.clone(), || {
                             let cond = cond.value()?;
                             Ok(if cond {

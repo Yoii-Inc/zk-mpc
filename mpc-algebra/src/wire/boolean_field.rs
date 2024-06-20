@@ -10,7 +10,7 @@ use std::ops::{BitAnd, BitOr, BitXor, Not};
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MpcBooleanField<F: Field, S: FieldShare<F>>(MpcField<F, S>);
 
-pub trait BooleanWire: Not + From<bool> {
+pub trait BooleanWire: Clone + Copy + Not<Output = Self> + From<bool> {
     type Base;
 
     fn pub_true() -> Self;

@@ -25,7 +25,8 @@ use crate::boolean_field::{BooleanWire, MpcBooleanField};
 // use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
 use crate::{
-    BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, LessThan, LogicalOperations, Reveal,
+    mpc_primitives, BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, LessThan,
+    LogicalOperations, Reveal,
 };
 use crate::{EqualityZero, UniformBitRand};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
@@ -1051,6 +1052,20 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> SquareRootField for MpcF
 
     fn sqrt_in_place(&mut self) -> Option<&mut Self> {
         todo!()
+    }
+}
+
+impl<F1: PrimeField, S1: FieldShare<F1>, F2: PrimeField, S2: FieldShare<F2>>
+    mpc_primitives::ModulusConversion<MpcField<F2, S2>> for MpcField<F1, S1>
+{
+    fn modulus_conversion(&mut self) -> MpcField<F2, S2> {
+        match self {
+            MpcField::Public(x) => {
+                let bits = x.into_repr().to_bits_le();
+                MpcField::Public(F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap())
+            }
+            MpcField::Shared(x) => MpcField::Shared(x.modulus_conversion()),
+        }
     }
 }
 

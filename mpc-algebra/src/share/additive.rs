@@ -5,6 +5,7 @@ use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
 use ark_ec::{group::Group, PairingEngine, ProjectiveCurve};
+use ark_ff::BigInteger;
 use ark_ff::{Field, FromBytes, ToBytes};
 use ark_poly::UVPolynomial;
 use ark_serialize::{
@@ -157,6 +158,18 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
         let den = Self::poly_share2(den);
         num.divide_with_q_and_r(&den)
             .map(|(q, r)| (Self::d_poly_unshare(q), Self::d_poly_unshare(r)))
+    }
+
+    fn modulus_conversion<F2: ark_ff::PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
+    where
+        F: ark_ff::PrimeField,
+    {
+        // TODO: bad implementation, so it's just for testing
+        let revealed_val = self.reveal();
+        let bits = revealed_val.into_repr().to_bits_le();
+        let converted_val = F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap();
+
+        S2::king_share(converted_val, &mut ark_std::test_rng())
     }
 }
 
@@ -390,8 +403,8 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
 macro_rules! impl_group_basics {
     ($share:ident, $bound:ident) => {
         impl<T: $bound, M> Debug for $share<T, M> {
-            fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                todo!()
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{:?}", self.val)
             }
         }
         impl<T: $bound, M> ToBytes for $share<T, M> {

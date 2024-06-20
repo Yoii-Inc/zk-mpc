@@ -299,12 +299,20 @@ macro_rules! impl_edwards_related {
                 Self::Base::new(x.reveal(), y.reveal(), t.reveal(), z.reveal())
             }
 
-            fn from_add_shared(_b: Self::Base) -> Self {
-                unimplemented!()
+            fn from_add_shared(b: Self::Base) -> Self {
+                let x = <$param as ModelParameters>::BaseField::from_add_shared(b.x);
+                let y = <$param as ModelParameters>::BaseField::from_add_shared(b.y);
+                let t = <$param as ModelParameters>::BaseField::from_add_shared(b.t);
+                let z = <$param as ModelParameters>::BaseField::from_add_shared(b.z);
+                GroupProjective::new(x, y, t, z)
             }
 
-            fn from_public(_b: Self::Base) -> Self {
-                unimplemented!()
+            fn from_public(b: Self::Base) -> Self {
+                let x = <$param as ModelParameters>::BaseField::from_public(b.x);
+                let y = <$param as ModelParameters>::BaseField::from_public(b.y);
+                let t = <$param as ModelParameters>::BaseField::from_public(b.t);
+                let z = <$param as ModelParameters>::BaseField::from_public(b.z);
+                GroupProjective::new(x, y, t, z)
             }
         }
 

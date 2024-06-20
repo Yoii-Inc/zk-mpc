@@ -1,3 +1,5 @@
+use ark_ff::BigInteger;
+use ark_ff::PrimeField;
 use rand::Rng;
 
 use crate::boolean_field::BooleanWire;
@@ -48,4 +50,11 @@ pub trait BitAdd {
     fn carries(&self, other: &Self) -> Self::Output;
 
     fn bit_add(self, other: &Self) -> Self::Output;
+}
+
+pub trait ModulusConversion<F: PrimeField>: PrimeField {
+    fn modulus_conversion(&mut self) -> F {
+        let bits = self.into_repr().to_bits_le();
+        F::from_repr(BigInteger::from_bits_le(&bits)).unwrap()
+    }
 }

@@ -161,6 +161,13 @@ pub trait FieldShare<F: Field>:
     ) -> Option<(DensePolynomial<Self>, DensePolynomial<Self>)> {
         todo!("Implement generic poly div")
     }
+
+    fn modulus_conversion<F2: PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
+    where
+        F: PrimeField,
+    {
+        todo!()
+    }
 }
 
 pub type DensePolynomial<T> = Vec<T>;

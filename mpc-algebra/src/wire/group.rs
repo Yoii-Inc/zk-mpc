@@ -57,6 +57,13 @@ impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
     fn from_public(b: Self::Base) -> Self {
         Self::Public(b)
     }
+
+    fn unwrap_as_public(self) -> Self::Base {
+        match self {
+            Self::Shared(s) => s.unwrap_as_public(),
+            Self::Public(s) => s,
+        }
+    }
 }
 
 impl<G: Group, S: GroupShare<G>> Mul<MpcField<G::ScalarField, S::FieldShare>> for MpcGroup<G, S> {
