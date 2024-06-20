@@ -15,6 +15,8 @@ use crate::{
     FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget, Reveal,
 };
 
+use crate::MpcGroupProjectiveVariant;
+
 use crate::MpcEqGadget;
 use crate::MpcToBitsGadget;
 use ark_r1cs_std::{prelude::*, ToConstraintFieldGadget};
@@ -582,19 +584,29 @@ where
         let (bits, multiples): (Vec<_>, Vec<_>) = scalar_bits_with_base_multiples
             .map(|(bit, base)| (bit.borrow().clone(), *base))
             .unzip();
-        let zero: MpcTEAffine<P> = MpcTEProjective::zero().into_affine();
+        let proj_zero: MpcTEProjective<P> = MpcTEProjective::zero();
         for (bits, multiples) in bits.chunks(2).zip(multiples.chunks(2)) {
             if bits.len() == 2 {
-                let mut table = [multiples[0], multiples[1], multiples[0] + multiples[1]];
+                let table = [multiples[0], multiples[1], multiples[0] + multiples[1]]
+                    .iter()
+                    .map(|&g| g.convert_xytz())
+                    .collect::<Vec<_>>();
 
-                // TODO: batch normalization
-                // MpcTEProjective::batch_normalization(&mut table);
-                let zero_xy = zero.convert_xy();
-                let table0_xy = table[0].convert_xytz();
-                let table1_xy = table[1].convert_xytz();
-                let table2_xy = table[2].convert_xytz();
-                let x_s = [zero_xy.0, table0_xy.0, table1_xy.0, table2_xy.0];
-                let y_s = [zero_xy.1, table0_xy.1, table1_xy.1, table2_xy.1];
+                let normalized_table = MpcGroupProjectiveVariant::batch_normalization(&table);
+
+                let zero_xy = proj_zero.convert_xytz();
+                let x_s = [
+                    zero_xy.x,
+                    normalized_table[0].x,
+                    normalized_table[1].x,
+                    normalized_table[2].x,
+                ];
+                let y_s = [
+                    zero_xy.y,
+                    normalized_table[0].y,
+                    normalized_table[1].y,
+                    normalized_table[2].y,
+                ];
 
                 let x = F::two_bit_lookup(&bits, &x_s)?;
                 let y = F::two_bit_lookup(&bits, &y_s)?;

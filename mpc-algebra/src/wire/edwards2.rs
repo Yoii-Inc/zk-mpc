@@ -4,8 +4,7 @@ use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::twisted_edwards_extended::GroupProjective;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ed_on_bls12_377::EdwardsParameters;
-use ark_ff::PrimeField;
-use ark_ff::{FromBytes, One, PubUniformRand, ToBytes, UniformRand, Zero};
+use ark_ff::{Field, FromBytes, One, PrimeField, PubUniformRand, ToBytes, UniformRand, Zero};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
@@ -70,6 +69,68 @@ pub struct MpcGroupProjective<P: Parameters> {
         GroupProjective<P>,
         AdditiveGroupShare<GroupProjective<P>, crate::msm::ProjectiveMsm<GroupProjective<P>>>,
     >,
+}
+
+#[derive(Derivative)]
+#[derivative(
+    Copy(bound = "P:Parameters"),
+    Clone(bound = "P: Parameters"),
+    Debug(bound = "P: Parameters")
+)]
+pub struct MpcGroupProjectiveVariant<P: Parameters> {
+    pub x: MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>,
+    pub y: MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>,
+    pub t: MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>,
+    pub z: MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>,
+}
+
+impl<P: Parameters> Reveal for MpcGroupProjectiveVariant<P> {
+    type Base = GroupProjective<P>;
+
+    fn reveal(self) -> Self::Base {
+        Self::Base::new(
+            self.x.reveal(),
+            self.y.reveal(),
+            self.t.reveal(),
+            self.z.reveal(),
+        )
+    }
+
+    fn from_add_shared(_b: Self::Base) -> Self {
+        unimplemented!()
+    }
+
+    fn from_public(b: Self::Base) -> Self {
+        Self {
+            x: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::from_public(b.x),
+            y: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::from_public(b.y),
+            t: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::from_public(b.t),
+            z: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::from_public(b.z),
+        }
+    }
+}
+
+impl<P: Parameters> MpcGroupProjectiveVariant<P>
+where
+    <P as ark_ec::ModelParameters>::BaseField: ark_ff::PrimeField,
+{
+    pub fn batch_normalization(v: &[Self]) -> Vec<Self> {
+        let z_s = v.iter().map(|g| g.z).collect::<Vec<_>>();
+        let inversed_z_s = z_s.iter().map(|z| z.inverse().unwrap()).collect::<Vec<_>>();
+
+        v.iter()
+            .zip(inversed_z_s.iter())
+            .map(|(g, z)| {
+                // let z = inversed_z_s.pop().unwrap();
+                Self {
+                    x: g.x * z,
+                    y: g.y * z,
+                    t: g.t * z,
+                    z: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::one(),
+                }
+            })
+            .collect::<Vec<_>>()
+    }
 }
 
 impl<P: Parameters> Group for MpcGroupAffine<P> {
@@ -335,7 +396,7 @@ where
     }
 
     fn batch_normalization(v: &mut [Self]) {
-        todo!()
+        unimplemented!();
     }
 
     fn is_normalized(&self) -> bool {
@@ -788,25 +849,15 @@ impl<P: Parameters> From<MpcGroupProjective<P>> for MpcGroupAffine<P> {
 type hbc_BaseField<P: Parameters> = honest_but_curious::MpcField<P::BaseField>;
 
 impl<P: Parameters> MpcGroupProjective<P> {
-    pub fn convert_xytz(
-        &self,
-    ) -> (
-        hbc_BaseField<P>,
-        hbc_BaseField<P>,
-        hbc_BaseField<P>,
-        hbc_BaseField<P>,
-    ) {
+    pub fn convert_xytz(&self) -> MpcGroupProjectiveVariant<P> {
         // TODO: implement correctly.
-        let revealed_x = self.reveal().x;
-        let revealed_y = self.reveal().y;
-        let revealed_t = self.reveal().t;
-        let revealed_z = self.reveal().z;
+        let revealed_val = self.reveal();
 
-        let x = MpcField::from_public(revealed_x);
-        let y = MpcField::from_public(revealed_y);
-        let z = MpcField::from_public(revealed_z);
-        let t = MpcField::from_public(revealed_t);
-        (x, y, t, z)
+        let x = MpcField::from_public(revealed_val.x);
+        let y = MpcField::from_public(revealed_val.y);
+        let z = MpcField::from_public(revealed_val.z);
+        let t = MpcField::from_public(revealed_val.t);
+        MpcGroupProjectiveVariant { x, y, t, z }
     }
 }
 
