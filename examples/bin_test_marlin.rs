@@ -22,4 +22,5 @@ fn main() {
     marlin::mpc_test_prove_and_verify_pedersen(1);
     marlin::test_equality_zero(1);
     marlin::test_bit_decomposition(1);
+    marlin::test_enforce_smaller_eq_than(5);
 }

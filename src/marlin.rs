@@ -8,13 +8,17 @@ use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_std::{end_timer, start_timer, test_rng, PubUniformRand, UniformRand};
 
 use blake2::Blake2s;
+use itertools::Itertools;
 // use mpc_algebra::honest_but_curious::*;
-use mpc_algebra::malicious_majority::*;
+use mpc_algebra::{
+    malicious_majority::*, BooleanWire, MpcBooleanField, SpdzFieldShare, UniformBitRand,
+};
 use mpc_algebra::{FromLocal, Reveal};
 use mpc_net::{MpcMultiNet, MpcNet};
 
 use ark_std::{One, Zero};
 
+use crate::circuits::enforce_smaller_or_eq_than::SmallerEqThanCircuit;
 use crate::{
     circuits::{
         bit_decomposition::BitDecompositionCircuit, circuit::MyCircuit,
@@ -300,11 +304,51 @@ pub fn test_bit_decomposition(n_iters: usize) {
 
     for _ in 0..n_iters {
         let mpc_circuit = BitDecompositionCircuit { a: MFr::rand(rng) };
+        // TODO
         assert!(prove_and_verify(
             &mpc_index_pk,
             &index_vk,
             mpc_circuit,
             vec![]
         ));
+    }
+}
+
+// Test
+pub fn test_enforce_smaller_eq_than(n_iters: usize) {
+    let rng = &mut test_rng();
+
+    for _ in 0..n_iters {
+        let (local_a_bit_rand, _) =
+            MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise(rng);
+        let local_a_bit_rand = local_a_bit_rand.iter().map(|x| x.reveal()).collect_vec();
+        let b = Fr::rand(rng);
+
+        let local_circuit = SmallerEqThanCircuit {
+            a: local_a_bit_rand,
+            b,
+        };
+        let (mpc_index_pk, index_vk) = setup_and_index(local_circuit);
+        // generate random shared bits
+        let (a_bit_rand, a_rand) =
+            MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise(rng);
+        let a_bit_rand = a_bit_rand.into_iter().map(|x| x.field()).collect_vec();
+        let mpc_circuit = SmallerEqThanCircuit { a: a_bit_rand, b };
+        let inputs = vec![];
+        if a_rand.reveal() <= b {
+            assert!(prove_and_verify(
+                &mpc_index_pk,
+                &index_vk,
+                mpc_circuit,
+                inputs
+            ));
+        } else {
+            assert!(!prove_and_verify(
+                &mpc_index_pk,
+                &index_vk,
+                mpc_circuit,
+                inputs
+            ));
+        }
     }
 }
