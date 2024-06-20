@@ -99,7 +99,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
         let mut r: Vec<F> = (0..(Net::n_parties() - 1)).map(|_| F::rand(rng)).collect();
         let sum_r: F = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::recieve_from_king(if Net::am_king() {
+        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
             Some(r)
         } else {
             None
@@ -113,7 +113,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
             .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
             .collect();
         rs.push(final_shares);
-        Net::recieve_from_king(if Net::am_king() { Some(rs) } else { None })
+        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -379,7 +379,7 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
         let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
         let sum_r: G = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::recieve_from_king(if Net::am_king() {
+        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
             Some(r)
         } else {
             None
@@ -393,7 +393,7 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
             .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
             .collect();
         rs.push(final_shares);
-        Net::recieve_from_king(if Net::am_king() { Some(rs) } else { None })
+        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
