@@ -850,43 +850,120 @@ type hbc_BaseField<P: Parameters> = honest_but_curious::MpcField<P::BaseField>;
 
 impl<P: Parameters> MpcGroupProjective<P> {
     pub fn convert_xytz(&self) -> MpcGroupProjectiveVariant<P> {
-        // TODO: implement correctly.
-        let revealed_val = self.reveal();
+        match self.val {
+            MpcGroup::Shared(s) => {
+                // 1. get unprocessed x, y
+                let unprocessed = self.val.unwrap_as_public();
 
-        let x = MpcField::from_public(revealed_val.x);
-        let y = MpcField::from_public(revealed_val.y);
-        let z = MpcField::from_public(revealed_val.z);
-        let t = MpcField::from_public(revealed_val.t);
-        MpcGroupProjectiveVariant { x, y, t, z }
-    }
-}
+                // TODO: 2. generate shares and communicate
+                let vec_x = (0..Net::n_parties())
+                    .map(|i| {
+                        hbc_BaseField::<P>::from_add_shared(if Net::party_id() == i {
+                            unprocessed.x
+                        } else {
+                            P::BaseField::zero()
+                        })
+                    })
+                    .collect::<Vec<hbc_BaseField<P>>>();
 
-impl<P: Parameters> MpcGroupAffine<P> {
-    pub fn convert_xy(&self) -> (hbc_BaseField<P>, hbc_BaseField<P>) {
-        let revealed_x = self.reveal().x;
-        let revealed_y = self.reveal().y;
+                let vec_y = (0..Net::n_parties())
+                    .map(|i| {
+                        hbc_BaseField::<P>::from_add_shared(if Net::party_id() == i {
+                            unprocessed.y
+                        } else {
+                            P::BaseField::zero()
+                        })
+                    })
+                    .collect::<Vec<hbc_BaseField<P>>>();
 
-        // 1. get unprocessed x, y
-        let unprocessd_x = self.val.unwrap_as_public().x;
-        let unprocessd_y = self.val.unwrap_as_public().y;
+                let vec_t = (0..Net::n_parties())
+                    .map(|i| {
+                        hbc_BaseField::<P>::from_add_shared(if Net::party_id() == i {
+                            unprocessed.t
+                        } else {
+                            P::BaseField::zero()
+                        })
+                    })
+                    .collect::<Vec<hbc_BaseField<P>>>();
 
-        // TODO: 2. generate shares and communicate
-        let rng = &mut ark_std::test_rng();
-        let vec_x = vec![hbc_BaseField::<P>::zero(); Net::n_parties()];
-        let vec_y = vec![hbc_BaseField::<P>::zero(); Net::n_parties()];
+                let vec_z = (0..Net::n_parties())
+                    .map(|i| {
+                        hbc_BaseField::<P>::from_add_shared(if Net::party_id() == i {
+                            unprocessed.z
+                        } else {
+                            P::BaseField::zero()
+                        })
+                    })
+                    .collect::<Vec<hbc_BaseField<P>>>();
 
-        // 3. summand and make converted share
-        // addition of elliptic curve points in (x,y) form.
-        let (sum_x, sum_y) = vec_x.iter().zip(vec_y.iter()).fold(
-            (hbc_BaseField::<P>::zero(), hbc_BaseField::<P>::one()),
-            |(acc_x, acc_y), (&x, &y)| {
-                let m = (y - acc_y) / (x - acc_x);
-                let sum_x = m * m - x - acc_x;
-                let sum_y = m * (acc_x - sum_x) - acc_y;
-                (sum_x, sum_y)
+                // 3. summand and make converted share
+                // addition of elliptic curve points in (x,y,t,z) form.
+                let (sum_x, sum_y, sum_t, sum_z) = vec_x
+                    .iter()
+                    .zip(vec_y.iter())
+                    .zip(vec_t.iter())
+                    .zip(vec_z.iter())
+                    .fold(
+                        (
+                            hbc_BaseField::<P>::zero(),
+                            hbc_BaseField::<P>::one(),
+                            hbc_BaseField::<P>::zero(),
+                            hbc_BaseField::<P>::one(),
+                        ),
+                        |(acc_x, acc_y, acc_t, acc_z), (((&x, &y), &t), &z)| {
+                            // A = x1 * x2
+                            let a = acc_x * x;
+
+                            // B = y1 * y2
+                            let b = acc_y * y;
+
+                            // C = d * t1 * t2
+                            let c = hbc_BaseField::<P>::from_public(P::COEFF_D) * acc_t * t;
+
+                            // D = z1 * z2
+                            let d = acc_z * z;
+
+                            // H = B - aA
+                            let h = b - a * &hbc_BaseField::<P>::from_public(P::COEFF_A);
+
+                            // E = (x1 + y1) * (x2 + y2) - A - B
+                            let e = (acc_x + &acc_y) * &(x + y) - &a - &b;
+
+                            // F = D - C
+                            let f = d - &c;
+
+                            // G = D + C
+                            let g = d + &c;
+
+                            // x3 = E * F
+                            let sum_x = e * &f;
+
+                            // y3 = G * H
+                            let sum_y = g * &h;
+
+                            // t3 = E * H
+                            let sum_t = e * &h;
+
+                            // z3 = F * G
+                            let sum_z = f * &g;
+
+                            (sum_x, sum_y, sum_t, sum_z)
+                        },
+                    );
+
+                MpcGroupProjectiveVariant {
+                    x: sum_x,
+                    y: sum_y,
+                    t: sum_t,
+                    z: sum_z,
+                }
+            }
+            MpcGroup::Public(s) => MpcGroupProjectiveVariant {
+                x: hbc_BaseField::<P>::from_public(s.x),
+                y: hbc_BaseField::<P>::from_public(s.y),
+                t: hbc_BaseField::<P>::from_public(s.t),
+                z: hbc_BaseField::<P>::from_public(s.z),
             },
-        );
-
-        (sum_x, sum_y)
+        }
     }
 }
