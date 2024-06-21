@@ -23,21 +23,29 @@ use std::marker::PhantomData;
 use std::ops::*;
 
 use crate::groups::curves::twisted_edwards::MpcAffineVar;
-use crate::honest_but_curious;
-use crate::wire::field::MpcField;
-use crate::AffProjShare;
-use crate::AffineMsm;
-use crate::GroupShare;
-use crate::MpcFpVar;
-use crate::ProjectiveMsm;
-use crate::Reveal;
-use crate::{AdditiveFieldShare, AdditiveGroupShare, MpcGroup};
+use crate::*;
 
-pub type MpcEdwardsProjective = MpcGroupProjective<EdwardsParameters>;
-pub type MpcEdwardsAffine = MpcGroupAffine<EdwardsParameters>;
+pub trait APShare<P: Parameters>:
+    AffProjShare<P::ScalarField, GroupAffine<P>, GroupProjective<P>>
+{
+    type BaseShare: FieldShare<P::BaseField>;
+}
+
+pub type AdditiveMpcEdwardsProjective =
+    MpcGroupProjective<EdwardsParameters, AdditiveAffProjShare<EdwardsParameters>>;
+pub type AdditiveMpcEdwardsAffine =
+    MpcGroupAffine<EdwardsParameters, AdditiveAffProjShare<EdwardsParameters>>;
+
+pub type SpdzMpcEdwardsProjective =
+    MpcGroupProjective<EdwardsParameters, SpdzAffProjShare<EdwardsParameters>>;
+pub type SpdzMpcEdwardsAffine =
+    MpcGroupAffine<EdwardsParameters, SpdzAffProjShare<EdwardsParameters>>;
 
 type AdditiveFqVar = MpcFpVar<honest_but_curious::MpcField<ark_ed_on_bls12_377::Fq>>;
 pub type AdditiveMpcEdwardsVar = MpcAffineVar<EdwardsParameters, AdditiveFqVar>;
+
+type SpdzFqVar = MpcFpVar<malicious_majority::MpcField<ark_ed_on_bls12_377::Fq>>;
+pub type SpdzMpcEdwardsVar = MpcAffineVar<EdwardsParameters, SpdzFqVar>;
 
 #[derive(Derivative)]
 #[derivative(
@@ -48,11 +56,8 @@ pub type AdditiveMpcEdwardsVar = MpcAffineVar<EdwardsParameters, AdditiveFqVar>;
     Hash(bound = "P: Parameters"),
     Eq(bound = "P: Parameters")
 )]
-pub struct MpcGroupAffine<P: Parameters> {
-    val: MpcGroup<
-        GroupAffine<P>,
-        AdditiveGroupShare<GroupAffine<P>, crate::msm::AffineMsm<GroupAffine<P>>>,
-    >,
+pub struct MpcGroupAffine<P: Parameters, S: APShare<P>> {
+    val: MpcGroup<GroupAffine<P>, S::AffineShare>,
 }
 
 #[derive(Derivative)]
@@ -64,11 +69,8 @@ pub struct MpcGroupAffine<P: Parameters> {
     Hash(bound = "P: Parameters"),
     Eq(bound = "P: Parameters")
 )]
-pub struct MpcGroupProjective<P: Parameters> {
-    val: MpcGroup<
-        GroupProjective<P>,
-        AdditiveGroupShare<GroupProjective<P>, crate::msm::ProjectiveMsm<GroupProjective<P>>>,
-    >,
+pub struct MpcGroupProjective<P: Parameters, S: APShare<P>> {
+    val: MpcGroup<GroupProjective<P>, S::ProjectiveShare>,
 }
 
 #[derive(Derivative)]
@@ -133,8 +135,8 @@ where
     }
 }
 
-impl<P: Parameters> Group for MpcGroupAffine<P> {
-    type ScalarField = MpcField<P::ScalarField, AdditiveFieldShare<P::ScalarField>>;
+impl<P: Parameters, S: APShare<P>> Group for MpcGroupAffine<P, S> {
+    type ScalarField = MpcField<P::ScalarField, S::FrShare>;
 
     fn double(&self) -> Self {
         todo!()
@@ -147,7 +149,7 @@ impl<P: Parameters> Group for MpcGroupAffine<P> {
 
 // for MpcGroupProjective
 
-impl<P: Parameters> Reveal for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupProjective<P, S> {
     type Base = GroupProjective<P>;
     #[inline]
     fn reveal(self) -> Self::Base {
@@ -178,25 +180,25 @@ impl<P: Parameters> Reveal for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> Display for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Display for MpcGroupProjective<P, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.val)
     }
 }
 
-impl<P: Parameters> ToBytes for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> ToBytes for MpcGroupProjective<P, S> {
     fn write<W: Write>(&self, writer: W) -> io::Result<()> {
         self.val.write(writer)
     }
 }
 
-impl<P: Parameters> FromBytes for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> FromBytes for MpcGroupProjective<P, S> {
     fn read<R: Read>(_reader: R) -> io::Result<Self> {
         todo!()
     }
 }
 
-impl<P: Parameters> CanonicalSerialize for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> CanonicalSerialize for MpcGroupProjective<P, S> {
     fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
         self.val.serialize(writer)
     }
@@ -206,7 +208,7 @@ impl<P: Parameters> CanonicalSerialize for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> CanonicalSerializeWithFlags for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> CanonicalSerializeWithFlags for MpcGroupProjective<P, S> {
     fn serialize_with_flags<W: Write, Fl: Flags>(
         &self,
         _writer: W,
@@ -220,13 +222,13 @@ impl<P: Parameters> CanonicalSerializeWithFlags for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> CanonicalDeserialize for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> CanonicalDeserialize for MpcGroupProjective<P, S> {
     fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
         todo!()
     }
 }
 
-impl<P: Parameters> CanonicalDeserializeWithFlags for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> CanonicalDeserializeWithFlags for MpcGroupProjective<P, S> {
     fn deserialize_with_flags<R: Read, Fl: Flags>(
         _reader: R,
     ) -> Result<(Self, Fl), SerializationError> {
@@ -234,7 +236,7 @@ impl<P: Parameters> CanonicalDeserializeWithFlags for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> UniformRand for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> UniformRand for MpcGroupProjective<P, S> {
     fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         Self {
             val: MpcGroup::rand(rng),
@@ -242,7 +244,7 @@ impl<P: Parameters> UniformRand for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> PubUniformRand for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> PubUniformRand for MpcGroupProjective<P, S> {
     fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         Self {
             val: MpcGroup::pub_rand(rng),
@@ -250,19 +252,21 @@ impl<P: Parameters> PubUniformRand for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> AddAssign for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> AddAssign for MpcGroupProjective<P, S> {
     fn add_assign(&mut self, rhs: Self) {
         self.add_assign(&rhs)
     }
 }
 
-impl<'a, P: Parameters> AddAssign<&'a MpcGroupProjective<P>> for MpcGroupProjective<P> {
-    fn add_assign(&mut self, rhs: &'a MpcGroupProjective<P>) {
+impl<'a, P: Parameters, S: APShare<P>> AddAssign<&'a MpcGroupProjective<P, S>>
+    for MpcGroupProjective<P, S>
+{
+    fn add_assign(&mut self, rhs: &'a MpcGroupProjective<P, S>) {
         self.val += &rhs.val;
     }
 }
 
-impl<P: Parameters> Add for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Add for MpcGroupProjective<P, S> {
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self::Output {
@@ -271,28 +275,32 @@ impl<P: Parameters> Add for MpcGroupProjective<P> {
     }
 }
 
-impl<'a, P: Parameters> Add<&'a MpcGroupProjective<P>> for MpcGroupProjective<P> {
+impl<'a, P: Parameters, S: APShare<P>> Add<&'a MpcGroupProjective<P, S>>
+    for MpcGroupProjective<P, S>
+{
     type Output = Self;
 
-    fn add(mut self, rhs: &'a MpcGroupProjective<P>) -> Self::Output {
+    fn add(mut self, rhs: &'a MpcGroupProjective<P, S>) -> Self::Output {
         self.add_assign(rhs);
         self
     }
 }
 
-impl<'a, P: Parameters> SubAssign<&'a MpcGroupProjective<P>> for MpcGroupProjective<P> {
-    fn sub_assign(&mut self, rhs: &'a MpcGroupProjective<P>) {
+impl<'a, P: Parameters, S: APShare<P>> SubAssign<&'a MpcGroupProjective<P, S>>
+    for MpcGroupProjective<P, S>
+{
+    fn sub_assign(&mut self, rhs: &'a MpcGroupProjective<P, S>) {
         self.val -= &rhs.val;
     }
 }
 
-impl<P: Parameters> SubAssign for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> SubAssign for MpcGroupProjective<P, S> {
     fn sub_assign(&mut self, rhs: Self) {
         self.sub_assign(&rhs)
     }
 }
 
-impl<P: Parameters> Sub for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Sub for MpcGroupProjective<P, S> {
     type Output = Self;
 
     fn sub(mut self, rhs: Self) -> Self::Output {
@@ -301,22 +309,24 @@ impl<P: Parameters> Sub for MpcGroupProjective<P> {
     }
 }
 
-impl<'a, P: Parameters> Sub<&'a MpcGroupProjective<P>> for MpcGroupProjective<P> {
+impl<'a, P: Parameters, S: APShare<P>> Sub<&'a MpcGroupProjective<P, S>>
+    for MpcGroupProjective<P, S>
+{
     type Output = Self;
 
-    fn sub(mut self, rhs: &'a MpcGroupProjective<P>) -> Self::Output {
+    fn sub(mut self, rhs: &'a MpcGroupProjective<P, S>) -> Self::Output {
         self.sub_assign(rhs);
         self
     }
 }
 
-impl<P: Parameters> MulAssign for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> MulAssign for MpcGroupProjective<P, S> {
     fn mul_assign(&mut self, _rhs: Self) {
         todo!()
     }
 }
 
-impl<P: Parameters> Neg for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Neg for MpcGroupProjective<P, S> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -324,19 +334,21 @@ impl<P: Parameters> Neg for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> Sum for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Sum for MpcGroupProjective<P, S> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::zero(), core::ops::Add::add)
     }
 }
 
-impl<'a, P: Parameters> Sum<&'a MpcGroupProjective<P>> for MpcGroupProjective<P> {
-    fn sum<I: Iterator<Item = &'a MpcGroupProjective<P>>>(_iter: I) -> Self {
+impl<'a, P: Parameters, S: APShare<P>> Sum<&'a MpcGroupProjective<P, S>>
+    for MpcGroupProjective<P, S>
+{
+    fn sum<I: Iterator<Item = &'a MpcGroupProjective<P, S>>>(_iter: I) -> Self {
         todo!()
     }
 }
 
-impl<P: Parameters> Zero for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Zero for MpcGroupProjective<P, S> {
     fn zero() -> Self {
         Self {
             val: MpcGroup::zero(),
@@ -348,19 +360,19 @@ impl<P: Parameters> Zero for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> Zeroize for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Zeroize for MpcGroupProjective<P, S> {
     fn zeroize(&mut self) {
         todo!()
     }
 }
 
-impl<P: Parameters> Default for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> Default for MpcGroupProjective<P, S> {
     fn default() -> Self {
         todo!()
     }
 }
 
-impl<P: Parameters> MpcWire for MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> MpcWire for MpcGroupProjective<P, S> {
     #[inline]
     fn publicize(&mut self) {
         self.val.publicize();
@@ -371,25 +383,25 @@ impl<P: Parameters> MpcWire for MpcGroupProjective<P> {
     }
 }
 
-impl<P: Parameters> MulAssign<MpcField<P::ScalarField, AdditiveFieldShare<P::ScalarField>>>
-    for MpcGroupProjective<P>
+impl<P: Parameters, S: APShare<P>> MulAssign<MpcField<P::ScalarField, S::FrShare>>
+    for MpcGroupProjective<P, S>
 {
-    fn mul_assign(&mut self, _rhs: MpcField<P::ScalarField, AdditiveFieldShare<P::ScalarField>>) {
+    fn mul_assign(&mut self, _rhs: MpcField<P::ScalarField, S::FrShare>) {
         todo!()
     }
 }
 
-impl<P: Parameters> ProjectiveCurve for MpcGroupProjective<P>
+impl<P: Parameters, S: APShare<P>> ProjectiveCurve for MpcGroupProjective<P, S>
 where
     P::BaseField: PrimeField,
 {
     const COFACTOR: &'static [u64] = GroupProjective::<P>::COFACTOR;
 
-    type ScalarField = MpcField<P::ScalarField, AdditiveFieldShare<P::ScalarField>>;
+    type ScalarField = MpcField<P::ScalarField, S::FrShare>;
 
-    type BaseField = MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>;
+    type BaseField = MpcField<P::BaseField, S::BaseShare>;
 
-    type Affine = MpcGroupAffine<P>;
+    type Affine = MpcGroupAffine<P, S>;
 
     fn prime_subgroup_generator() -> Self {
         MpcGroupAffine::prime_subgroup_generator().into()
@@ -411,13 +423,13 @@ where
     fn add_assign_mixed(&mut self, other: &Self::Affine) {
         let new_self = match (&self.val, &other.val) {
             (MpcGroup::Shared(a), MpcGroup::Shared(b)) => {
-                MpcGroup::Shared(AdditiveAffProjShare::add_sh_proj_sh_aff(a.clone(), b))
+                MpcGroup::Shared(S::add_sh_proj_sh_aff(a.clone(), b))
             }
             (MpcGroup::Shared(a), MpcGroup::Public(b)) => {
-                MpcGroup::Shared(AdditiveAffProjShare::add_sh_proj_pub_aff(a.clone(), b))
+                MpcGroup::Shared(S::add_sh_proj_pub_aff(a.clone(), b))
             }
             (MpcGroup::Public(a), MpcGroup::Shared(b)) => {
-                MpcGroup::Shared(AdditiveAffProjShare::add_pub_proj_sh_aff(a, b.clone()))
+                MpcGroup::Shared(S::add_pub_proj_sh_aff(a, b.clone()))
             }
             (MpcGroup::Public(a), MpcGroup::Public(b)) => MpcGroup::Public({
                 let mut a = a.clone();
@@ -431,7 +443,7 @@ where
 
 // for MpcGroupAffine
 
-impl<P: Parameters> Reveal for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupAffine<P, S> {
     type Base = GroupAffine<P>;
     #[inline]
     fn reveal(self) -> Self::Base {
@@ -462,25 +474,25 @@ impl<P: Parameters> Reveal for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> Display for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Display for MpcGroupAffine<P, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.val)
     }
 }
 
-impl<P: Parameters> ToBytes for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> ToBytes for MpcGroupAffine<P, S> {
     fn write<W: Write>(&self, writer: W) -> io::Result<()> {
         self.val.write(writer)
     }
 }
 
-impl<P: Parameters> FromBytes for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> FromBytes for MpcGroupAffine<P, S> {
     fn read<R: Read>(_reader: R) -> io::Result<Self> {
         todo!()
     }
 }
 
-impl<P: Parameters> CanonicalSerialize for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> CanonicalSerialize for MpcGroupAffine<P, S> {
     fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
         self.val.serialize(writer)
     }
@@ -490,7 +502,7 @@ impl<P: Parameters> CanonicalSerialize for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> CanonicalSerializeWithFlags for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> CanonicalSerializeWithFlags for MpcGroupAffine<P, S> {
     fn serialize_with_flags<W: Write, Fl: Flags>(
         &self,
         _writer: W,
@@ -504,13 +516,13 @@ impl<P: Parameters> CanonicalSerializeWithFlags for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> CanonicalDeserialize for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> CanonicalDeserialize for MpcGroupAffine<P, S> {
     fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
         todo!()
     }
 }
 
-impl<P: Parameters> CanonicalDeserializeWithFlags for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> CanonicalDeserializeWithFlags for MpcGroupAffine<P, S> {
     fn deserialize_with_flags<R: Read, Fl: Flags>(
         _reader: R,
     ) -> Result<(Self, Fl), SerializationError> {
@@ -518,7 +530,7 @@ impl<P: Parameters> CanonicalDeserializeWithFlags for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> UniformRand for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> UniformRand for MpcGroupAffine<P, S> {
     fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         Self {
             val: MpcGroup::rand(rng),
@@ -526,7 +538,7 @@ impl<P: Parameters> UniformRand for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> PubUniformRand for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> PubUniformRand for MpcGroupAffine<P, S> {
     fn pub_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         Self {
             val: MpcGroup::pub_rand(rng),
@@ -534,19 +546,21 @@ impl<P: Parameters> PubUniformRand for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> AddAssign for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> AddAssign for MpcGroupAffine<P, S> {
     fn add_assign(&mut self, rhs: Self) {
         self.add_assign(&rhs)
     }
 }
 
-impl<'a, P: Parameters> AddAssign<&'a MpcGroupAffine<P>> for MpcGroupAffine<P> {
-    fn add_assign(&mut self, rhs: &'a MpcGroupAffine<P>) {
+impl<'a, P: Parameters, S: APShare<P>> AddAssign<&'a MpcGroupAffine<P, S>>
+    for MpcGroupAffine<P, S>
+{
+    fn add_assign(&mut self, rhs: &'a MpcGroupAffine<P, S>) {
         self.val += &rhs.val;
     }
 }
 
-impl<P: Parameters> Add for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Add for MpcGroupAffine<P, S> {
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self::Output {
@@ -555,28 +569,30 @@ impl<P: Parameters> Add for MpcGroupAffine<P> {
     }
 }
 
-impl<'a, P: Parameters> Add<&'a MpcGroupAffine<P>> for MpcGroupAffine<P> {
+impl<'a, P: Parameters, S: APShare<P>> Add<&'a MpcGroupAffine<P, S>> for MpcGroupAffine<P, S> {
     type Output = Self;
 
-    fn add(mut self, rhs: &'a MpcGroupAffine<P>) -> Self::Output {
+    fn add(mut self, rhs: &'a MpcGroupAffine<P, S>) -> Self::Output {
         self.add_assign(rhs);
         self
     }
 }
 
-impl<'a, P: Parameters> SubAssign<&'a MpcGroupAffine<P>> for MpcGroupAffine<P> {
-    fn sub_assign(&mut self, rhs: &'a MpcGroupAffine<P>) {
+impl<'a, P: Parameters, S: APShare<P>> SubAssign<&'a MpcGroupAffine<P, S>>
+    for MpcGroupAffine<P, S>
+{
+    fn sub_assign(&mut self, rhs: &'a MpcGroupAffine<P, S>) {
         self.val -= &rhs.val;
     }
 }
 
-impl<P: Parameters> SubAssign for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> SubAssign for MpcGroupAffine<P, S> {
     fn sub_assign(&mut self, rhs: Self) {
         self.sub_assign(&rhs)
     }
 }
 
-impl<P: Parameters> Sub for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Sub for MpcGroupAffine<P, S> {
     type Output = Self;
 
     fn sub(mut self, rhs: Self) -> Self::Output {
@@ -585,22 +601,22 @@ impl<P: Parameters> Sub for MpcGroupAffine<P> {
     }
 }
 
-impl<'a, P: Parameters> Sub<&'a MpcGroupAffine<P>> for MpcGroupAffine<P> {
+impl<'a, P: Parameters, S: APShare<P>> Sub<&'a MpcGroupAffine<P, S>> for MpcGroupAffine<P, S> {
     type Output = Self;
 
-    fn sub(mut self, rhs: &'a MpcGroupAffine<P>) -> Self::Output {
+    fn sub(mut self, rhs: &'a MpcGroupAffine<P, S>) -> Self::Output {
         self.sub_assign(rhs);
         self
     }
 }
 
-impl<P: Parameters> MulAssign for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> MulAssign for MpcGroupAffine<P, S> {
     fn mul_assign(&mut self, _rhs: Self) {
         todo!()
     }
 }
 
-impl<P: Parameters> Neg for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Neg for MpcGroupAffine<P, S> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -608,19 +624,19 @@ impl<P: Parameters> Neg for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> Sum for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Sum for MpcGroupAffine<P, S> {
     fn sum<I: Iterator<Item = Self>>(_iter: I) -> Self {
         todo!()
     }
 }
 
-impl<'a, P: Parameters> Sum<&'a MpcGroupAffine<P>> for MpcGroupAffine<P> {
-    fn sum<I: Iterator<Item = &'a MpcGroupAffine<P>>>(_iter: I) -> Self {
+impl<'a, P: Parameters, S: APShare<P>> Sum<&'a MpcGroupAffine<P, S>> for MpcGroupAffine<P, S> {
+    fn sum<I: Iterator<Item = &'a MpcGroupAffine<P, S>>>(_iter: I) -> Self {
         todo!()
     }
 }
 
-impl<P: Parameters> Zero for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Zero for MpcGroupAffine<P, S> {
     fn zero() -> Self {
         Self {
             val: MpcGroup::zero(),
@@ -632,19 +648,19 @@ impl<P: Parameters> Zero for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> Zeroize for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Zeroize for MpcGroupAffine<P, S> {
     fn zeroize(&mut self) {
         todo!()
     }
 }
 
-impl<P: Parameters> Default for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> Default for MpcGroupAffine<P, S> {
     fn default() -> Self {
         todo!()
     }
 }
 
-impl<P: Parameters> MpcWire for MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> MpcWire for MpcGroupAffine<P, S> {
     #[inline]
     fn publicize(&mut self) {
         self.val.publicize();
@@ -655,25 +671,25 @@ impl<P: Parameters> MpcWire for MpcGroupAffine<P> {
     }
 }
 
-impl<P: Parameters> MulAssign<MpcField<P::ScalarField, AdditiveFieldShare<P::ScalarField>>>
-    for MpcGroupAffine<P>
+impl<P: Parameters, S: APShare<P>> MulAssign<MpcField<P::ScalarField, S::FrShare>>
+    for MpcGroupAffine<P, S>
 {
-    fn mul_assign(&mut self, rhs: MpcField<P::ScalarField, AdditiveFieldShare<P::ScalarField>>) {
+    fn mul_assign(&mut self, rhs: MpcField<P::ScalarField, S::FrShare>) {
         todo!()
     }
 }
 
-impl<P: Parameters> AffineCurve for MpcGroupAffine<P>
+impl<P: Parameters, S: APShare<P>> AffineCurve for MpcGroupAffine<P, S>
 where
     P::BaseField: PrimeField,
 {
     const COFACTOR: &'static [u64] = P::COFACTOR;
 
-    type ScalarField = MpcField<P::ScalarField, AdditiveFieldShare<P::ScalarField>>;
+    type ScalarField = MpcField<P::ScalarField, S::FrShare>;
 
-    type BaseField = MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>;
+    type BaseField = MpcField<P::BaseField, S::BaseShare>;
 
-    type Projective = MpcGroupProjective<P>;
+    type Projective = MpcGroupProjective<P, S>;
 
     fn prime_subgroup_generator() -> Self {
         Self {
@@ -688,9 +704,9 @@ where
         todo!()
     }
 
-    fn mul<S: Into<<Self::ScalarField as ark_ff::prelude::PrimeField>::BigInt>>(
+    fn mul<T: Into<<Self::ScalarField as ark_ff::prelude::PrimeField>::BigInt>>(
         &self,
-        other: S,
+        other: T,
     ) -> Self::Projective {
         todo!()
     }
@@ -724,7 +740,7 @@ where
                             // end_timer!(t1);
                             // let t1 = start_timer!(|| "cast");
                             let r =
-                                MpcGroup::Shared(<ProjectiveShare<P> as Reveal>::from_public(r));
+                                MpcGroup::Shared(<S::ProjectiveShare as Reveal>::from_public(r));
                             // end_timer!(t1);
                             r
                         } else {
@@ -740,12 +756,11 @@ where
                 Err(priv_scalars) => {
                     // let t = start_timer!(|| "MSM inner");
                     let r = Self::Projective {
-                        val: MpcGroup::Shared(AdditiveAffProjShare::sh_aff_to_proj(
-                            <AffineShare<P> as GroupShare<GroupAffine<P>>>::multi_scale_pub_group(
-                                &bases,
-                                &priv_scalars,
-                            ),
-                        )),
+                        val: MpcGroup::Shared(S::sh_aff_to_proj(<S::AffineShare as GroupShare<
+                            GroupAffine<P>,
+                        >>::multi_scale_pub_group(
+                            &bases, &priv_scalars
+                        ))),
                     };
                     // end_timer!(t);
                     r
@@ -768,6 +783,10 @@ where
 }
 
 type FrShare<P: Parameters> = AdditiveFieldShare<P::ScalarField>;
+type FqShare<P: Parameters> = AdditiveFieldShare<P::BaseField>;
+type SpdzFrShare<P: Parameters> = SpdzFieldShare<P::ScalarField>;
+type SpdzFqShare<P: Parameters> = SpdzFieldShare<P::BaseField>;
+
 type AffineShare<P: Parameters> = AdditiveGroupShare<GroupAffine<P>, AffineMsm<GroupAffine<P>>>;
 type ProjectiveShare<P: Parameters> =
     AdditiveGroupShare<GroupProjective<P>, crate::msm::ProjectiveMsm<GroupProjective<P>>>;
@@ -782,6 +801,10 @@ type ProjectiveShare<P: Parameters> =
 // >;
 
 pub struct AdditiveAffProjShare<P: Parameters> {
+    pub PhantomData: PhantomData<P>,
+}
+
+pub struct SpdzAffProjShare<P: Parameters> {
     pub PhantomData: PhantomData<P>,
 }
 
@@ -825,30 +848,73 @@ impl<P: Parameters> AffProjShare<P::ScalarField, GroupAffine<P>, GroupProjective
     }
 }
 
-impl<P: Parameters> From<MpcGroupAffine<P>> for MpcGroupProjective<P> {
-    fn from(p: MpcGroupAffine<P>) -> MpcGroupProjective<P> {
+impl<P: Parameters> APShare<P> for AdditiveAffProjShare<P> {
+    type BaseShare = FqShare<P>;
+}
+
+impl<P: Parameters> AffProjShare<P::ScalarField, GroupAffine<P>, GroupProjective<P>>
+    for SpdzAffProjShare<P>
+{
+    type FrShare = SpdzFrShare<P>;
+    type AffineShare = SpdzGroupShare<GroupAffine<P>, AffineMsm<GroupAffine<P>>>;
+    type ProjectiveShare = SpdzGroupShare<GroupProjective<P>, ProjectiveMsm<GroupProjective<P>>>;
+
+    fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
+        g.map_homo(|s| s.into())
+    }
+
+    fn sh_proj_to_aff(g: Self::ProjectiveShare) -> Self::AffineShare {
+        g.map_homo(|s| s.into())
+    }
+
+    fn add_sh_proj_sh_aff(
+        mut a: Self::ProjectiveShare,
+        o: &Self::AffineShare,
+    ) -> Self::ProjectiveShare {
+        a.sh.val.add_assign_mixed(&o.sh.val);
+        a
+    }
+    fn add_sh_proj_pub_aff(
+        mut a: Self::ProjectiveShare,
+        o: &GroupAffine<P>,
+    ) -> Self::ProjectiveShare {
+        if Net::am_king() {
+            a.sh.val.add_assign_mixed(&o);
+        }
+        a
+    }
+    fn add_pub_proj_sh_aff(
+        _a: &GroupProjective<P>,
+        _o: Self::AffineShare,
+    ) -> Self::ProjectiveShare {
+        unimplemented!()
+    }
+}
+
+impl<P: Parameters> APShare<P> for SpdzAffProjShare<P> {
+    type BaseShare = SpdzFqShare<P>;
+}
+
+impl<P: Parameters, S: APShare<P>> From<MpcGroupAffine<P, S>> for MpcGroupProjective<P, S> {
+    fn from(p: MpcGroupAffine<P, S>) -> MpcGroupProjective<P, S> {
         // Self::new(p.x, p.y, p.x * &p.y, P::BaseField::one())
         Self {
-            val: p
-                .val
-                .map(|s| s.into(), AdditiveAffProjShare::sh_aff_to_proj),
+            val: p.val.map(|s| s.into(), S::sh_aff_to_proj),
         }
     }
 }
 
-impl<P: Parameters> From<MpcGroupProjective<P>> for MpcGroupAffine<P> {
-    fn from(p: MpcGroupProjective<P>) -> MpcGroupAffine<P> {
+impl<P: Parameters, S: APShare<P>> From<MpcGroupProjective<P, S>> for MpcGroupAffine<P, S> {
+    fn from(p: MpcGroupProjective<P, S>) -> MpcGroupAffine<P, S> {
         Self {
-            val: p
-                .val
-                .map(|s| s.into(), AdditiveAffProjShare::sh_proj_to_aff),
+            val: p.val.map(|s| s.into(), S::sh_proj_to_aff),
         }
     }
 }
 
 type hbc_BaseField<P: Parameters> = honest_but_curious::MpcField<P::BaseField>;
 
-impl<P: Parameters> MpcGroupProjective<P> {
+impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
     pub fn convert_xytz(&self) -> MpcGroupProjectiveVariant<P> {
         match self.val {
             MpcGroup::Shared(s) => {

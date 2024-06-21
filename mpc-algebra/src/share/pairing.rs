@@ -58,7 +58,7 @@ pub trait AffProjShare<
     Fr: Field,
     A: AffineCurve<ScalarField = Fr> + Group,
     P: ProjectiveCurve<Affine = A>,
->
+>: 'static
 {
     type FrShare: FieldShare<Fr>;
     type AffineShare: GroupShare<A, FieldShare = Self::FrShare>;
