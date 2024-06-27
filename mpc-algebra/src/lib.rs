@@ -17,7 +17,7 @@ pub mod honest_but_curious {
     use super::{
         share::additive::*,
         share::msm::NaiveMsm,
-        wire::{edwards, field, group, pairing},
+        wire::{edwards, field, group, pairing, uint8},
     };
     pub type MpcField<F> = field::MpcField<F, AdditiveFieldShare<F>>;
     pub type MpcGroup<G> = group::MpcGroup<G, AdditiveGroupShare<G, NaiveMsm<G>>>;
@@ -29,6 +29,8 @@ pub mod honest_but_curious {
     pub type MpcG2Prep<E> = pairing::MpcG2Prep<E, AdditivePairingShare<E>>;
     pub type MpcPairingEngine<E> = pairing::MpcPairingEngine<E, AdditivePairingShare<E>>;
 
+    pub type MpcU8Field<F> = uint8::MpcU8Field<F, AdditiveFieldShare<F>>;
+
     pub type MpcEdwardsParameters = edwards::AdditiveMpcEdwardsParameters;
     pub type MpcEdwardsAffine = edwards::AdditiveMpcEdwardsAffine;
     pub type MpcEdwardsProjective = edwards::AdditiveMpcEdwardsProjective;
@@ -39,7 +41,7 @@ pub mod malicious_majority {
     use super::{
         share::msm::NaiveMsm,
         share::spdz::*,
-        wire::{edwards, field, group, pairing},
+        wire::{edwards, field, group, pairing, uint8},
     };
     pub type MpcField<F> = field::MpcField<F, SpdzFieldShare<F>>;
     pub type MpcGroup<G> = group::MpcGroup<G, SpdzGroupShare<G, NaiveMsm<G>>>;
@@ -50,6 +52,8 @@ pub mod malicious_majority {
     pub type MpcG1Prep<E> = pairing::MpcG1Prep<E, SpdzPairingShare<E>>;
     pub type MpcG2Prep<E> = pairing::MpcG2Prep<E, SpdzPairingShare<E>>;
     pub type MpcPairingEngine<E> = pairing::MpcPairingEngine<E, SpdzPairingShare<E>>;
+
+    pub type MpcU8Field<F> = uint8::MpcU8Field<F, SpdzFieldShare<F>>;
 
     pub type MpcEdwardsParameters = edwards::SpdzMpcEdwardsParameters;
     pub type MpcEdwardsAffine = edwards::SpdzMpcEdwardsAffine;

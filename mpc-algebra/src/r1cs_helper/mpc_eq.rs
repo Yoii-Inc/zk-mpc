@@ -1,21 +1,21 @@
 // use crate::{prelude::*, Vec};
-use crate::{FieldShare, MpcBoolean};
+use crate::MpcBoolean;
 use ark_ff::PrimeField;
 use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::SynthesisError;
 
 /// Specifies how to generate constraints that check for equality for two
 /// variables of type `Self`.
-pub trait MpcEqGadget<F: PrimeField, S: FieldShare<F>> {
+pub trait MpcEqGadget<F: PrimeField> {
     /// Output a `Boolean` value representing whether `self.value() ==
     /// other.value()`.
-    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F, S>, SynthesisError>;
+    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F>, SynthesisError>;
 
     /// Output a `Boolean` value representing whether `self.value() !=
     /// other.value()`.
     ///
     /// By default, this is defined as `self.is_eq(other)?.not()`.
-    fn is_neq(&self, other: &Self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+    fn is_neq(&self, other: &Self) -> Result<MpcBoolean<F>, SynthesisError> {
         Ok(self.is_eq(other)?.not())
     }
 
@@ -32,7 +32,7 @@ pub trait MpcEqGadget<F: PrimeField, S: FieldShare<F>> {
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        should_enforce: &MpcBoolean<F, S>,
+        should_enforce: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         self.is_eq(&other)?
             .conditional_enforce_equal(&MpcBoolean::constant(true), should_enforce)
@@ -64,7 +64,7 @@ pub trait MpcEqGadget<F: PrimeField, S: FieldShare<F>> {
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        should_enforce: &MpcBoolean<F, S>,
+        should_enforce: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         self.is_neq(&other)?
             .conditional_enforce_equal(&MpcBoolean::constant(true), should_enforce)
@@ -84,11 +84,9 @@ pub trait MpcEqGadget<F: PrimeField, S: FieldShare<F>> {
     }
 }
 
-impl<T: MpcEqGadget<F, S> + R1CSVar<F>, F: PrimeField, S: FieldShare<F>> MpcEqGadget<F, S>
-    for [T]
-{
+impl<T: MpcEqGadget<F> + R1CSVar<F>, F: PrimeField> MpcEqGadget<F> for [T] {
     #[tracing::instrument(target = "r1cs", skip(self, other))]
-    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F, S>, SynthesisError> {
+    fn is_eq(&self, other: &Self) -> Result<MpcBoolean<F>, SynthesisError> {
         assert_eq!(self.len(), other.len());
         assert!(!self.is_empty());
         let mut results = Vec::with_capacity(self.len());
@@ -102,7 +100,7 @@ impl<T: MpcEqGadget<F, S> + R1CSVar<F>, F: PrimeField, S: FieldShare<F>> MpcEqGa
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        condition: &MpcBoolean<F, S>,
+        condition: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         assert_eq!(self.len(), other.len());
         for (a, b) in self.iter().zip(other) {
@@ -115,7 +113,7 @@ impl<T: MpcEqGadget<F, S> + R1CSVar<F>, F: PrimeField, S: FieldShare<F>> MpcEqGa
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        should_enforce: &MpcBoolean<F, S>,
+        should_enforce: &MpcBoolean<F>,
     ) -> Result<(), SynthesisError> {
         assert_eq!(self.len(), other.len());
         let some_are_different = self.is_neq(other)?;
