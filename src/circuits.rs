@@ -7,3 +7,4 @@ pub use werewolf::*;
 pub mod bit_decomposition;
 pub mod enforce_smaller_or_eq_than;
 pub mod equality_zero;
+pub mod smaller_than;
