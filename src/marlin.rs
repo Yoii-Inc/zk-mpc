@@ -304,7 +304,6 @@ pub fn test_bit_decomposition(n_iters: usize) {
 
     for _ in 0..n_iters {
         let mpc_circuit = BitDecompositionCircuit { a: MFr::rand(rng) };
-        // TODO
         assert!(prove_and_verify(
             &mpc_index_pk,
             &index_vk,
