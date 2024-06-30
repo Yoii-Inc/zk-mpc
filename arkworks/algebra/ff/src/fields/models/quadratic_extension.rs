@@ -23,7 +23,7 @@ use ark_std::rand::{
 use crate::{
     bytes::{FromBytes, ToBytes},
     fields::{Field, LegendreSymbol, PrimeField, SquareRootField},
-    PubUniformRand, ToConstraintField, UniformRand,
+    ToConstraintField, UniformRand,
 };
 
 /// Defines a Quadratic extension field from a quadratic non-residue.
@@ -565,8 +565,6 @@ impl<P: QuadExtParameters> Distribution<QuadExtField<P>> for Standard {
         QuadExtField::new(UniformRand::rand(rng), UniformRand::rand(rng))
     }
 }
-
-impl<P: QuadExtParameters> PubUniformRand for QuadExtField<P> {}
 
 impl<'a, P: QuadExtParameters> Add<&'a QuadExtField<P>> for QuadExtField<P> {
     type Output = Self;

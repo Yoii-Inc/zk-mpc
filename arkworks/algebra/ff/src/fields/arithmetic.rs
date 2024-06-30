@@ -219,7 +219,6 @@ macro_rules! impl_prime_field_standard_sample {
                 }
             }
         }
-        impl<P: $params> crate::PubUniformRand for $field<P> {}
     };
 }
 

@@ -12,7 +12,7 @@ use ark_serialize::{
     CanonicalSerializeWithFlags,
 };
 use ark_serialize::{Flags, SerializationError};
-use mpc_trait::MpcWire;
+use mpc_trait::{MpcWire, PubUniformRand};
 
 use crate::share::group::GroupShare;
 use crate::Reveal;
