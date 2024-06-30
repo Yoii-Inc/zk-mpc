@@ -57,3 +57,40 @@ impl<F: PrimeField + SquareRootField> MpcToBitsGadget<F> for [MpcUInt8<F>] {
         Ok(bits)
     }
 }
+
+/// Specifies constraints for conversion to a little-endian byte representation
+/// of `self`.
+pub trait MpcToBytesGadget<F: PrimeField + SquareRootField> {
+    /// Outputs a canonical, little-endian, byte decomposition of `self`.
+    ///
+    /// This is the correct default for 99% of use cases.
+    fn to_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError>;
+
+    /// Outputs a possibly non-unique byte decomposition of `self`.
+    ///
+    /// If you're not absolutely certain that your usecase can get away with a
+    /// non-canonical representation, please use `self.to_bytes(cs)` instead.
+    fn to_non_unique_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError> {
+        self.to_bytes()
+    }
+}
+
+impl<F: PrimeField + SquareRootField> MpcToBytesGadget<F> for [MpcUInt8<F>] {
+    fn to_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError> {
+        Ok(self.to_vec())
+    }
+}
+
+impl<'a, F: PrimeField + SquareRootField, T: 'a + MpcToBytesGadget<F>> MpcToBytesGadget<F>
+    for &'a T
+{
+    fn to_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError> {
+        (*self).to_bytes()
+    }
+}
+
+impl<'a, F: PrimeField + SquareRootField> MpcToBytesGadget<F> for &'a [MpcUInt8<F>] {
+    fn to_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError> {
+        Ok(self.to_vec())
+    }
+}
