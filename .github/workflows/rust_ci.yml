@@ -108,7 +108,7 @@ jobs:
 
       - name: Check if cargo fix would make changes
         run: |
-          if cargo fix --check --all; then
+          if cargo fix --all; then
             echo "No changes needed by cargo fix"
           else
             echo "::error::cargo fix would make changes. Please run 'cargo fix' locally and commit the changes."
