@@ -106,9 +106,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Run cargo fix and check for changes
+      - name: Check if cargo fix would make changes
         run: |
-          cargo fix --all --allow-dirty
-          if [[ $(git diff) ]]; then
-            echo "::warning file=$(git diff --name-only | head -n1),line=1,col=1::Code changes were made by cargo fix. Please review and commit the changes."
+          if cargo fix --check --all; then
+            echo "No changes needed by cargo fix"
+          else
+            echo "::error::cargo fix would make changes. Please run 'cargo fix' locally and commit the changes."
+            exit 1
           fi
