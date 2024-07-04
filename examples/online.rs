@@ -288,10 +288,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let peculiar_a_commitment = mpc_input.peculiar.clone().unwrap().a.commitment;
             let peculiar_b_commitment = mpc_input.peculiar.unwrap().b.commitment;
 
-            inputs.push(peculiar_a_commitment.x.reveal());
-            inputs.push(peculiar_a_commitment.y.reveal());
-            inputs.push(peculiar_b_commitment.x.reveal());
-            inputs.push(peculiar_b_commitment.y.reveal());
+            inputs.push(peculiar_a_commitment.reveal().x);
+            inputs.push(peculiar_a_commitment.reveal().y);
+            inputs.push(peculiar_b_commitment.reveal().x);
+            inputs.push(peculiar_b_commitment.reveal().y);
 
             assert!(LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap());
         }

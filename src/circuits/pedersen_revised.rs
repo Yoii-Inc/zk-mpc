@@ -36,6 +36,7 @@ use mpc_algebra::{
     },
     CommitmentScheme as MpcCommitmentScheme,
 };
+use mpc_trait::MpcWire;
 
 pub trait LocalOrMPC<ConstraintF: PrimeField> {
     type JubJub: ProjectiveCurve;
@@ -136,14 +137,21 @@ impl LocalOrMPC<Fr> for Fr {
 //     type PedersenCommitmentVar = mpc_algebra::AdditiveMpcEdwardsVar;
 
 //     fn convert_input(&self) -> Self::PedersenInput {
-//         // TODO: implement correctly.
-//         println!("{:?}", self);
-//         Self::PedersenInput::new(
-//             <Self::JubJub as ProjectiveCurve>::ScalarField::from_add_shared(
-//                 //ark_ed_on_bls12_377::Fr::from_repr(self.reveal().into_repr()).unwrap(),
-//                 ark_ed_on_bls12_377::Fr::zero(),
-//             ),
-//         )
+//         if self.is_shared() {
+//             Self::PedersenInput::new(
+//                 <Self::JubJub as ProjectiveCurve>::ScalarField::from_add_shared(
+//                     ark_ed_on_bls12_377::Fr::from_le_bytes_mod_order(
+//                         &self.unwrap_as_public().into_repr().to_bytes_le(),
+//                     ),
+//                 ),
+//             )
+//         } else {
+//             Self::PedersenInput::new(<Self::JubJub as ProjectiveCurve>::ScalarField::from_public(
+//                 ark_ed_on_bls12_377::Fr::from_le_bytes_mod_order(
+//                     &self.unwrap_as_public().into_repr().to_bytes_le(),
+//                 ),
+//             ))
+//         }
 //     }
 
 //     fn enforce_equal_output(
@@ -179,14 +187,21 @@ impl LocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
     type PedersenCommitmentVar = mpc_algebra::SpdzMpcEdwardsVar;
 
     fn convert_input(&self) -> Self::PedersenInput {
-        // TODO: implement correctly.
-        println!("{:?}", self);
-        Self::PedersenInput::new(
-            <Self::JubJub as ProjectiveCurve>::ScalarField::from_add_shared(
-                //ark_ed_on_bls12_377::Fr::from_repr(self.reveal().into_repr()).unwrap(),
-                ark_ed_on_bls12_377::Fr::zero(),
-            ),
-        )
+        if self.is_shared() {
+            Self::PedersenInput::new(
+                <Self::JubJub as ProjectiveCurve>::ScalarField::from_add_shared(
+                    ark_ed_on_bls12_377::Fr::from_le_bytes_mod_order(
+                        &self.unwrap_as_public().into_repr().to_bytes_le(),
+                    ),
+                ),
+            )
+        } else {
+            Self::PedersenInput::new(<Self::JubJub as ProjectiveCurve>::ScalarField::from_public(
+                ark_ed_on_bls12_377::Fr::from_le_bytes_mod_order(
+                    &self.unwrap_as_public().into_repr().to_bytes_le(),
+                ),
+            ))
+        }
     }
 
     fn enforce_equal_output(

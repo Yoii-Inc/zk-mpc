@@ -164,8 +164,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let circuit = input_circuit::MySecretInputCircuit::new(
         x,
-        input_bit,
-        open_bit,
+        randomness,
         params,
         h_x,
         lower_bound,
