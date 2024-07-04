@@ -110,49 +110,49 @@ impl LocalOrMPC<Fr> for Fr {
     }
 }
 
-impl LocalOrMPC<hbc::MpcField<Fr>> for hbc::MpcField<Fr> {
-    type JubJub = mpc_algebra::edwards2::AdditiveMpcEdwardsProjective;
+// impl LocalOrMPC<hbc::MpcField<Fr>> for hbc::MpcField<Fr> {
+//     type JubJub = mpc_algebra::edwards2::AdditiveMpcEdwardsProjective;
 
-    type PedersenComScheme = MpcCommitment<Self::JubJub, Window>;
-    type PedersenCommitment = <Self::PedersenComScheme as MpcCommitmentScheme>::Output;
-    type PedersenParam = <Self::PedersenComScheme as MpcCommitmentScheme>::Parameters;
-    type PedersenInput = Input<Self::JubJub>;
-    type PedersenRandomness = MpcRandomness<Self::JubJub>;
+//     type PedersenComScheme = MpcCommitment<Self::JubJub, Window>;
+//     type PedersenCommitment = <Self::PedersenComScheme as MpcCommitmentScheme>::Output;
+//     type PedersenParam = <Self::PedersenComScheme as MpcCommitmentScheme>::Parameters;
+//     type PedersenInput = Input<Self::JubJub>;
+//     type PedersenRandomness = MpcRandomness<Self::JubJub>;
 
-    type PedersenComSchemeVar =
-        MpcCommGadget<Self::JubJub, mpc_algebra::AdditiveMpcEdwardsVar, Window>;
-    type PedersenParamVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
-        Self::PedersenComScheme,
-        hbc::MpcField<Fr>,
-    >>::ParametersVar;
-    type PedersenInputVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
-        Self::PedersenComScheme,
-        hbc::MpcField<Fr>,
-    >>::InputVar;
-    type PedersenRandomnessVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
-        Self::PedersenComScheme,
-        hbc::MpcField<Fr>,
-    >>::RandomnessVar;
-    type PedersenCommitmentVar = mpc_algebra::AdditiveMpcEdwardsVar;
+//     type PedersenComSchemeVar =
+//         MpcCommGadget<Self::JubJub, mpc_algebra::AdditiveMpcEdwardsVar, Window>;
+//     type PedersenParamVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
+//         Self::PedersenComScheme,
+//         hbc::MpcField<Fr>,
+//     >>::ParametersVar;
+//     type PedersenInputVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
+//         Self::PedersenComScheme,
+//         hbc::MpcField<Fr>,
+//     >>::InputVar;
+//     type PedersenRandomnessVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
+//         Self::PedersenComScheme,
+//         hbc::MpcField<Fr>,
+//     >>::RandomnessVar;
+//     type PedersenCommitmentVar = mpc_algebra::AdditiveMpcEdwardsVar;
 
-    fn convert_input(&self) -> Self::PedersenInput {
-        // TODO: implement correctly.
-        println!("{:?}", self);
-        Self::PedersenInput::new(
-            <Self::JubJub as ProjectiveCurve>::ScalarField::from_add_shared(
-                //ark_ed_on_bls12_377::Fr::from_repr(self.reveal().into_repr()).unwrap(),
-                ark_ed_on_bls12_377::Fr::zero(),
-            ),
-        )
-    }
+//     fn convert_input(&self) -> Self::PedersenInput {
+//         // TODO: implement correctly.
+//         println!("{:?}", self);
+//         Self::PedersenInput::new(
+//             <Self::JubJub as ProjectiveCurve>::ScalarField::from_add_shared(
+//                 //ark_ed_on_bls12_377::Fr::from_repr(self.reveal().into_repr()).unwrap(),
+//                 ark_ed_on_bls12_377::Fr::zero(),
+//             ),
+//         )
+//     }
 
-    fn enforce_equal_output(
-        a: &Self::PedersenCommitmentVar,
-        b: &Self::PedersenCommitmentVar,
-    ) -> Result<(), SynthesisError> {
-        a.enforce_equal(b)
-    }
-}
+//     fn enforce_equal_output(
+//         a: &Self::PedersenCommitmentVar,
+//         b: &Self::PedersenCommitmentVar,
+//     ) -> Result<(), SynthesisError> {
+//         a.enforce_equal(b)
+//     }
+// }
 
 impl LocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
     type JubJub = mpc_algebra::edwards2::SpdzMpcEdwardsProjective;
@@ -176,10 +176,6 @@ impl LocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
         Self::PedersenComScheme,
         mm::MpcField<Fr>,
     >>::RandomnessVar;
-    type PedersenInputVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
-        Self::PedersenComScheme,
-        mm::MpcField<Fr>,
-    >>::InputVar;
     type PedersenCommitmentVar = mpc_algebra::SpdzMpcEdwardsVar;
 
     fn convert_input(&self) -> Self::PedersenInput {

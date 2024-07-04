@@ -4,11 +4,16 @@ use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::twisted_edwards_extended::GroupProjective;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ed_on_bls12_377::EdwardsParameters;
+use ark_ed_on_bls12_377::EdwardsProjective;
 use ark_ff::{Field, FromBytes, One, PrimeField, PubUniformRand, ToBytes, UniformRand, Zero};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
+
+use crate::commitment::pedersen::{Parameters as PedersenParameters, Randomness};
+
+use ark_crypto_primitives::commitment::pedersen::Parameters as LocalPedersenParameters;
 
 use derivative::Derivative;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
@@ -79,14 +84,14 @@ pub struct MpcGroupProjective<P: Parameters, S: APShare<P>> {
     Clone(bound = "P: Parameters"),
     Debug(bound = "P: Parameters")
 )]
-pub struct MpcGroupProjectiveVariant<P: Parameters> {
-    pub x: MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>,
-    pub y: MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>,
-    pub t: MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>,
-    pub z: MpcField<P::BaseField, AdditiveFieldShare<P::BaseField>>,
+pub struct MpcGroupProjectiveVariant<P: Parameters, S: APShare<P>> {
+    pub x: MpcField<P::BaseField, S::BaseShare>,
+    pub y: MpcField<P::BaseField, S::BaseShare>,
+    pub t: MpcField<P::BaseField, S::BaseShare>,
+    pub z: MpcField<P::BaseField, S::BaseShare>,
 }
 
-impl<P: Parameters> Reveal for MpcGroupProjectiveVariant<P> {
+impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupProjectiveVariant<P, S> {
     type Base = GroupProjective<P>;
 
     fn reveal(self) -> Self::Base {
@@ -104,15 +109,15 @@ impl<P: Parameters> Reveal for MpcGroupProjectiveVariant<P> {
 
     fn from_public(b: Self::Base) -> Self {
         Self {
-            x: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::from_public(b.x),
-            y: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::from_public(b.y),
-            t: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::from_public(b.t),
-            z: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::from_public(b.z),
+            x: MpcField::<P::BaseField, S::BaseShare>::from_public(b.x),
+            y: MpcField::<P::BaseField, S::BaseShare>::from_public(b.y),
+            t: MpcField::<P::BaseField, S::BaseShare>::from_public(b.t),
+            z: MpcField::<P::BaseField, S::BaseShare>::from_public(b.z),
         }
     }
 }
 
-impl<P: Parameters> MpcGroupProjectiveVariant<P>
+impl<P: Parameters, S: APShare<P>> MpcGroupProjectiveVariant<P, S>
 where
     <P as ark_ec::ModelParameters>::BaseField: ark_ff::PrimeField,
 {
@@ -128,7 +133,7 @@ where
                     x: g.x * z,
                     y: g.y * z,
                     t: g.t * z,
-                    z: MpcField::<P::BaseField, AdditiveFieldShare<P::BaseField>>::one(),
+                    z: MpcField::<P::BaseField, S::BaseShare>::one(),
                 }
             })
             .collect::<Vec<_>>()
@@ -456,8 +461,10 @@ impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupAffine<P, S> {
         }
     }
     #[inline]
-    fn from_add_shared(_t: Self::Base) -> Self {
-        todo!()
+    fn from_add_shared(t: Self::Base) -> Self {
+        Self {
+            val: MpcGroup::from_add_shared(t),
+        }
     }
     #[inline]
     fn unwrap_as_public(self) -> Self::Base {
@@ -655,8 +662,9 @@ impl<P: Parameters, S: APShare<P>> Zeroize for MpcGroupAffine<P, S> {
 }
 
 impl<P: Parameters, S: APShare<P>> Default for MpcGroupAffine<P, S> {
+    #[inline]
     fn default() -> Self {
-        todo!()
+        Self::zero()
     }
 }
 
@@ -915,7 +923,7 @@ impl<P: Parameters, S: APShare<P>> From<MpcGroupProjective<P, S>> for MpcGroupAf
 type hbc_BaseField<P: Parameters> = honest_but_curious::MpcField<P::BaseField>;
 
 impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
-    pub fn convert_xytz(&self) -> MpcGroupProjectiveVariant<P> {
+    pub fn convert_xytz(&self) -> MpcGroupProjectiveVariant<P, S> {
         match self.val {
             MpcGroup::Shared(s) => {
                 // 1. get unprocessed x, y
@@ -924,43 +932,51 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                 // TODO: 2. generate shares and communicate
                 let vec_x = (0..Net::n_parties())
                     .map(|i| {
-                        hbc_BaseField::<P>::from_add_shared(if Net::party_id() == i {
+                        MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
+                            if Net::party_id() == i {
                             unprocessed.x
                         } else {
                             P::BaseField::zero()
+                            },
+                        )
                         })
-                    })
-                    .collect::<Vec<hbc_BaseField<P>>>();
+                    .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
                 let vec_y = (0..Net::n_parties())
                     .map(|i| {
-                        hbc_BaseField::<P>::from_add_shared(if Net::party_id() == i {
+                        MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
+                            if Net::party_id() == i {
                             unprocessed.y
                         } else {
                             P::BaseField::zero()
+                            },
+                        )
                         })
-                    })
-                    .collect::<Vec<hbc_BaseField<P>>>();
+                    .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
                 let vec_t = (0..Net::n_parties())
                     .map(|i| {
-                        hbc_BaseField::<P>::from_add_shared(if Net::party_id() == i {
+                        MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
+                            if Net::party_id() == i {
                             unprocessed.t
                         } else {
                             P::BaseField::zero()
+                            },
+                        )
                         })
-                    })
-                    .collect::<Vec<hbc_BaseField<P>>>();
+                    .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
                 let vec_z = (0..Net::n_parties())
                     .map(|i| {
-                        hbc_BaseField::<P>::from_add_shared(if Net::party_id() == i {
+                        MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
+                            if Net::party_id() == i {
                             unprocessed.z
                         } else {
                             P::BaseField::zero()
+                            },
+                        )
                         })
-                    })
-                    .collect::<Vec<hbc_BaseField<P>>>();
+                    .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
                 // 3. summand and make converted share
                 // addition of elliptic curve points in (x,y,t,z) form.
@@ -971,10 +987,10 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                     .zip(vec_z.iter())
                     .fold(
                         (
-                            hbc_BaseField::<P>::zero(),
-                            hbc_BaseField::<P>::one(),
-                            hbc_BaseField::<P>::zero(),
-                            hbc_BaseField::<P>::one(),
+                            MpcField::<P::BaseField, S::BaseShare>::zero(),
+                            MpcField::<P::BaseField, S::BaseShare>::one(),
+                            MpcField::<P::BaseField, S::BaseShare>::zero(),
+                            MpcField::<P::BaseField, S::BaseShare>::one(),
                         ),
                         |(acc_x, acc_y, acc_t, acc_z), (((&x, &y), &t), &z)| {
                             // A = x1 * x2
@@ -984,13 +1000,17 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                             let b = acc_y * y;
 
                             // C = d * t1 * t2
-                            let c = hbc_BaseField::<P>::from_public(P::COEFF_D) * acc_t * t;
+                            let c = MpcField::<P::BaseField, S::BaseShare>::from_public(P::COEFF_D)
+                                * acc_t
+                                * t;
 
                             // D = z1 * z2
                             let d = acc_z * z;
 
                             // H = B - aA
-                            let h = b - a * &hbc_BaseField::<P>::from_public(P::COEFF_A);
+                            let h = b - a * &MpcField::<P::BaseField, S::BaseShare>::from_public(
+                                P::COEFF_A,
+                            );
 
                             // E = (x1 + y1) * (x2 + y2) - A - B
                             let e = (acc_x + &acc_y) * &(x + y) - &a - &b;
@@ -1025,11 +1045,111 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                 }
             }
             MpcGroup::Public(s) => MpcGroupProjectiveVariant {
-                x: hbc_BaseField::<P>::from_public(s.x),
-                y: hbc_BaseField::<P>::from_public(s.y),
-                t: hbc_BaseField::<P>::from_public(s.t),
-                z: hbc_BaseField::<P>::from_public(s.z),
+                x: MpcField::<P::BaseField, S::BaseShare>::from_public(s.x),
+                y: MpcField::<P::BaseField, S::BaseShare>::from_public(s.y),
+                t: MpcField::<P::BaseField, S::BaseShare>::from_public(s.t),
+                z: MpcField::<P::BaseField, S::BaseShare>::from_public(s.z),
             },
         }
     }
 }
+
+pub trait ToLocal {
+    type Local;
+
+    // lift objects to local
+    fn to_local(&self) -> Self::Local;
+}
+
+pub trait FromLocal {
+    type Local;
+
+    // lift objects from local
+    fn from_local(local: &Self::Local) -> Self;
+}
+
+macro_rules! impl_edwards_related {
+    ($curve:ident, $affine:ident) => {
+        impl ToLocal for $curve {
+            type Local = GroupProjective<ark_ed_on_bls12_377::EdwardsParameters>;
+            fn to_local(&self) -> GroupProjective<ark_ed_on_bls12_377::EdwardsParameters> {
+                self.val.unwrap_as_public()
+            }
+        }
+
+        impl ToLocal for PedersenParameters<$curve> {
+            type Local = LocalPedersenParameters<ark_ed_on_bls12_377::EdwardsProjective>;
+
+            fn to_local(&self) -> Self::Local {
+                let randomness_generator = self
+                    .randomness_generator
+                    .iter()
+                    .map(|x| x.to_local())
+                    .collect::<Vec<_>>();
+                let generators = self
+                    .generators
+                    .iter()
+                    .map(|vec_g| vec_g.iter().map(|g| g.to_local()).collect::<Vec<_>>())
+                    .collect::<Vec<_>>();
+
+                Self::Local {
+                    randomness_generator,
+                    generators,
+                }
+            }
+        }
+
+        impl FromLocal for $curve {
+            type Local = GroupProjective<EdwardsParameters>;
+            fn from_local(local: &Self::Local) -> Self {
+                $curve::from_public(*local)
+            }
+        }
+
+        impl FromLocal for PedersenParameters<$curve> {
+            type Local = LocalPedersenParameters<EdwardsProjective>;
+
+            fn from_local(local: &Self::Local) -> Self {
+                let randomness_generator = local
+                    .randomness_generator
+                    .iter()
+                    .map(|x| $curve::from_local(x))
+                    .collect::<Vec<_>>();
+                let generators = local
+                    .generators
+                    .iter()
+                    .map(|vec_g| {
+                        vec_g
+                            .iter()
+                            .map(|g| $curve::from_local(g))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
+
+                Self {
+                    randomness_generator,
+                    generators,
+                }
+            }
+        }
+
+        impl FromLocal for $affine {
+            type Local = GroupAffine<EdwardsParameters>;
+
+            fn from_local(local: &Self::Local) -> Self {
+                $affine::from_public(*local)
+            }
+        }
+
+        impl ToLocal for $affine {
+            type Local = GroupAffine<EdwardsParameters>;
+
+            fn to_local(&self) -> Self::Local {
+                self.val.unwrap_as_public()
+            }
+        }
+    };
+}
+
+impl_edwards_related!(AdditiveMpcEdwardsProjective, AdditiveMpcEdwardsAffine);
+impl_edwards_related!(SpdzMpcEdwardsProjective, SpdzMpcEdwardsAffine);

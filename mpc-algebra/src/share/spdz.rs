@@ -246,6 +246,18 @@ impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
                 .collect(),
         ))
     }
+
+    fn modulus_conversion<F2: PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
+    where
+        F: PrimeField,
+    {
+        // TODO: bad implementation, so it's just for testing
+        let revealed_val = self.reveal();
+        let bits = revealed_val.into_repr().to_bits_le();
+        let converted_val = F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap();
+
+        S2::king_share(converted_val, &mut ark_std::test_rng())
+    }
 }
 
 #[derive(Derivative)]

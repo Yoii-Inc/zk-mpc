@@ -149,10 +149,10 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
         let c = peculiar.a.input * peculiar.b.input;
         let inputs = vec![
             c.reveal(),
-            peculiar.a.commitment.x.reveal(),
-            peculiar.a.commitment.y.reveal(),
-            peculiar.b.commitment.x.reveal(),
-            peculiar.b.commitment.y.reveal(),
+            peculiar.a.commitment.reveal().x,
+            peculiar.a.commitment.reveal().y,
+            peculiar.b.commitment.reveal().x,
+            peculiar.b.commitment.reveal().y,
         ];
         let invalid_inputs = vec![c.reveal()];
 
@@ -175,29 +175,15 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
     let rng = &mut test_rng();
     let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
     let x = Fr::from(4);
-    let input_bit = x
-        .into_repr()
-        .to_bits_le()
-        .iter()
-        .map(|b| Fr::from(*b))
-        .collect::<Vec<_>>();
     let x_bytes = x.into_repr().to_bytes_le();
     let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
-    let open_bit = randomness
-        .0
-        .into_repr()
-        .to_bits_le()
-        .iter()
-        .map(|b| Fr::from(*b))
-        .collect::<Vec<_>>();
     let h_x_local =
         <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
     let empty_circuit = PedersenComCircuit {
         param: Some(params.clone()),
         input: x,
-        input_bit,
-        open_bit,
-        commit: Some(h_x_local),
+        open: randomness,
+        commit: h_x_local,
     };
     let (mpc_index_pk, index_vk) = setup_and_index(empty_circuit);
 
@@ -236,19 +222,15 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
             &randomness.clone().reveal(),
         )
         .unwrap();
-        let h_x_mpc = GroupAffine::<MpcEdwardsParameters>::new(
-            MFr::from_public(h_x.x),
-            MFr::from_public(h_x.y),
-        );
+        let h_x_mpc = MpcEdwardsAffine::from_public(h_x);
         let circuit = PedersenComCircuit {
             param: Some(mpc_params.clone()),
             input: x,
-            input_bit,
-            open_bit,
-            commit: Some(h_x_mpc),
+            open: randomness,
+            commit: h_x_mpc,
         };
-        let inputs = vec![h_x_mpc.x.reveal(), h_x_mpc.y.reveal()];
-        let invalid_inputs = vec![h_x_mpc.y.reveal(), h_x_mpc.x.reveal()];
+        let inputs = vec![h_x_mpc.reveal().x, h_x_mpc.reveal().y];
+        let invalid_inputs = vec![h_x_mpc.reveal().y, h_x_mpc.reveal().x];
 
         assert!(prove_and_verify(
             &mpc_index_pk,

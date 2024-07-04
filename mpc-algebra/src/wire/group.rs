@@ -50,10 +50,12 @@ impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
         result
     }
 
-    fn from_add_shared(_b: Self::Base) -> Self {
-        todo!()
+    #[inline]
+    fn from_add_shared(b: Self::Base) -> Self {
+        Self::Shared(S::from_add_shared(b))
     }
 
+    #[inline]
     fn from_public(b: Self::Base) -> Self {
         Self::Public(b)
     }
