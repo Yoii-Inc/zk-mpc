@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use ark_ff::{Field, PrimeField, SquareRootField};
+use ark_ff::{BigInteger, PrimeField, SquareRootField};
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
     impl_ops, R1CSVar,
@@ -19,7 +19,7 @@ use crate::{
     mpc_eq::MpcEqGadget,
     mpc_fields::{FieldOpsBounds, MpcFieldVar},
     mpc_select::{MpcCondSelectGadget, MpcTwoBitLookupGadget},
-    BitDecomposition, EqualityZero, MpcBoolean, MpcToBitsGadget, Reveal,
+    BitDecomposition, EqualityZero, MpcBoolean, MpcToBitsGadget, MpcToBytesGadget, MpcUInt8, Reveal,
 };
 
 // TODO: MpcAllocatedFp is required?
@@ -456,64 +456,6 @@ impl<F: PrimeField + SquareRootField + EqualityZero> MpcAllocatedFp<F> {
     }
 }
 
-/// *************************************************************************
-/// *************************************************************************
-
-// impl<F: PrimeField> ToBitsGadget<F> for AllocatedFp<F> {
-//     /// Outputs the unique bit-wise decomposition of `self` in *little-endian*
-//     /// form.
-//     ///
-//     /// This method enforces that the output is in the field, i.e.
-//     /// it invokes `Boolean::enforce_in_field_le` on the bit decomposition.
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_bits_le(&self) -> Result<Vec<Boolean<F>>, SynthesisError> {
-//         let bits = self.to_non_unique_bits_le()?;
-//         Boolean::enforce_in_field_le(&bits)?;
-//         Ok(bits)
-//     }
-
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_non_unique_bits_le(&self) -> Result<Vec<Boolean<F>>, SynthesisError> {
-//         let cs = self.cs.clone();
-//         use ark_ff::BitIteratorBE;
-//         let mut bits = if let Some(value) = self.value {
-//             let field_char = BitIteratorBE::new(F::characteristic());
-//             let bits: Vec<_> = BitIteratorBE::new(value.into_repr())
-//                 .zip(field_char)
-//                 .skip_while(|(_, c)| !c)
-//                 .map(|(b, _)| Some(b))
-//                 .collect();
-//             assert_eq!(bits.len(), F::Params::MODULUS_BITS as usize);
-//             bits
-//         } else {
-//             vec![None; F::Params::MODULUS_BITS as usize]
-//         };
-
-//         // Convert to little-endian
-//         bits.reverse();
-
-//         let bits: Vec<_> = bits
-//             .into_iter()
-//             .map(|b| Boolean::new_witness(cs.clone(), || b.get()))
-//             .collect::<Result<_, _>>()?;
-
-//         let mut lc = LinearCombination::zero();
-//         let mut coeff = F::one();
-
-//         for bit in bits.iter() {
-//             lc = &lc + bit.lc() * coeff;
-
-//             coeff.double_in_place();
-//         }
-
-//         lc = lc - &self.variable;
-
-//         cs.enforce_constraint(lc!(), lc!(), lc)?;
-
-//         Ok(bits)
-//     }
-// }
-
 impl<F: PrimeField + SquareRootField + BitDecomposition> MpcToBitsGadget<F> for MpcAllocatedFp<F> {
     /// Outputs the unique bit-wise decomposition of `self` in *little-endian*
     /// form.
@@ -569,47 +511,54 @@ impl<F: PrimeField + SquareRootField + BitDecomposition> MpcToBitsGadget<F> for 
     }
 }
 
-// impl<F: PrimeField> ToBytesGadget<F> for AllocatedFp<F> {
-//     /// Outputs the unique byte decomposition of `self` in *little-endian*
-//     /// form.
-//     ///
-//     /// This method enforces that the decomposition represents
-//     /// an integer that is less than `F::MODULUS`.
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
-//         let num_bits = F::BigInt::NUM_LIMBS * 64;
-//         let mut bits = self.to_bits_le()?;
-//         let remainder = core::iter::repeat(Boolean::constant(false)).take(num_bits - bits.len());
-//         bits.extend(remainder);
-//         let bytes = bits
-//             .chunks(8)
-//             .map(|chunk| UInt8::from_bits_le(chunk))
-//             .collect();
-//         Ok(bytes)
-//     }
+impl<F: PrimeField + SquareRootField + BitDecomposition> MpcToBytesGadget<F> for MpcAllocatedFp<F> {
+    /// Outputs the unique byte decomposition of `self` in *little-endian*
+    /// form.
+    ///
+    /// This method enforces that the decomposition represents
+    /// an integer that is less than `F::MODULUS`.
+    #[tracing::instrument(target = "r1cs")]
+    fn to_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError> {
+        let num_bits = F::BigInt::NUM_LIMBS * 64;
+        let mut bits = self.to_bits_le()?;
+        let remainder = core::iter::repeat(MpcBoolean::constant(false)).take(num_bits - bits.len());
+        bits.extend(remainder);
+        let bytes = bits
+            .chunks(8)
+            .map(|chunk| MpcUInt8::from_bits_le(chunk))
+            .collect();
+        Ok(bytes)
+    }
 
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_non_unique_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
-//         let num_bits = F::BigInt::NUM_LIMBS * 64;
-//         let mut bits = self.to_non_unique_bits_le()?;
-//         let remainder = core::iter::repeat(Boolean::constant(false)).take(num_bits - bits.len());
-//         bits.extend(remainder);
-//         let bytes = bits
-//             .chunks(8)
-//             .map(|chunk| UInt8::from_bits_le(chunk))
-//             .collect();
-//         Ok(bytes)
-//     }
-// }
+    #[tracing::instrument(target = "r1cs")]
+    fn to_non_unique_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError> {
+        let num_bits = F::BigInt::NUM_LIMBS * 64;
+        let mut bits = self.to_non_unique_bits_le()?;
+        let remainder = core::iter::repeat(MpcBoolean::constant(false)).take(num_bits - bits.len());
+        bits.extend(remainder);
+        let bytes = bits
+            .chunks(8)
+            .map(|chunk| MpcUInt8::from_bits_le(chunk))
+            .collect();
+        Ok(bytes)
+    }
+}
 
-// impl<F: PrimeField, S: FieldShare<F>> ToConstraintFieldGadget<MpcField<F, S>>
-//     for MpcAllocatedFp<F, S>
-// {
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_constraint_field(&self) -> Result<Vec<MpcFpVar<F, S>>, SynthesisError> {
-//         Ok(vec![self.clone().into()])
-//     }
-// }
+/// Specifies how to convert a variable of type `Self` to variables of
+/// type `FpVar<ConstraintF>`
+pub trait MpcToConstraintFieldGadget<ConstraintF: PrimeField> {
+    /// Converts `self` to `FpVar<ConstraintF>` variables.
+    fn to_constraint_field(
+        &self,
+    ) -> Result<Vec<MpcFpVar<ConstraintF>>, ark_relations::r1cs::SynthesisError>;
+}
+
+impl<F: PrimeField> MpcToConstraintFieldGadget<F> for MpcAllocatedFp<F> {
+    #[tracing::instrument(target = "r1cs")]
+    fn to_constraint_field(&self) -> Result<Vec<MpcFpVar<F>>, SynthesisError> {
+        Ok(vec![self.clone().into()])
+    }
+}
 
 impl<F: PrimeField> MpcCondSelectGadget<F> for MpcAllocatedFp<F> {
     #[inline]
@@ -974,31 +923,7 @@ impl<F: PrimeField + SquareRootField + EqualityZero> MpcFpVar<F> {
     }
 }
 
-// impl<F: PrimeField> ToBitsGadget<F> for FpVar<F> {
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_bits_le(&self) -> Result<Vec<Boolean<F>>, SynthesisError> {
-//         match self {
-//             Self::Constant(_) => self.to_non_unique_bits_le(),
-//             Self::Var(v) => v.to_bits_le(),
-//         }
-//     }
-
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_non_unique_bits_le(&self) -> Result<Vec<Boolean<F>>, SynthesisError> {
-//         use ark_ff::BitIteratorLE;
-//         match self {
-//             Self::Constant(c) => Ok(BitIteratorLE::new(&c.into_repr())
-//                 .take((F::Params::MODULUS_BITS) as usize)
-//                 .map(Boolean::constant)
-//                 .collect::<Vec<_>>()),
-//             Self::Var(v) => v.to_non_unique_bits_le(),
-//         }
-//     }
-// }
-
-impl<F: PrimeField + SquareRootField + EqualityZero + BitDecomposition> MpcToBitsGadget<F>
-    for MpcFpVar<F>
-{
+impl<F: PrimeField + SquareRootField + BitDecomposition> MpcToBitsGadget<F> for MpcFpVar<F> {
     fn to_bits_le(&self) -> Result<Vec<MpcBoolean<F>>, SynthesisError> {
         match self {
             Self::Constant(_) => self.to_non_unique_bits_le(),
@@ -1018,25 +943,25 @@ impl<F: PrimeField + SquareRootField + EqualityZero + BitDecomposition> MpcToBit
     }
 }
 
-// impl<F: PrimeField> ToBytesGadget<F> for FpVar<F> {
-//     /// Outputs the unique byte decomposition of `self` in *little-endian*
-//     /// form.
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
-//         match self {
-//             Self::Constant(c) => Ok(UInt8::constant_vec(&ark_ff::to_bytes![c].unwrap())),
-//             Self::Var(v) => v.to_bytes(),
-//         }
-//     }
+impl<F: PrimeField + SquareRootField + BitDecomposition> MpcToBytesGadget<F> for MpcFpVar<F> {
+    /// Outputs the unique byte decomposition of `self` in *little-endian*
+    /// form.
+    #[tracing::instrument(target = "r1cs")]
+    fn to_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError> {
+        match self {
+            Self::Constant(c) => Ok(MpcUInt8::constant_vec(&ark_ff::to_bytes![c].unwrap())),
+            Self::Var(v) => v.to_bytes(),
+        }
+    }
 
-//     #[tracing::instrument(target = "r1cs")]
-//     fn to_non_unique_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
-//         match self {
-//             Self::Constant(c) => Ok(UInt8::constant_vec(&ark_ff::to_bytes![c].unwrap())),
-//             Self::Var(v) => v.to_non_unique_bytes(),
-//         }
-//     }
-// }
+    #[tracing::instrument(target = "r1cs")]
+    fn to_non_unique_bytes(&self) -> Result<Vec<MpcUInt8<F>>, SynthesisError> {
+        match self {
+            Self::Constant(c) => Ok(MpcUInt8::constant_vec(&ark_ff::to_bytes![c].unwrap())),
+            Self::Var(v) => v.to_non_unique_bytes(),
+        }
+    }
+}
 
 // impl<F: PrimeField, S: FieldShare<F>> ToConstraintFieldGadget<MpcField<F, S>> for MpcFpVar<F, S> {
 //     #[tracing::instrument(target = "r1cs")]

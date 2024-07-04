@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use ark_crypto_primitives::{CommitmentScheme, CRH};
 use ark_ff::PubUniformRand;
-use ark_ff::{BigInteger, BigInteger256, Field, FpParameters, PrimeField, UniformRand};
+use ark_ff::{BigInteger, BigInteger256, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
 use ark_poly::reveal;
 use ark_std::PubUniformRand;
@@ -11,14 +11,14 @@ use log::debug;
 use mpc_algebra::pedersen::Randomness;
 use mpc_algebra::boolean_field::MpcBooleanField;
 use mpc_algebra::{
-    edwards2, share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan,
+    edwards2, share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, BooleanWire,
     CommitmentScheme as MpcCommitmentScheme, EqualityZero, LessThan,
     LogicalOperations,
-    MpcEdwardsProjective, MpcField, Reveal, UniformBitRand,,
+    MpcEdwardsProjective, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
