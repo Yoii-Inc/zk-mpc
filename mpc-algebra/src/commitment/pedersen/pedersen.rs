@@ -28,7 +28,17 @@ pub struct Commitment<C: ProjectiveCurve, W: Window> {
 }
 
 #[derive(Derivative)]
-#[derivative(Clone, PartialEq, Debug, Eq, Default)]
+#[derivative(Clone, Copy, PartialEq, Debug, Eq, Default)]
+pub struct Input<C: ProjectiveCurve>(pub C::ScalarField);
+
+impl<C: ProjectiveCurve> Input<C> {
+    pub fn new(input: C::ScalarField) -> Self {
+        Self(input)
+    }
+}
+
+#[derive(Derivative)]
+#[derivative(Clone, Copy, PartialEq, Debug, Eq, Default)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);
 
 impl<C: ProjectiveCurve> UniformRand for Randomness<C> {
@@ -62,7 +72,7 @@ where
     <C as ProjectiveCurve>::ScalarField: BitDecomposition,
 {
     // Input is expected to be a vector of field elements. Each field element represents bool.
-    type Input = Vec<C::ScalarField>;
+    type Input = Input<C>;
     type Parameters = Parameters<C>;
     type Randomness = Randomness<C>;
     type Output = C::Affine;
@@ -91,30 +101,38 @@ where
         randomness: &Self::Randomness,
     ) -> Result<Self::Output, Error> {
         let commit_time = start_timer!(|| "PedersenCOMM::Commit");
+
+        let input_bits = input
+            .0
+            .bit_decomposition()
+            .iter()
+            .map(|x| x.field())
+            .collect::<Vec<_>>();
+
         // If the input is too long, return an error.
-        if input.len() / 8 > W::WINDOW_SIZE * W::NUM_WINDOWS {
-            panic!("incorrect input length: {:?}", input.len());
+        if input_bits.len() / 8 > W::WINDOW_SIZE * W::NUM_WINDOWS {
+            panic!("incorrect input length: {:?}", input_bits.len());
         }
 
         // check each element of input is bool if debug
         #[cfg(debug_assertions)]
-        for i in input.iter() {
+        for i in input_bits.iter() {
             let mut j = i.clone();
             j.publicize();
             assert!(j.is_zero() || j.is_one());
         }
 
         // Pad the input to the necessary length.
-        let mut padded_input = Vec::with_capacity(input.len());
-        let mut input = input;
+        let mut padded_input = Vec::with_capacity(input_bits.len());
+        let mut input = input_bits;
 
         let padded_input_vec;
         if input.len() < W::WINDOW_SIZE * W::NUM_WINDOWS {
-            padded_input.extend_from_slice(input);
+            padded_input.extend_from_slice(input.as_slice());
             let padded_length = W::WINDOW_SIZE * W::NUM_WINDOWS;
             padded_input.resize(padded_length, <C as ProjectiveCurve>::ScalarField::zero());
             padded_input_vec = padded_input.as_slice().to_vec();
-            input = &padded_input_vec;
+            input = padded_input_vec;
         }
         assert_eq!(parameters.generators.len(), W::NUM_WINDOWS);
 
@@ -124,7 +142,7 @@ where
             generators: parameters.generators.clone(),
         };
 
-        let mut result: C = pedersen::CRH::<C, W>::evaluate(&crh_parameters, input)?.into();
+        let mut result: C = pedersen::CRH::<C, W>::evaluate(&crh_parameters, &input)?.into();
         let randomize_time = start_timer!(|| "Randomize");
 
         // Compute h^r.K

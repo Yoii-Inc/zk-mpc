@@ -2,7 +2,7 @@ use crate::mpc_primitives::ModulusConversion;
 use crate::{
     commitment::{
         constraints::CommitmentGadget,
-        pedersen::{Commitment, Parameters, Randomness},
+        pedersen::{Commitment, Input, Parameters, Randomness},
     },
     mpc_primitives, MpcUInt8,
 };
@@ -21,6 +21,7 @@ use ark_ff::{
 };
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_relations::r1cs::{Namespace, SynthesisError};
+use mpc_trait::MpcWire;
 
 // use ark_r1cs_std::prelude::*;
 use crate::groups::GroupOpsBounds;
@@ -52,6 +53,9 @@ where
 // pub struct RandomnessVar<F: Field>(Vec<UInt8<F>>);
 pub struct RandomnessVar<F: PrimeField>(Vec<MpcBoolean<F>>);
 
+#[derive(Clone, Debug)]
+pub struct InputVar<F: PrimeField>(Vec<MpcBoolean<F>>);
+
 pub struct CommGadget<C: ProjectiveCurve, GG: MpcCurveVar<C, ConstraintF<C>>, W: Window>
 where
     for<'a> &'a GG: GroupOpsBounds<'a, C, GG>,
@@ -78,34 +82,31 @@ where
     type OutputVar = GG;
     type ParametersVar = ParametersVar<C, GG>;
     type RandomnessVar = RandomnessVar<ConstraintF<C>>;
+    type InputVar = InputVar<ConstraintF<C>>;
 
     #[tracing::instrument(target = "r1cs", skip(parameters, r))]
     fn commit(
         parameters: &Self::ParametersVar,
-        input: &[MpcUInt8<ConstraintF<C>>],
+        input: &Self::InputVar,
         r: &Self::RandomnessVar,
     ) -> Result<Self::OutputVar, SynthesisError> {
-        assert!((input.len() * 8) <= (W::WINDOW_SIZE * W::NUM_WINDOWS));
+        assert!((input.0.len()) <= (W::WINDOW_SIZE * W::NUM_WINDOWS));
 
-        let mut padded_input = input.to_vec();
+        let mut padded_input: Vec<MpcBoolean<ConstraintF<C>>> = input.0.clone();
         // Pad if input length is less than `W::WINDOW_SIZE * W::NUM_WINDOWS`.
-        if (input.len() * 8) < W::WINDOW_SIZE * W::NUM_WINDOWS {
-            let current_length = input.len();
-            for _ in current_length..(W::WINDOW_SIZE * W::NUM_WINDOWS / 8) {
-                padded_input.push(MpcUInt8::constant(0u8));
+        if (input.0.len()) < W::WINDOW_SIZE * W::NUM_WINDOWS {
+            let current_length = input.0.len();
+            for _ in current_length..(W::WINDOW_SIZE * W::NUM_WINDOWS) {
+                padded_input.push(MpcBoolean::constant(false));
             }
         }
 
-        assert_eq!(padded_input.len() * 8, W::WINDOW_SIZE * W::NUM_WINDOWS);
+        assert_eq!(padded_input.len(), W::WINDOW_SIZE * W::NUM_WINDOWS);
         assert_eq!(parameters.params.generators.len(), W::NUM_WINDOWS);
 
         // Allocate new variable for commitment output.
 
-        let input_in_bits: Vec<MpcBoolean<_>> = padded_input
-            .iter()
-            .flat_map(|byte| byte.to_bits_le().unwrap())
-            .collect();
-        let input_in_bits = input_in_bits.chunks(W::WINDOW_SIZE);
+        let input_in_bits = padded_input.chunks(W::WINDOW_SIZE);
         let mut result =
             GG::precomputed_base_multiscalar_mul_le(&parameters.params.generators, input_in_bits)?;
 
@@ -160,11 +161,20 @@ where
     ) -> Result<Self, SynthesisError> {
         let r = f().map(|r| r.borrow().0).unwrap_or(C::ScalarField::zero());
 
-        let bits_r = r
-            .bit_decomposition()
-            .iter()
-            .map(|b| b.field().modulus_conversion())
-            .collect::<Vec<_>>();
+        let bits_r = if r.is_shared() {
+            // shared
+            r.bit_decomposition()
+                .iter()
+                .map(|b| b.field().modulus_conversion())
+                .collect::<Vec<_>>()
+        } else {
+            // public
+            r.into_repr()
+                .to_bits_le()
+                .iter()
+                .map(|b| F::from(*b))
+                .collect::<Vec<_>>()
+        };
 
         // padding
         let mut bits_r = bits_r;
@@ -176,6 +186,40 @@ where
             AllocationMode::Constant => unimplemented!(),
             AllocationMode::Input => MpcBoolean::new_input_vec(cs, &bits_r).map(Self),
             AllocationMode::Witness => MpcBoolean::new_witness_vec(cs, &bits_r).map(Self),
+        }
+    }
+}
+
+impl<C, F> AllocVar<Input<C>, F> for InputVar<F>
+where
+    C: ProjectiveCurve,
+    F: PrimeField,
+    <C as ark_ec::ProjectiveCurve>::ScalarField:
+        mpc_primitives::BitDecomposition + ModulusConversion<F>,
+{
+    fn new_variable<T: Borrow<Input<C>>>(
+        cs: impl Into<Namespace<F>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let x = f().map(|x| x.borrow().0).unwrap_or(C::ScalarField::zero());
+
+        let bits_x = x
+            .bit_decomposition()
+            .iter()
+            .map(|b| b.field().modulus_conversion())
+            .collect::<Vec<_>>();
+
+        // padding
+        let mut bits_x = bits_x;
+        for _ in bits_x.len()..F::BigInt::NUM_LIMBS * 64 {
+            bits_x.push(F::zero());
+        }
+
+        match mode {
+            AllocationMode::Constant => unimplemented!(),
+            AllocationMode::Input => MpcBoolean::new_input_vec(cs, &bits_x).map(Self),
+            AllocationMode::Witness => MpcBoolean::new_witness_vec(cs, &bits_x).map(Self),
         }
     }
 }
