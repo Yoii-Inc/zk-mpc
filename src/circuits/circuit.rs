@@ -18,16 +18,8 @@ impl<F: PrimeField + LocalOrMPC<F>> MyCircuit<F> {
         let a_com_circuit = PedersenComCircuit {
             param: Some(self.clone().mpc_input.common.unwrap().pedersen_param),
             input: self.clone().mpc_input.peculiar.unwrap().a.input,
-            input_bit: self.clone().mpc_input.peculiar.unwrap().a.input_bit.clone(),
-            open_bit: self
-                .clone()
-                .mpc_input
-                .peculiar
-                .unwrap()
-                .a
-                .randomness_bit
-                .clone(),
-            commit: Some(self.clone().mpc_input.peculiar.unwrap().a.commitment),
+            open: self.clone().mpc_input.peculiar.unwrap().a.randomness,
+            commit: self.clone().mpc_input.peculiar.unwrap().a.commitment,
         };
 
         a_com_circuit.generate_constraints(cs.clone())?;
@@ -35,16 +27,8 @@ impl<F: PrimeField + LocalOrMPC<F>> MyCircuit<F> {
         let b_com_circuit = PedersenComCircuit {
             param: Some(self.clone().mpc_input.common.unwrap().pedersen_param),
             input: self.clone().mpc_input.peculiar.unwrap().b.input,
-            input_bit: self.clone().mpc_input.peculiar.unwrap().b.input_bit.clone(),
-            open_bit: self
-                .clone()
-                .mpc_input
-                .peculiar
-                .unwrap()
-                .b
-                .randomness_bit
-                .clone(),
-            commit: Some(self.clone().mpc_input.peculiar.unwrap().b.commitment),
+            open: self.clone().mpc_input.peculiar.unwrap().b.randomness,
+            commit: self.clone().mpc_input.peculiar.unwrap().b.commitment,
         };
 
         b_com_circuit.generate_constraints(cs.clone())?;

@@ -10,8 +10,7 @@ use super::{LocalOrMPC, PedersenComCircuit};
 pub struct MySecretInputCircuit<F: PrimeField + LocalOrMPC<F>> {
     // private witness to the circuit
     x: Option<F>,
-    input_bit: Option<Vec<F>>,
-    open_bit: Option<Vec<F>>,
+    open: Option<F::PedersenRandomness>,
     params: Option<F::PedersenParam>,
 
     // public instance to the circuit
@@ -23,8 +22,7 @@ pub struct MySecretInputCircuit<F: PrimeField + LocalOrMPC<F>> {
 impl<F: PrimeField + LocalOrMPC<F>> MySecretInputCircuit<F> {
     pub fn new(
         x: F,
-        input_bit: Vec<F>,
-        open_bit: Vec<F>,
+        open: F::PedersenRandomness,
         params: F::PedersenParam,
         h_x: F::PedersenCommitment,
         lower_bound: F,
@@ -32,8 +30,7 @@ impl<F: PrimeField + LocalOrMPC<F>> MySecretInputCircuit<F> {
     ) -> Self {
         Self {
             x: Some(x),
-            input_bit: Some(input_bit),
-            open_bit: Some(open_bit),
+            open: Some(open),
             params: Some(params),
             h_x: Some(h_x),
             lower_bound: Some(lower_bound),
@@ -64,9 +61,8 @@ impl<F: PrimeField + LocalOrMPC<F>> MySecretInputCircuit<F> {
         let x_com_circuit = PedersenComCircuit {
             param: self.params.clone(),
             input: self.x.unwrap(),
-            input_bit: self.input_bit.clone().unwrap(),
-            open_bit: self.open_bit.clone().unwrap(),
-            commit: self.h_x.clone(),
+            open: self.open.clone().unwrap(),
+            commit: self.h_x.clone().unwrap(),
         };
 
         x_com_circuit.generate_constraints(cs.clone())?;
@@ -109,12 +105,6 @@ mod tests {
 
         // generate the setup parameters
         let x = Fr::from(4);
-        let input_bit = x
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
 
         let lower_bound = Fr::from(3);
         let upper_bound = Fr::from(7);
@@ -122,21 +112,13 @@ mod tests {
         // Pedersen commitment
         let params = PedersenComScheme::setup(&mut rng).unwrap();
         let randomness = PedersenRandomness::rand(&mut rng);
-        let open_bit = randomness
-            .0
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
 
         let x_bytes = x.into_repr().to_bytes_le();
         let h_x = PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
 
         let circuit = MySecretInputCircuit {
             x: Some(x),
-            input_bit: Some(input_bit),
-            open_bit: Some(open_bit),
+            open: Some(randomness),
             h_x: Some(h_x),
             lower_bound: Some(lower_bound),
             upper_bound: Some(upper_bound),
@@ -179,12 +161,6 @@ mod tests {
 
         // generate the setup parameters
         let x = Fr::from(4);
-        let input_bit = x
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
 
         let lower_bound = Fr::from(3);
         let upper_bound = Fr::from(7);
@@ -192,21 +168,13 @@ mod tests {
         // Pedersen commitment
         let params = PedersenComScheme::setup(&mut rng).unwrap();
         let randomness = PedersenRandomness::rand(&mut rng);
-        let open_bit = randomness
-            .0
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
 
         let x_bytes = x.into_repr().to_bytes_le();
         let h_x = PedersenComScheme::commit(&params, &x_bytes, &randomness).unwrap();
 
         let circuit = MySecretInputCircuit {
             x: Some(x),
-            input_bit: Some(input_bit),
-            open_bit: Some(open_bit),
+            open: Some(randomness),
             h_x: Some(h_x),
             lower_bound: Some(lower_bound),
             upper_bound: Some(upper_bound),
