@@ -1,19 +1,18 @@
 use std::path::PathBuf;
 
 use ark_ff::PubUniformRand;
-use ark_ff::{BigInteger, BigInteger256, Field, FpParameters, PrimeField, UniformRand};
+use ark_ff::{BigInteger, BigInteger256, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
-use ark_poly::reveal;
 use ark_std::{end_timer, start_timer};
 use log::debug;
 use mpc_algebra::boolean_field::MpcBooleanField;
 use mpc_algebra::{
-    share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, EqualityZero, LessThan,
-    LogicalOperations, MpcField, Reveal, UniformBitRand,
+    AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, BooleanWire, EqualityZero,
+    LessThan, LogicalOperations, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
