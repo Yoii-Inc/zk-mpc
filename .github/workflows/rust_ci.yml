@@ -70,6 +70,8 @@ jobs:
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: "-A warnings"
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -83,7 +85,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run tests
-        run: RUSTFLAGS="-A warnings" cargo test --lib --release
+        run: cargo test --lib --release
 
   fix-check:
     name: Fix Check
@@ -94,6 +96,8 @@ jobs:
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
 
       - name: Cache dependencies
         uses: actions/cache@v4
