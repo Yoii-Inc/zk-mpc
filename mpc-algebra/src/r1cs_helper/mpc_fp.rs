@@ -19,7 +19,8 @@ use crate::{
     mpc_eq::MpcEqGadget,
     mpc_fields::{FieldOpsBounds, MpcFieldVar},
     mpc_select::{MpcCondSelectGadget, MpcTwoBitLookupGadget},
-    BitDecomposition, EqualityZero, MpcBoolean, MpcToBitsGadget, MpcToBytesGadget, MpcUInt8, Reveal,
+    BitDecomposition, EqualityZero, MpcBoolean, MpcToBitsGadget, MpcToBytesGadget, MpcUInt8,
+    Reveal,
 };
 
 // TODO: MpcAllocatedFp is required?
@@ -701,6 +702,10 @@ impl<F: PrimeField + SquareRootField + EqualityZero + BitDecomposition> MpcField
 
     fn zero() -> Self {
         Self::Constant(F::zero())
+    }
+
+    fn is_zero(&self) -> Result<MpcBoolean<F>, SynthesisError> {
+        self.is_zero()
     }
 
     fn one() -> Self {

@@ -10,4 +10,3 @@ pub use pedersen_revised::*;
 
 pub mod bit_decomposition;
 pub mod enforce_smaller_or_eq_than;
-pub mod equality_zero;

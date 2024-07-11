@@ -943,8 +943,8 @@ where
         &self,
         other: &Self,
     ) -> Result<MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>, SynthesisError> {
-        let x_equal = self.x.is_eq(&other.x)?;
-        let y_equal = self.y.is_eq(&other.y)?;
+        let x_equal = self.x.clone().sub(&other.x).is_zero()?;
+        let y_equal = self.y.clone().sub(&other.y).is_zero()?;
         x_equal.and(&y_equal)
     }
 
