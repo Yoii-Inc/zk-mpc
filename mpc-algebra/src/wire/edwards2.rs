@@ -5,6 +5,7 @@ use ark_ec::twisted_edwards_extended::GroupProjective;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ed_on_bls12_377::EdwardsParameters;
 use ark_ed_on_bls12_377::EdwardsProjective;
+use ark_ff::BitIteratorBE;
 use ark_ff::{Field, FromBytes, One, PrimeField, PubUniformRand, ToBytes, UniformRand, Zero};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
@@ -12,8 +13,14 @@ use ark_serialize::{
 };
 
 use crate::commitment::pedersen::{Parameters as PedersenParameters, Randomness};
+use crate::encryption::elgamal::elgamal::{
+    Parameters as ElGamalParameters, Randomness as ElGamalRandomness,
+};
 
 use ark_crypto_primitives::commitment::pedersen::Parameters as LocalPedersenParameters;
+use ark_crypto_primitives::encryption::elgamal::{
+    Parameters as LocalElGamalParameters, Randomness as LocalElGamalRandomness,
+};
 
 use derivative::Derivative;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
@@ -716,7 +723,7 @@ where
         &self,
         other: T,
     ) -> Self::Projective {
-        todo!()
+        self.mul_bits(BitIteratorBE::new(other.into()))
     }
 
     fn mul_by_cofactor_to_projective(&self) -> Self::Projective {
@@ -724,7 +731,7 @@ where
     }
 
     fn mul_by_cofactor_inv(&self) -> Self {
-        todo!()
+        <Self as AffineCurve>::mul(self, P::COFACTOR_INV).into()
     }
 
     fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
@@ -787,6 +794,30 @@ where
         //     assert_eq!(pa, pb);
         // }
         b
+    }
+
+    fn scalar_mul<T: Into<Self::ScalarField>>(&self, other: T) -> Self::Projective {
+        let res = Self {
+            val: self.val.mul(other.into()),
+        };
+
+        res.into()
+    }
+}
+
+impl<P: Parameters, S: APShare<P>> MpcGroupAffine<P, S>
+where
+    P::BaseField: PrimeField,
+{
+    pub(crate) fn mul_bits(&self, bits: impl Iterator<Item = bool>) -> MpcGroupProjective<P, S> {
+        let mut res = MpcGroupProjective::zero();
+        for i in bits.skip_while(|b| !b) {
+            <MpcGroupProjective<P, S> as ProjectiveCurve>::double_in_place(&mut res);
+            if i {
+                res.add_assign_mixed(self)
+            }
+        }
+        res
     }
 }
 
@@ -1146,6 +1177,44 @@ macro_rules! impl_edwards_related {
 
             fn to_local(&self) -> Self::Local {
                 self.val.unwrap_as_public()
+            }
+        }
+
+        impl Reveal for ElGamalParameters<$curve> {
+            type Base = LocalElGamalParameters<EdwardsProjective>;
+
+            fn reveal(self) -> Self::Base {
+                Self::Base {
+                    generator: self.generator.to_local(),
+                }
+            }
+
+            fn from_add_shared(_b: Self::Base) -> Self {
+                todo!()
+            }
+
+            fn from_public(b: Self::Base) -> Self {
+                Self {
+                    generator: $affine::from_local(&b.generator),
+                }
+            }
+        }
+
+        impl Reveal for ElGamalRandomness<$curve> {
+            type Base = LocalElGamalRandomness<EdwardsProjective>;
+
+            fn reveal(self) -> Self::Base {
+                todo!()
+            }
+
+            fn from_add_shared(b: Self::Base) -> Self {
+                Self(<$curve as ProjectiveCurve>::ScalarField::from_add_shared(
+                    b.0,
+                ))
+            }
+
+            fn from_public(b: Self::Base) -> Self {
+                Self(<$curve as ProjectiveCurve>::ScalarField::from_public(b.0))
             }
         }
     };

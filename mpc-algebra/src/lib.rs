@@ -13,6 +13,7 @@ pub use r1cs_helper::*;
 pub mod commitment;
 pub use commitment::*;
 pub mod crh;
+pub mod encryption;
 
 pub mod channel;
 
@@ -39,7 +40,7 @@ pub mod honest_but_curious {
 
     pub type AffProjShare<P> = edwards2::AdditiveAffProjShare<P>;
 
-    // pub type MpcEdwardsVar = edwards::AdditiveMpcEdwardsVar;
+    pub type MpcEdwardsVar = edwards2::AdditiveMpcEdwardsVar;
 }
 pub mod malicious_majority {
     use super::{
@@ -64,5 +65,5 @@ pub mod malicious_majority {
 
     pub type AffProjShare<P> = edwards2::SpdzAffProjShare<P>;
 
-    // pub type MpcEdwardsVar = edwards::SpdzMpcEdwardsVar;
+    pub type MpcEdwardsVar = edwards2::SpdzMpcEdwardsVar;
 }
