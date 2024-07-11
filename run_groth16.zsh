@@ -1,6 +1,6 @@
 set -ex
 trap "exit" INT TERM
-trap "kill 0" EXIT
+trap 'jobs -p | xargs -r kill' EXIT
 
 cargo build --example bin-test-groth16 --release
 BIN=./target/release/examples/bin-test-groth16
