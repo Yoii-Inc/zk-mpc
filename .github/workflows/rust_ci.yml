@@ -211,5 +211,13 @@ jobs:
       - name: Copy input file
         run: cp ./inputs/inputs-template.json ./inputs/inputs.json
 
+      - name: Preprocess inputs
+        run: |
+          mkdir ./outputs
+          mkdir ./outputs/0
+          mkdir ./outputs/1
+          mkdir ./outputs/2
+          cargo run --bin main groth16 ./inputs/inputs.json
+
       - name: Run online binary
         run: ./run_online.zsh
