@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use ark_crypto_primitives::CommitmentScheme;
 use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ff::{BigInteger, PrimeField};
@@ -11,7 +13,7 @@ use blake2::Blake2s;
 use itertools::Itertools;
 // use mpc_algebra::honest_but_curious::*;
 use mpc_algebra::{
-    malicious_majority::*, BooleanWire, MpcBooleanField, SpdzFieldShare, UniformBitRand,
+    malicious_majority::*, BooleanWire, LessThan, MpcBooleanField, SpdzFieldShare, UniformBitRand,
 };
 use mpc_algebra::{FromLocal, Reveal};
 use mpc_net::{MpcMultiNet, MpcNet};
@@ -19,6 +21,7 @@ use mpc_net::{MpcMultiNet, MpcNet};
 use ark_std::{One, Zero};
 
 use crate::circuits::enforce_smaller_or_eq_than::SmallerEqThanCircuit;
+use crate::circuits::smaller_than::{self, SmallerThanCircuit};
 use crate::{
     circuits::{
         bit_decomposition::BitDecompositionCircuit, circuit::MyCircuit,
@@ -313,7 +316,6 @@ pub fn test_bit_decomposition(n_iters: usize) {
     }
 }
 
-// Test
 pub fn test_enforce_smaller_eq_than(n_iters: usize) {
     let rng = &mut test_rng();
 
@@ -349,5 +351,48 @@ pub fn test_enforce_smaller_eq_than(n_iters: usize) {
                 inputs
             ));
         }
+    }
+}
+
+pub fn test_smaller_than(n_iters: usize) {
+    let rng = &mut test_rng();
+    let (_, local_a_rand) =
+        MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise_less_than_half_modulus(rng);
+    let (_, local_b_rand) =
+        MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise_less_than_half_modulus(rng);
+    let local_res = local_a_rand.is_smaller_than(&local_b_rand);
+
+    let local_circuit = SmallerThanCircuit {
+        a: local_a_rand.reveal(),
+        b: local_b_rand.reveal(),
+        res: local_res.reveal(),
+        cmp: Ordering::Less,
+        check_eq: true,
+    };
+    let (mpc_index_pk, index_vk) = setup_and_index(local_circuit);
+    for _ in 0..n_iters {
+        let (_, a_rand) =
+            MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise_less_than_half_modulus(
+                rng,
+            );
+        let (_, b_rand) =
+            MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise_less_than_half_modulus(
+                rng,
+            );
+        let res = a_rand.is_smaller_than(&b_rand);
+        let mpc_circuit = SmallerThanCircuit {
+            a: a_rand,
+            b: b_rand,
+            res: res.field(),
+            cmp: Ordering::Less,
+            check_eq: true,
+        };
+        let inputs = vec![];
+        assert!(prove_and_verify(
+            &mpc_index_pk,
+            &index_vk,
+            mpc_circuit,
+            inputs
+        ));
     }
 }
