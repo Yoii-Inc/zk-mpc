@@ -196,7 +196,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
             }
         };
 
-        // bits to field elemetn (little endian)
+        // bits to field element (little endian)
         let num = valid_bits
             .iter()
             .map(|b| b.field())
@@ -237,7 +237,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
             }
         };
 
-        // bits to field elemetn (little endian)
+        // bits to field element (little endian)
         let num = valid_bits
             .iter()
             .map(|b| b.field())
