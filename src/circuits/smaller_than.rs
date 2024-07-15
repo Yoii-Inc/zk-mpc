@@ -10,14 +10,14 @@ use mpc_algebra::MpcFpVar;
 type Fr = ark_bls12_377::Fr;
 type MFr = MpcField<Fr>;
 
-pub struct LessThanCircuit<F: PrimeField> {
+pub struct SmallerThanCircuit<F: PrimeField> {
     pub a: F,
     pub b: F,
     pub cmp: Ordering,
     pub check_eq: bool,
 }
 
-impl ConstraintSynthesizer<MFr> for LessThanCircuit<MFr> {
+impl ConstraintSynthesizer<MFr> for SmallerThanCircuit<MFr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<MFr>) -> Result<(), SynthesisError> {
         let a_var = MpcFpVar::new_witness(cs.clone(), || Ok(self.a))?;
         let b_var = MpcFpVar::new_witness(cs, || Ok(self.b))?;
@@ -28,7 +28,7 @@ impl ConstraintSynthesizer<MFr> for LessThanCircuit<MFr> {
     }
 }
 
-impl ConstraintSynthesizer<Fr> for LessThanCircuit<Fr> {
+impl ConstraintSynthesizer<Fr> for SmallerThanCircuit<Fr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         let a_var = FpVar::new_witness(cs.clone(), || Ok(self.a))?;
         let b_var = FpVar::new_witness(cs, || Ok(self.b))?;
