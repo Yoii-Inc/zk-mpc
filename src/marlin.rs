@@ -1,4 +1,3 @@
-use ark_crypto_primitives::CommitmentScheme;
 use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ff::{BigInteger, PrimeField};
 use ark_marlin::{ahp::prover::*, *};
@@ -13,7 +12,7 @@ use itertools::Itertools;
 use mpc_algebra::{
     malicious_majority::*, BooleanWire, MpcBooleanField, SpdzFieldShare, UniformBitRand,
 };
-use mpc_algebra::{FromLocal, Reveal};
+use mpc_algebra::{CommitmentScheme, FromLocal, Reveal};
 use mpc_net::{MpcMultiNet, MpcNet};
 
 use ark_std::{One, Zero};
@@ -194,39 +193,11 @@ pub fn mpc_test_prove_and_verify_pedersen(n_iters: usize) {
     for _ in 0..n_iters {
         let mpc_params = <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&params);
         let x = MFr::rand(rng);
-        let input_bit = match MpcMultiNet::party_id() {
-            0 => x
-                .clone()
-                .reveal()
-                .into_repr()
-                .to_bits_le()
-                .iter()
-                .map(|b| MFr::from_add_shared(Fr::from(*b)))
-                .collect::<Vec<_>>(),
-            _ => x
-                .clone()
-                .reveal()
-                .into_repr()
-                .to_bits_le()
-                .iter()
-                .map(|_b| MFr::from_add_shared(Fr::from(false)))
-                .collect::<Vec<_>>(),
-        };
-        let randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::pub_rand(rng);
-        let open_bit = randomness
-            .0
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| MFr::from(*b))
-            .collect::<Vec<_>>();
-        let h_x = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
-            &params,
-            &x.reveal().into_repr().to_bytes_le(),
-            &randomness.clone().reveal(),
-        )
-        .unwrap();
-        let h_x_mpc = MpcEdwardsAffine::from_public(h_x);
+        let input = <MFr as LocalOrMPC<MFr>>::convert_input(&x);
+        let randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng);
+        let h_x_mpc =
+            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(&mpc_params, &input, &randomness)
+                .unwrap();
         let circuit = PedersenComCircuit {
             param: Some(mpc_params.clone()),
             input: x,
