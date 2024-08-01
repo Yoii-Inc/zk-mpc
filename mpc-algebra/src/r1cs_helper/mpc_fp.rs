@@ -23,8 +23,6 @@ use crate::{
     Reveal,
 };
 
-// TODO: MpcAllocatedFp is required?
-
 /// Represents a variable in the constraint system whose
 /// value can be an arbitrary field element.
 #[derive(Debug, Clone)]

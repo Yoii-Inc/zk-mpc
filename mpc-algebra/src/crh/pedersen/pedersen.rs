@@ -171,7 +171,7 @@ impl<C: ProjectiveCurve, W: Window> TwoToOneCRH for CRH<C, W> {
         //     .for_each(|(b, l_b)| *b = *l_b);
 
         // <Self as CRHTrait>::evaluate(parameters, &buffer)
-        todo!()
+        unimplemented!()
     }
 }
 

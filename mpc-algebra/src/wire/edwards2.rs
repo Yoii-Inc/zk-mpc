@@ -162,11 +162,11 @@ impl<P: Parameters, S: APShare<P>> Group for MpcGroupAffine<P, S> {
     type ScalarField = MpcField<P::ScalarField, S::FrShare>;
 
     fn double(&self) -> Self {
-        todo!()
+        unimplemented!()
     }
 
     fn double_in_place(&mut self) -> &mut Self {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -186,12 +186,12 @@ impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupProjective<P, S> {
     }
     #[inline]
     fn from_add_shared(_t: Self::Base) -> Self {
-        todo!()
+        unimplemented!()
     }
     #[inline]
     fn unwrap_as_public(self) -> Self::Base {
         // self.val.unwrap_as_public()
-        todo!()
+        unimplemented!()
     }
     #[inline]
     fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
@@ -217,7 +217,7 @@ impl<P: Parameters, S: APShare<P>> ToBytes for MpcGroupProjective<P, S> {
 
 impl<P: Parameters, S: APShare<P>> FromBytes for MpcGroupProjective<P, S> {
     fn read<R: Read>(_reader: R) -> io::Result<Self> {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -227,7 +227,7 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerialize for MpcGroupProjective<P, 
     }
 
     fn serialized_size(&self) -> usize {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -237,17 +237,17 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerializeWithFlags for MpcGroupProje
         _writer: W,
         _flags: Fl,
     ) -> Result<(), SerializationError> {
-        todo!()
+        unimplemented!()
     }
 
     fn serialized_size_with_flags<Fl: Flags>(&self) -> usize {
-        todo!()
+        unimplemented!()
     }
 }
 
 impl<P: Parameters, S: APShare<P>> CanonicalDeserialize for MpcGroupProjective<P, S> {
     fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -255,7 +255,7 @@ impl<P: Parameters, S: APShare<P>> CanonicalDeserializeWithFlags for MpcGroupPro
     fn deserialize_with_flags<R: Read, Fl: Flags>(
         _reader: R,
     ) -> Result<(Self, Fl), SerializationError> {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -345,7 +345,7 @@ impl<'a, P: Parameters, S: APShare<P>> Sub<&'a MpcGroupProjective<P, S>>
 
 impl<P: Parameters, S: APShare<P>> MulAssign for MpcGroupProjective<P, S> {
     fn mul_assign(&mut self, _rhs: Self) {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -367,7 +367,7 @@ impl<'a, P: Parameters, S: APShare<P>> Sum<&'a MpcGroupProjective<P, S>>
     for MpcGroupProjective<P, S>
 {
     fn sum<I: Iterator<Item = &'a MpcGroupProjective<P, S>>>(_iter: I) -> Self {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -379,19 +379,19 @@ impl<P: Parameters, S: APShare<P>> Zero for MpcGroupProjective<P, S> {
     }
 
     fn is_zero(&self) -> bool {
-        todo!()
+        unimplemented!()
     }
 }
 
 impl<P: Parameters, S: APShare<P>> Zeroize for MpcGroupProjective<P, S> {
     fn zeroize(&mut self) {
-        todo!()
+        unimplemented!()
     }
 }
 
 impl<P: Parameters, S: APShare<P>> Default for MpcGroupProjective<P, S> {
     fn default() -> Self {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -410,7 +410,7 @@ impl<P: Parameters, S: APShare<P>> MulAssign<MpcField<P::ScalarField, S::FrShare
     for MpcGroupProjective<P, S>
 {
     fn mul_assign(&mut self, _rhs: MpcField<P::ScalarField, S::FrShare>) {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -435,7 +435,7 @@ where
     }
 
     fn is_normalized(&self) -> bool {
-        todo!()
+        unimplemented!()
     }
 
     fn double_in_place(&mut self) -> &mut Self {
@@ -487,7 +487,7 @@ impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupAffine<P, S> {
     #[inline]
     fn unwrap_as_public(self) -> Self::Base {
         // self.val.unwrap_as_public()
-        todo!()
+        unimplemented!()
     }
     #[inline]
     fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
@@ -513,7 +513,7 @@ impl<P: Parameters, S: APShare<P>> ToBytes for MpcGroupAffine<P, S> {
 
 impl<P: Parameters, S: APShare<P>> FromBytes for MpcGroupAffine<P, S> {
     fn read<R: Read>(_reader: R) -> io::Result<Self> {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -523,7 +523,7 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerialize for MpcGroupAffine<P, S> {
     }
 
     fn serialized_size(&self) -> usize {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -533,17 +533,17 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerializeWithFlags for MpcGroupAffin
         _writer: W,
         _flags: Fl,
     ) -> Result<(), SerializationError> {
-        todo!()
+        unimplemented!()
     }
 
     fn serialized_size_with_flags<Fl: Flags>(&self) -> usize {
-        todo!()
+        unimplemented!()
     }
 }
 
 impl<P: Parameters, S: APShare<P>> CanonicalDeserialize for MpcGroupAffine<P, S> {
     fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -551,7 +551,7 @@ impl<P: Parameters, S: APShare<P>> CanonicalDeserializeWithFlags for MpcGroupAff
     fn deserialize_with_flags<R: Read, Fl: Flags>(
         _reader: R,
     ) -> Result<(Self, Fl), SerializationError> {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -637,7 +637,7 @@ impl<'a, P: Parameters, S: APShare<P>> Sub<&'a MpcGroupAffine<P, S>> for MpcGrou
 
 impl<P: Parameters, S: APShare<P>> MulAssign for MpcGroupAffine<P, S> {
     fn mul_assign(&mut self, _rhs: Self) {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -645,19 +645,19 @@ impl<P: Parameters, S: APShare<P>> Neg for MpcGroupAffine<P, S> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        todo!()
+        unimplemented!()
     }
 }
 
 impl<P: Parameters, S: APShare<P>> Sum for MpcGroupAffine<P, S> {
     fn sum<I: Iterator<Item = Self>>(_iter: I) -> Self {
-        todo!()
+        unimplemented!()
     }
 }
 
 impl<'a, P: Parameters, S: APShare<P>> Sum<&'a MpcGroupAffine<P, S>> for MpcGroupAffine<P, S> {
     fn sum<I: Iterator<Item = &'a MpcGroupAffine<P, S>>>(_iter: I) -> Self {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -669,13 +669,13 @@ impl<P: Parameters, S: APShare<P>> Zero for MpcGroupAffine<P, S> {
     }
 
     fn is_zero(&self) -> bool {
-        todo!()
+        unimplemented!()
     }
 }
 
 impl<P: Parameters, S: APShare<P>> Zeroize for MpcGroupAffine<P, S> {
     fn zeroize(&mut self) {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -701,7 +701,7 @@ impl<P: Parameters, S: APShare<P>> MulAssign<MpcField<P::ScalarField, S::FrShare
     for MpcGroupAffine<P, S>
 {
     fn mul_assign(&mut self, rhs: MpcField<P::ScalarField, S::FrShare>) {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -727,7 +727,7 @@ where
     }
 
     fn from_random_bytes(bytes: &[u8]) -> Option<Self> {
-        todo!()
+        unimplemented!()
     }
 
     fn mul<T: Into<<Self::ScalarField as ark_ff::prelude::PrimeField>::BigInt>>(
@@ -738,7 +738,7 @@ where
     }
 
     fn mul_by_cofactor_to_projective(&self) -> Self::Projective {
-        todo!()
+        unimplemented!()
     }
 
     fn mul_by_cofactor_inv(&self) -> Self {
@@ -971,53 +971,53 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                 // 1. get unprocessed x, y
                 let unprocessed = self.val.unwrap_as_public();
 
-                // TODO: 2. generate shares and communicate
+                // 2. generate shares and communicate
                 let vec_x = (0..Net::n_parties())
                     .map(|i| {
                         MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
                             if Net::party_id() == i {
-                            unprocessed.x
-                        } else {
-                            P::BaseField::zero()
+                                unprocessed.x
+                            } else {
+                                P::BaseField::zero()
                             },
                         )
-                        })
+                    })
                     .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
                 let vec_y = (0..Net::n_parties())
                     .map(|i| {
                         MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
                             if Net::party_id() == i {
-                            unprocessed.y
-                        } else {
-                            P::BaseField::zero()
+                                unprocessed.y
+                            } else {
+                                P::BaseField::zero()
                             },
                         )
-                        })
+                    })
                     .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
                 let vec_t = (0..Net::n_parties())
                     .map(|i| {
                         MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
                             if Net::party_id() == i {
-                            unprocessed.t
-                        } else {
-                            P::BaseField::zero()
+                                unprocessed.t
+                            } else {
+                                P::BaseField::zero()
                             },
                         )
-                        })
+                    })
                     .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
                 let vec_z = (0..Net::n_parties())
                     .map(|i| {
                         MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
                             if Net::party_id() == i {
-                            unprocessed.z
-                        } else {
-                            P::BaseField::zero()
+                                unprocessed.z
+                            } else {
+                                P::BaseField::zero()
                             },
                         )
-                        })
+                    })
                     .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
                 // 3. summand and make converted share
@@ -1253,7 +1253,7 @@ macro_rules! impl_edwards_related {
             }
 
             fn from_add_shared(_b: Self::Base) -> Self {
-                todo!()
+                unimplemented!()
             }
 
             fn from_public(b: Self::Base) -> Self {
@@ -1267,7 +1267,7 @@ macro_rules! impl_edwards_related {
             type Base = LocalElGamalRandomness<EdwardsProjective>;
 
             fn reveal(self) -> Self::Base {
-                todo!()
+                unimplemented!()
             }
 
             fn from_add_shared(b: Self::Base) -> Self {

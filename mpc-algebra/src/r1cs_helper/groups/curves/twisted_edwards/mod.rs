@@ -1052,7 +1052,7 @@ where
         // let y_bytes = self.y.to_bytes()?;
         // x_bytes.extend_from_slice(&y_bytes);
         // Ok(x_bytes)
-        todo!()
+        unimplemented!()
     }
 
     #[tracing::instrument(target = "r1cs")]
@@ -1064,6 +1064,6 @@ where
         // x_bytes.extend_from_slice(&y_bytes);
 
         // Ok(x_bytes)
-        todo!()
+        unimplemented!()
     }
 }

@@ -29,7 +29,6 @@ pub struct MpcAllocatedBool<F: PrimeField> {
 }
 
 pub(crate) fn bool_to_field<F: PrimeField>(val: impl Borrow<bool>) -> F {
-    // TODO: MPC Fieldの元として返す
     if *val.borrow() {
         F::one()
     } else {
@@ -42,10 +41,8 @@ impl<F: PrimeField> MpcAllocatedBool<F> {
     pub fn value(&self) -> Result<bool, SynthesisError> {
         let value = self.cs.assigned_value(self.variable).get()?;
         if value.is_zero() {
-            println!("ZEROZEROZERO.");
             Ok(false)
         } else if value.is_one() {
-            println!("ONEONEONE");
             Ok(true)
         } else {
             unreachable!("Incorrect value assigned: {:?}", value);
