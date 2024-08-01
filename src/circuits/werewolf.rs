@@ -4,7 +4,7 @@ use ark_crypto_primitives::encryption::*;
 use ark_ec::AffineCurve;
 use ark_ec::ProjectiveCurve;
 use ark_ed_on_bls12_377::constraints::EdwardsVar;
-use ark_ff::{Field, PrimeField};
+use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;

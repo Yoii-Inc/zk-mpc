@@ -4,7 +4,6 @@ use ark_bls12_377::Fr;
 use ark_ff::{BigInteger, PrimeField};
 
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
-use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_std::PubUniformRand;

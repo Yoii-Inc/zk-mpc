@@ -1,6 +1,5 @@
 use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
-use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
 use ark_ff::FpParameters;
 use ark_marlin::IndexProverKey;

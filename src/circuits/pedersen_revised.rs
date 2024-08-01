@@ -1,38 +1,31 @@
 use ark_bls12_377::Fr;
 use ark_crypto_primitives::{
     commitment::{
-        pedersen::{constraints::CommGadget, Commitment, Parameters, Randomness},
+        pedersen::{constraints::CommGadget, Commitment, Randomness},
         CommitmentGadget,
     },
     crh::pedersen,
     CommitmentScheme,
 };
 use ark_ec::ProjectiveCurve;
-use ark_ed_on_bls12_377::{constraints::EdwardsVar, EdwardsParameters};
+use ark_ed_on_bls12_377::constraints::EdwardsVar;
 use ark_ff::bytes::ToBytes;
 use ark_ff::BigInteger;
 use ark_ff::PrimeField;
 use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget};
 
-use ark_ff::Zero;
 use mpc_algebra::Reveal;
 
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_std::{fmt::Debug, hash::Hash};
 
-use mpc_algebra::{
-    groups::{curves::twisted_edwards::MpcAffineVar, MpcCurveVar},
-    honest_but_curious as hbc, malicious_majority as mm,
-    pedersen::Input,
-    FieldShare, MpcEqGadget,
-};
+use mpc_algebra::{malicious_majority as mm, pedersen::Input, FieldShare, MpcEqGadget};
 
 use mpc_algebra::{
     commitment::constraints::CommitmentGadget as MpcCommitmentGadget,
     // commitment::pedersen::local_pedersen::Commitment,
     commitment::pedersen::{
-        CommGadget as MpcCommGadget, Commitment as MpcCommitment, Parameters as MpcParameters,
-        Randomness as MpcRandomness,
+        CommGadget as MpcCommGadget, Commitment as MpcCommitment, Randomness as MpcRandomness,
     },
     CommitmentScheme as MpcCommitmentScheme,
 };
