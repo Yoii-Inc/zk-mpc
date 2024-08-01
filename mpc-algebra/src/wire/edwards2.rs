@@ -98,6 +98,17 @@ pub struct MpcGroupProjectiveVariant<P: Parameters, S: APShare<P>> {
     pub z: MpcField<P::BaseField, S::BaseShare>,
 }
 
+impl<P: Parameters, S: APShare<P>> MpcGroupProjectiveVariant<P, S> {
+    pub fn new(
+        x: MpcField<P::BaseField, S::BaseShare>,
+        y: MpcField<P::BaseField, S::BaseShare>,
+        t: MpcField<P::BaseField, S::BaseShare>,
+        z: MpcField<P::BaseField, S::BaseShare>,
+    ) -> Self {
+        Self { x, y, t, z }
+    }
+}
+
 impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupProjectiveVariant<P, S> {
     type Base = GroupProjective<P>;
 
@@ -1082,6 +1093,58 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                 z: MpcField::<P::BaseField, S::BaseShare>::from_public(s.z),
             },
         }
+    }
+}
+
+impl<P: Parameters, S: APShare<P>> Add for MpcGroupProjectiveVariant<P, S> {
+    type Output = Self;
+    fn add(mut self, other: Self) -> Self::Output {
+        self.add_assign(&other);
+        self
+    }
+}
+
+impl<'a, P: Parameters, S: APShare<P>> AddAssign<&'a Self> for MpcGroupProjectiveVariant<P, S> {
+    fn add_assign(&mut self, other: &'a Self) {
+        // See "Twisted Edwards Curves Revisited" (https://eprint.iacr.org/2008/522.pdf)
+        // by Huseyin Hisil, Kenneth Koon-Ho Wong, Gary Carter, and Ed Dawson
+        // 3.1 Unified Addition in E^e
+
+        // A = x1 * x2
+        let a = self.x * &other.x;
+
+        // B = y1 * y2
+        let b = self.y * &other.y;
+
+        // C = d * t1 * t2
+        let c = MpcField::<P::BaseField, S::BaseShare>::from_public(P::COEFF_D) * self.t * other.t;
+
+        // D = z1 * z2
+        let d = self.z * &other.z;
+
+        // H = B - aA
+        let h = b - a * &MpcField::<P::BaseField, S::BaseShare>::from_public(P::COEFF_A);
+
+        // E = (x1 + y1) * (x2 + y2) - A - B
+        let e = (self.x + &self.y) * &(other.x + &other.y) - &a - &b;
+
+        // F = D - C
+        let f = d - &c;
+
+        // G = D + C
+        let g = d + &c;
+
+        // x3 = E * F
+        self.x = e * &f;
+
+        // y3 = G * H
+        self.y = g * &h;
+
+        // t3 = E * H
+        self.t = e * &h;
+
+        // z3 = F * G
+        self.z = f * &g;
     }
 }
 

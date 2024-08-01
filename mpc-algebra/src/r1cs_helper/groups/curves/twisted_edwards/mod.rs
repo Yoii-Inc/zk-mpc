@@ -2,11 +2,14 @@ use ark_ec::{
     twisted_edwards_extended::{GroupAffine as TEAffine, GroupProjective as TEProjective},
     AffineCurve, ModelParameters, MontgomeryModelParameters, ProjectiveCurve, TEModelParameters,
 };
-use ark_ff::{BigInteger, BitIteratorBE, Field, One, PrimeField, SquareRootField, Zero};
+use ark_ff::{
+    BigInteger, BitIteratorBE, Field, One, PrimeField, SquareRootField, UniformRand, Zero,
+};
 
 use ark_r1cs_std::{alloc::AllocationMode, impl_bounded_ops};
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use derivative::Derivative;
+use mpc_trait::MpcWire;
 
 use crate::{
     groups::{GroupOpsBounds, MpcCurveVar},
@@ -31,6 +34,8 @@ use crate::wire::MpcGroupProjective as MpcTEProjective;
 
 // use crate::honest_but_curious::*;
 use crate::malicious_majority::*;
+
+use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 type MpcBaseField<P: TEModelParameters> = MpcField<P::BaseField>;
 type MpcScalarField<P: TEModelParameters> = MpcField<P::ScalarField>;
@@ -440,9 +445,37 @@ where
     #[inline]
     fn value(&self) -> Result<MpcTEProjective<P, AffProjShare<P>>, SynthesisError> {
         let (x, y) = (self.x.value()?, self.y.value()?);
-        // let result = MpcTEAffine::new(x, y);
-        // Ok(result.into())
-        todo!()
+
+        let proj_variant = if x.is_shared() {
+            let t = MpcBaseField::<P>::king_share(P::BaseField::zero(), &mut ark_std::test_rng());
+            let z = MpcBaseField::<P>::king_share(P::BaseField::one(), &mut ark_std::test_rng());
+            MpcGroupProjectiveVariant::<P, AffProjShare<P>>::new(x, y, t, z)
+        } else {
+            let t = MpcBaseField::<P>::zero();
+            let z = MpcBaseField::<P>::one();
+            MpcGroupProjectiveVariant::<P, AffProjShare<P>>::new(x, y, t, z)
+        };
+
+        // step1: generate random rsuv
+        let rsuv = MpcTEProjective::<P, AffProjShare<P>>::rand(&mut ark_std::test_rng());
+
+        // step2: convert rstu to variant
+        let rsuv_variant = rsuv.convert_xytz();
+
+        // step3: calculate (x,y,t,z) + (r,s,u,v)
+        let xytzrsuv = rsuv_variant + proj_variant;
+
+        // step4: reveal
+        let revealed_xr = xytzrsuv.reveal();
+
+        // step5: allocate share
+        let share = if Net::am_king() {
+            MpcTEProjective::from_public(revealed_xr) - rsuv
+        } else {
+            -rsuv
+        };
+
+        Ok(share)
     }
 }
 
