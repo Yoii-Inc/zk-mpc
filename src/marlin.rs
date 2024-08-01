@@ -1,11 +1,10 @@
-use std::cmp::Ordering;
-use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ff::{BigInteger, PrimeField};
 use ark_marlin::{ahp::prover::*, *};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_std::{end_timer, start_timer, test_rng, PubUniformRand, UniformRand};
+use std::cmp::Ordering;
 
 use blake2::Blake2s;
 use itertools::Itertools;
@@ -14,12 +13,11 @@ use mpc_algebra::{
     malicious_majority::*, BooleanWire, LessThan, MpcBooleanField, SpdzFieldShare, UniformBitRand,
 };
 use mpc_algebra::{CommitmentScheme, FromLocal, Reveal};
-use mpc_net::{MpcMultiNet, MpcNet};
 
 use ark_std::{One, Zero};
 
 use crate::circuits::enforce_smaller_or_eq_than::SmallerEqThanCircuit;
-use crate::circuits::smaller_than::{self, SmallerThanCircuit};
+use crate::circuits::smaller_than::SmallerThanCircuit;
 use crate::{
     circuits::{
         bit_decomposition::BitDecompositionCircuit, circuit::MyCircuit,
