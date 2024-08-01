@@ -10,6 +10,9 @@ pub trait UniformBitRand: Sized {
     fn bit_rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
     // little-endian
     fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField);
+    fn rand_number_bitwise_less_than_half_modulus<R: Rng + ?Sized>(
+        rng: &mut R,
+    ) -> (Vec<Self>, Self::BaseField);
 }
 
 pub trait BitwiseLessThan {

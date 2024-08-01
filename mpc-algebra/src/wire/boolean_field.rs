@@ -196,7 +196,48 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
             }
         };
 
-        // bits to field elemetn (little endian)
+        // bits to field element (little endian)
+        let num = valid_bits
+            .iter()
+            .map(|b| b.field())
+            .rev()
+            .fold(Self::BaseField::zero(), |acc, x| {
+                acc * Self::BaseField::from_public(F::from(2u8)) + x
+            });
+
+        (valid_bits, num)
+    }
+
+    fn rand_number_bitwise_less_than_half_modulus<R: Rng + ?Sized>(
+        rng: &mut R,
+    ) -> (Vec<Self>, Self::BaseField) {
+        let modulus_size = F::Params::MODULUS_BITS as usize;
+
+        let mut half_modulus_bits = F::Params::MODULUS_MINUS_ONE_DIV_TWO
+            .to_bits_le()
+            .iter()
+            .map(|&b| Self::from(b))
+            .collect::<Vec<_>>();
+
+        half_modulus_bits = half_modulus_bits[..modulus_size].to_vec();
+
+        let valid_bits = loop {
+            let bits = (0..modulus_size)
+                .map(|_| Self::bit_rand(rng))
+                .collect::<Vec<_>>();
+
+            if bits
+                .clone()
+                .is_smaller_than_le(&half_modulus_bits)
+                .field()
+                .reveal()
+                .is_one()
+            {
+                break bits;
+            }
+        };
+
+        // bits to field element (little endian)
         let num = valid_bits
             .iter()
             .map(|b| b.field())
