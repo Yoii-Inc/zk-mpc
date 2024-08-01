@@ -342,7 +342,7 @@ impl<P: Parameters, S: APShare<P>> Neg for MpcGroupProjective<P, S> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        todo!()
+        Self { val: -self.val }
     }
 }
 
