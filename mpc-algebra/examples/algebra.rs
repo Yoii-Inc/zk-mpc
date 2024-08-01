@@ -1,14 +1,20 @@
 use std::path::PathBuf;
 
+use ark_crypto_primitives::{CommitmentScheme, CRH};
 use ark_ff::PubUniformRand;
 use ark_ff::{BigInteger, BigInteger256, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
+use ark_poly::reveal;
+use ark_std::PubUniformRand;
 use ark_std::{end_timer, start_timer};
 use log::debug;
+use mpc_algebra::pedersen::Randomness;
 use mpc_algebra::boolean_field::MpcBooleanField;
 use mpc_algebra::{
-    AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, BooleanWire, EqualityZero,
-    LessThan, LogicalOperations, MpcField, Reveal, UniformBitRand,
+    edwards2, share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, BooleanWire,
+    CommitmentScheme as MpcCommitmentScheme, EqualityZero, LessThan,
+    LogicalOperations,
+    MpcEdwardsProjective, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -375,6 +381,71 @@ fn test_bit_decomposition() {
     assert_eq!(res, random.reveal());
 }
 
+pub const PERDERSON_WINDOW_SIZE: usize = 256;
+pub const PERDERSON_WINDOW_NUM: usize = 1;
+
+#[derive(Clone)]
+pub struct Window;
+impl ark_crypto_primitives::crh::pedersen::Window for Window {
+    const WINDOW_SIZE: usize = PERDERSON_WINDOW_SIZE;
+    const NUM_WINDOWS: usize = PERDERSON_WINDOW_NUM;
+}
+
+impl mpc_algebra::crh::pedersen::Window for Window {
+    const WINDOW_SIZE: usize = PERDERSON_WINDOW_SIZE;
+    const NUM_WINDOWS: usize = PERDERSON_WINDOW_NUM;
+}
+
+type LocalPed = ark_crypto_primitives::commitment::pedersen::Commitment<
+    ark_ed_on_bls12_377::EdwardsProjective,
+    Window,
+>;
+type MpcPed = mpc_algebra::commitment::pedersen::Commitment<edwards2::MpcEdwardsProjective, Window>;
+
+fn test_pedersen_commitment() {
+    let rng = &mut ark_std::test_rng();
+
+    let x = F::rand(rng);
+    let x_bytes = x.into_repr().to_bytes_le();
+    let x_bits = x.into_repr().to_bits_le();
+
+    // mpc calculation
+    let mpc_parameters = MpcPed::setup(rng).unwrap();
+
+    let scalar_x_bytes = if Net::am_king() {
+        x_bits
+        .iter()
+        .map(|b| {
+            MpcField::<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>::from_add_shared(ark_ed_on_bls12_377::Fr::from(*b))
+        })
+        .collect::<Vec<_>>()
+    } else {
+        x_bits
+        .iter()
+        .map(|b| {
+            MpcField::<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>::from_add_shared(ark_ed_on_bls12_377::Fr::zero())
+        })
+        .collect::<Vec<_>>()
+    };
+
+    let randomness = Randomness::<MpcEdwardsProjective>::rand(rng);
+
+    let result_mpc = MpcPed::commit(&mpc_parameters, &scalar_x_bytes, &randomness).unwrap();
+
+    // local calculation
+    let local_parameters = ark_crypto_primitives::commitment::pedersen::Parameters {
+        randomness_generator: mpc_parameters.randomness_generator.clone().reveal(),
+        generators: mpc_parameters.generators.reveal(),
+    };
+
+    let local_randomness =
+        ark_crypto_primitives::commitment::pedersen::Randomness(randomness.0.reveal());
+
+    let result_local = LocalPed::commit(&local_parameters, &x_bytes, &local_randomness).unwrap();
+
+    assert_eq!(result_local, result_mpc.reveal());
+}
+
 fn test_share() {
     let rng = &mut ark_std::test_rng();
 
@@ -431,6 +502,9 @@ fn main() {
     println!("Test bit_add passed");
     test_bit_decomposition();
     println!("Test bit_decomposition passed");
+
+    test_pedersen_commitment();
+    println!("Test pedersen commitment passed");
 
     test_share();
     println!("Test share passed");

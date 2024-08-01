@@ -1,6 +1,5 @@
 use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
-use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
 use ark_ff::FpParameters;
 use ark_marlin::IndexProverKey;
@@ -8,6 +7,7 @@ use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
 use core::panic;
+use mpc_algebra::encryption::elgamal::elgamal::Parameters;
 use mpc_algebra::malicious_majority::*;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
@@ -368,7 +368,7 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
         mpc_input: mpc_input.clone(),
     };
 
-    let _peculiar_is_werewolf_commitment: Vec<GroupAffine<MpcEdwardsParameters>> = mpc_input
+    let _peculiar_is_werewolf_commitment: Vec<MpcEdwardsAffine> = mpc_input
         .peculiar
         .clone()
         .unwrap()
@@ -377,7 +377,7 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
         .map(|x| x.commitment)
         .collect::<Vec<_>>();
 
-    let _peculiar_is_target_commitment: Vec<GroupAffine<MpcEdwardsParameters>> = mpc_input
+    let _peculiar_is_target_commitment: Vec<MpcEdwardsAffine> = mpc_input
         .peculiar
         .clone()
         .unwrap()
@@ -386,12 +386,10 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
         .map(|x| x.commitment)
         .collect::<Vec<_>>();
 
-    let elgamal_generator: ark_crypto_primitives::encryption::elgamal::Parameters<
-        MpcEdwardsProjective,
-    > = mpc_input.clone().common.unwrap().elgamal_param;
+    let elgamal_generator: Parameters<MpcEdwardsProjective> =
+        mpc_input.clone().common.unwrap().elgamal_param;
 
-    let elgamal_pubkey: GroupAffine<MpcEdwardsParameters> =
-        mpc_input.clone().common.unwrap().pub_key;
+    let elgamal_pubkey: MpcEdwardsAffine = mpc_input.clone().common.unwrap().pub_key;
 
     let message = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPlaintext::prime_subgroup_generator();
 
@@ -408,17 +406,17 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     let mut inputs = Vec::new();
 
     // elgamal param
-    inputs.push(elgamal_generator.generator.x.reveal());
-    inputs.push(elgamal_generator.generator.y.reveal());
+    inputs.push(elgamal_generator.generator.reveal().x);
+    inputs.push(elgamal_generator.generator.reveal().y);
     // elgamal pubkey
-    inputs.push(elgamal_pubkey.x.reveal());
-    inputs.push(elgamal_pubkey.y.reveal());
+    inputs.push(elgamal_pubkey.reveal().x);
+    inputs.push(elgamal_pubkey.reveal().y);
 
     // elgamal ciphertext
-    inputs.push(enc_result.0.x.reveal());
-    inputs.push(enc_result.0.y.reveal());
-    inputs.push(enc_result.1.x.reveal());
-    inputs.push(enc_result.1.y.reveal());
+    inputs.push(enc_result.0.reveal().x);
+    inputs.push(enc_result.0.reveal().y);
+    inputs.push(enc_result.1.reveal().x);
+    inputs.push(enc_result.1.reveal().y);
 
     // input commitment
     // inputs.push(peculiar_is_werewolf_commitment[0].x.reveal());

@@ -12,4 +12,5 @@ pub mod mpc_bits;
 pub use mpc_bits::*;
 pub mod mpc_uint8;
 pub use mpc_uint8::*;
+pub mod groups;
 pub mod mpc_fields;

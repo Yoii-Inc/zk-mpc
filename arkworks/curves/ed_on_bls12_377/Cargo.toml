@@ -29,3 +29,4 @@ ark-curve-constraint-tests = { path = "../curve-constraint-tests", default-featu
 default = []
 std = [ "ark-std/std", "ark-ff/std", "ark-ec/std", "ark-bls12-377/std" ]
 r1cs = [ "ark-r1cs-std" ]
+ed_on_bls12_377 = []

@@ -1,13 +1,9 @@
 use std::marker::PhantomData;
 
 use ark_bls12_377::Fr;
-use ark_crypto_primitives::commitment::pedersen::Randomness;
-use ark_crypto_primitives::CommitmentScheme;
 use ark_ff::{BigInteger, PrimeField};
 
-use ark_crypto_primitives::commitment::pedersen::Parameters;
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
-use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
 use ark_ff::Field;
 use ark_std::PubUniformRand;
@@ -18,6 +14,9 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use num_traits::One;
 use num_traits::Zero;
 use rand::Rng;
+
+use mpc_algebra::commitment::pedersen::{Parameters, Randomness as MpcRandomness};
+use mpc_algebra::CommitmentScheme;
 
 // use mpc_algebra::honest_but_curious::*;
 use mpc_algebra::malicious_majority::*;
@@ -52,8 +51,7 @@ pub struct CommonInput<F: PrimeField + LocalOrMPC<F>> {
 pub struct InputWithCommit<F: PrimeField + LocalOrMPC<F>> {
     pub allocation: usize,
     pub input: F,
-    pub input_bit: Vec<F>,
-    pub randomness_bit: Vec<F>,
+    pub randomness: F::PedersenRandomness,
     pub commitment: F::PedersenCommitment,
 }
 
@@ -61,41 +59,12 @@ impl InputWithCommit<MFr> {
     pub fn generate_input(
         &self,
         pedersen_param: &Parameters<MpcEdwardsProjective>,
-        common_randomness: &Randomness<MpcEdwardsProjective>,
+        common_randomness: &MpcRandomness<MpcEdwardsProjective>,
     ) -> Self {
         let mut iwc = self.clone();
         iwc.input = iwc.input.generate_share(iwc.allocation);
 
-        if Net::party_id() == iwc.allocation {
-            iwc.input_bit = iwc
-                .input
-                .clone()
-                // .reveal()
-                .into_repr()
-                .to_bits_le()
-                .iter()
-                .map(|b| MFr::from_add_shared(Fr::from(*b)))
-                .collect::<Vec<_>>();
-        } else {
-            iwc.input_bit = iwc
-                .input
-                .clone()
-                // .reveal()
-                .into_repr()
-                .to_bits_le()
-                .iter()
-                .map(|_b| MFr::from_add_shared(Fr::from(false)))
-                .collect::<Vec<_>>();
-        }
-
-        // let randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::pub_rand(rng);
-        iwc.randomness_bit = common_randomness
-            .0
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| MFr::from(*b))
-            .collect::<Vec<_>>();
+        iwc.randomness = *common_randomness;
 
         let h_x = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
             &pedersen_param.to_local(),
@@ -104,18 +73,10 @@ impl InputWithCommit<MFr> {
         )
         .unwrap();
 
-        let h_x_mpc = match Net::party_id() {
-            0 => GroupAffine::<MpcEdwardsParameters>::new(
-                MFr::from_add_shared(h_x.x),
-                MFr::from_add_shared(h_x.y),
-            ),
-            _ => GroupAffine::<MpcEdwardsParameters>::new(
-                MFr::from_add_shared(Fr::default()),
-                MFr::from_add_shared(Fr::default()),
-            ),
-        };
+        let h_x_mpc = MpcEdwardsAffine::from_public(h_x.clone());
 
-        iwc.commitment = MpcEdwardsAffine::from_local(&h_x_mpc.reveal());
+        iwc.commitment = h_x_mpc;
+
         iwc
     }
 }
@@ -255,31 +216,16 @@ impl MpcInputTrait for SampleMpcInput<Fr> {
         let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
         let input_a = Fr::rand(rng);
-        let input_bit = input_a
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
 
         let a_bytes = input_a.into_repr().to_bytes_le();
 
         //// randomness
         let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
 
-        let open_bit = randomness
-            .0
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
-
         let a = InputWithCommit {
             allocation: 0,
             input: input_a,
-            input_bit,
-            randomness_bit: open_bit,
+            randomness: randomness.clone(),
             commitment: <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
                 &params,
                 &a_bytes,
@@ -465,31 +411,16 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
         let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
         let input_a = Fr::rand(rng);
-        let input_bit = input_a
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
 
         let a_bytes = input_a.into_repr().to_bytes_le();
 
         //// randomness
         let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
 
-        let open_bit = randomness
-            .0
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
-
         let a = InputWithCommit {
             allocation: 0,
             input: input_a,
-            input_bit,
-            randomness_bit: open_bit.clone(),
+            randomness: randomness.clone(),
             commitment: <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
                 &params,
                 &a_bytes,
@@ -499,20 +430,13 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
         };
 
         let input_b = Fr::rand(rng);
-        let input_b_bit = input_b
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
 
         let _b_bytes = input_b.into_repr().to_bytes_le();
 
         let b = InputWithCommit {
             allocation: 0,
             input: input_b,
-            input_bit: input_b_bit,
-            randomness_bit: open_bit,
+            randomness: randomness.clone(),
             commitment: <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
                 &params,
                 &a_bytes,
@@ -739,31 +663,16 @@ impl MpcInputTrait for WerewolfMpcInput<Fr> {
         let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
         let input_a = Fr::rand(rng);
-        let input_bit = input_a
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
 
         let a_bytes = input_a.into_repr().to_bytes_le();
 
         //// randomness
         let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
 
-        let open_bit = randomness
-            .0
-            .into_repr()
-            .to_bits_le()
-            .iter()
-            .map(|b| Fr::from(*b))
-            .collect::<Vec<_>>();
-
         let a = InputWithCommit {
             allocation: 0,
             input: input_a,
-            input_bit,
-            randomness_bit: open_bit,
+            randomness: randomness.clone(),
             commitment: <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
                 &params,
                 &a_bytes,

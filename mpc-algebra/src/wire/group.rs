@@ -50,12 +50,21 @@ impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
         result
     }
 
-    fn from_add_shared(_b: Self::Base) -> Self {
-        todo!()
+    #[inline]
+    fn from_add_shared(b: Self::Base) -> Self {
+        Self::Shared(S::from_add_shared(b))
     }
 
+    #[inline]
     fn from_public(b: Self::Base) -> Self {
         Self::Public(b)
+    }
+
+    fn unwrap_as_public(self) -> Self::Base {
+        match self {
+            Self::Shared(s) => s.unwrap_as_public(),
+            Self::Public(s) => s,
+        }
     }
 }
 
@@ -128,8 +137,8 @@ impl<G: Group, S: GroupShare<G>> CanonicalDeserializeWithFlags for MpcGroup<G, S
 }
 
 impl<G: Group, S: GroupShare<G>> UniformRand for MpcGroup<G, S> {
-    fn rand<R: rand::Rng + ?Sized>(_rng: &mut R) -> Self {
-        todo!()
+    fn rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+        Self::Shared(<S as UniformRand>::rand(rng))
     }
 }
 
@@ -155,7 +164,13 @@ impl<G: Group, S: GroupShare<G>> Neg for MpcGroup<G, S> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        todo!()
+        match self {
+            MpcGroup::Public(x) => MpcGroup::Public(-x),
+            MpcGroup::Shared(mut x) => MpcGroup::Shared({
+                x.neg();
+                x
+            }),
+        }
     }
 }
 
@@ -209,30 +224,51 @@ impl<'a, G: Group, S: GroupShare<G>> Add<&'a MpcGroup<G, S>> for MpcGroup<G, S> 
 }
 
 impl<G: Group, S: GroupShare<G>> SubAssign for MpcGroup<G, S> {
-    fn sub_assign(&mut self, _rhs: Self) {
-        todo!()
+    fn sub_assign(&mut self, rhs: Self) {
+        self.sub_assign(&rhs);
     }
 }
 
 impl<'a, G: Group, S: GroupShare<G>> SubAssign<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
-    fn sub_assign(&mut self, _rhs: &'a MpcGroup<G, S>) {
-        todo!()
+    fn sub_assign(&mut self, rhs: &'a MpcGroup<G, S>) {
+        match self {
+            MpcGroup::Public(a) => match rhs {
+                MpcGroup::Public(b) => {
+                    *a -= b;
+                }
+                MpcGroup::Shared(b) => {
+                    let mut tmp = *b;
+                    tmp.neg().shift(a);
+                    *self = MpcGroup::Shared(tmp);
+                }
+            },
+            MpcGroup::Shared(a) => match rhs {
+                MpcGroup::Public(b) => {
+                    a.shift(&-*b);
+                }
+                MpcGroup::Shared(b) => {
+                    a.sub(b);
+                }
+            },
+        }
     }
 }
 
 impl<G: Group, S: GroupShare<G>> Sub for MpcGroup<G, S> {
     type Output = Self;
 
-    fn sub(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        self.sub_assign(&rhs);
+        self
     }
 }
 
 impl<'a, G: Group, S: GroupShare<G>> Sub<&'a MpcGroup<G, S>> for MpcGroup<G, S> {
     type Output = Self;
 
-    fn sub(self, _rhs: &'a MpcGroup<G, S>) -> Self::Output {
-        todo!()
+    fn sub(mut self, rhs: &'a MpcGroup<G, S>) -> Self::Output {
+        self.sub_assign(rhs);
+        self
     }
 }
 

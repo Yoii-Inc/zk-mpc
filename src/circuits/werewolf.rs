@@ -4,21 +4,26 @@ use ark_crypto_primitives::encryption::*;
 use ark_ec::AffineCurve;
 use ark_ec::ProjectiveCurve;
 use ark_ed_on_bls12_377::constraints::EdwardsVar;
-use ark_ff::{Field, PrimeField};
+use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::boolean::{AllocatedBool, Boolean};
+use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
-use ark_relations::lc;
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable};
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_std::One;
 use ark_std::Zero;
-use mpc_algebra::Reveal;
+use mpc_algebra::groups::MpcCurveVar;
+use mpc_algebra::{MpcBoolean, MpcEqGadget, Reveal};
 
 use mpc_algebra::honest_but_curious as hbc;
 use mpc_algebra::malicious_majority as mm;
+
+use mpc_algebra::encryption::constraints::AsymmetricEncryptionGadget;
+use mpc_algebra::encryption::elgamal::{
+    constraints::ElGamalEncGadget as MpcElGamalEncGadget, elgamal::ElGamal as MpcElGamal,
+};
 
 use super::{LocalOrMPC, PedersenComCircuit};
 use crate::input::{WerewolfKeyInput, WerewolfMpcInput};
@@ -38,9 +43,8 @@ impl<F: PrimeField + LocalOrMPC<F>> KeyPublicizeCircuit<F> {
             let pub_key_or_dummy_x_com_circuit = PedersenComCircuit {
                 param: Some(pedersen_param.clone()),
                 input: pub_key_or_dummy_x.input,
-                input_bit: pub_key_or_dummy_x.input_bit.clone(),
-                open_bit: pub_key_or_dummy_x.randomness_bit.clone(),
-                commit: Some(pub_key_or_dummy_x.commitment.clone()),
+                open: pub_key_or_dummy_x.randomness.clone(),
+                commit: pub_key_or_dummy_x.commitment.clone(),
             };
 
             pub_key_or_dummy_x_com_circuit.generate_constraints(cs.clone())?;
@@ -52,9 +56,8 @@ impl<F: PrimeField + LocalOrMPC<F>> KeyPublicizeCircuit<F> {
             let pub_key_or_dummy_y_com_circuit = PedersenComCircuit {
                 param: Some(pedersen_param.clone()),
                 input: pub_key_or_dummy_y.input,
-                input_bit: pub_key_or_dummy_y.input_bit.clone(),
-                open_bit: pub_key_or_dummy_y.randomness_bit.clone(),
-                commit: Some(pub_key_or_dummy_y.commitment.clone()),
+                open: pub_key_or_dummy_y.randomness.clone(),
+                commit: pub_key_or_dummy_y.commitment.clone(),
             };
 
             pub_key_or_dummy_y_com_circuit.generate_constraints(cs.clone())?;
@@ -139,9 +142,8 @@ impl<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> DivinationCircuit<F> 
             let is_werewolf_com_circuit = PedersenComCircuit {
                 param: Some(pedersen_param.clone()),
                 input: is_werewolf.input,
-                input_bit: is_werewolf.input_bit.clone(),
-                open_bit: is_werewolf.randomness_bit.clone(),
-                commit: Some(is_werewolf.commitment.clone()),
+                open: is_werewolf.randomness.clone(),
+                commit: is_werewolf.commitment.clone(),
             };
 
             is_werewolf_com_circuit.generate_constraints(cs.clone())?;
@@ -153,9 +155,8 @@ impl<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> DivinationCircuit<F> 
             let is_target_com_circuit = PedersenComCircuit {
                 param: Some(pedersen_param.clone()),
                 input: is_target.input,
-                input_bit: is_target.input_bit.clone(),
-                open_bit: is_target.randomness_bit.clone(),
-                commit: Some(is_target.commitment.clone()),
+                open: is_target.randomness.clone(),
+                commit: is_target.commitment.clone(),
             };
 
             is_target_com_circuit.generate_constraints(cs.clone())?;
@@ -175,52 +176,14 @@ impl ConstraintSynthesizer<Fr> for DivinationCircuit<Fr> {
             .is_werewolf
             .clone()
             .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(b.input))?;
-
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
-
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
-
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
+            .map(|b| Boolean::new_witness(cs.clone(), || Ok(b.input.is_one())))
             .collect::<Result<Vec<_>, _>>()?;
 
         let is_target_bit = peculiar_input
             .is_target
             .clone()
             .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(b.input))?;
-
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
-
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
-
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
+            .map(|b| Boolean::new_witness(cs.clone(), || Ok(b.input.is_one())))
             .collect::<Result<Vec<_>, _>>()?;
 
         let is_wt = is_werewolf_bit
@@ -252,27 +215,9 @@ impl ConstraintSynthesizer<Fr> for DivinationCircuit<Fr> {
 
         let randomness_bits_var = peculiar_input
             .randomness_bit
+            .clone()
             .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(*b))?;
-
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
-
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
-
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
+            .map(|b| Boolean::new_witness(cs.clone(), || Ok(b.is_one())))
             .collect::<Result<Vec<_>, _>>()?;
 
         // allocate public key
@@ -287,11 +232,12 @@ impl ConstraintSynthesizer<Fr> for DivinationCircuit<Fr> {
             let randomness = randomness_bits_var;
 
             // compute s = randomness*pk
-            let s = pub_key_var.pk().clone().scalar_mul_le(randomness.iter())?;
+            let s = Fr::get_public_key(&pub_key_var)
+                .clone()
+                .scalar_mul_le(randomness.iter())?;
 
             // compute c1 = randomness*generator
-            let c1 = param_var
-                .generator()
+            let c1 = Fr::get_generator(&param_var)
                 .clone()
                 .scalar_mul_le(randomness.iter())?;
 
@@ -339,196 +285,145 @@ impl ConstraintSynthesizer<Fr> for DivinationCircuit<Fr> {
     }
 }
 
-// Constraint Implementation for Local Field
-impl ConstraintSynthesizer<hbc::MpcField<Fr>> for DivinationCircuit<hbc::MpcField<Fr>> {
-    fn generate_constraints(
-        self,
-        cs: ConstraintSystemRef<hbc::MpcField<Fr>>,
-    ) -> Result<(), SynthesisError> {
-        let common_input = self.clone().mpc_input.common.unwrap();
-        let peculiar_input = self.clone().mpc_input.peculiar.unwrap();
+// Constraint Implementation for hbc MpcField
+// impl ConstraintSynthesizer<hbc::MpcField<Fr>> for DivinationCircuit<hbc::MpcField<Fr>> {
+//     fn generate_constraints(
+//         self,
+//         cs: ConstraintSystemRef<hbc::MpcField<Fr>>,
+//     ) -> Result<(), SynthesisError> {
+//         let common_input = self.clone().mpc_input.common.unwrap();
+//         let peculiar_input = self.clone().mpc_input.peculiar.unwrap();
 
-        let is_werewolf_bit = peculiar_input
-            .is_werewolf
-            .clone()
-            .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(b.input))?;
+//         let is_werewolf_bit = MpcBoolean::new_witness_vec(
+//             cs.clone(),
+//             &peculiar_input
+//                 .is_werewolf
+//                 .clone()
+//                 .iter()
+//                 .map(|b| b.input)
+//                 .collect::<Vec<_>>(),
+//         )?;
 
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
+//         let is_target_bit = MpcBoolean::new_witness_vec(
+//             cs.clone(),
+//             &peculiar_input
+//                 .is_target
+//                 .clone()
+//                 .iter()
+//                 .map(|b| b.input)
+//                 .collect::<Vec<_>>(),
+//         )?;
 
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
+//         let is_wt = is_werewolf_bit
+//             .iter()
+//             .zip(is_target_bit.iter())
+//             .map(|(x, y)| x.and(y))
+//             .collect::<Result<Vec<_>, _>>()?;
 
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+//         let is_target_werewolf_bit = MpcBoolean::kary_or(is_wt.as_slice())?;
 
-        let is_target_bit = peculiar_input
-            .is_target
-            .clone()
-            .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(b.input))?;
+//         let one_point =
+//             <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::EdwardsVar::new_witness(
+//                 ark_relations::ns!(cs, "gadget_randomness"),
+//                 || {
+//                     Ok(<hbc::MpcField<Fr> as ElGamalLocalOrMPC<
+//                         hbc::MpcField<Fr>,
+//                     >>::ElGamalPlaintext::prime_subgroup_generator(
+//                     ))
+//                 },
+//             )?;
 
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
+//         let zero_point =
+//             <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::EdwardsVar::new_witness(
+//                 ark_relations::ns!(cs, "gadget_randomness"),
+//                 || {
+//                     Ok(<hbc::MpcField<Fr> as ElGamalLocalOrMPC<
+//                         hbc::MpcField<Fr>,
+//                     >>::ElGamalPlaintext::default())
+//                 },
+//             )?;
 
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
+//         let is_target_werewolf =
+//             hbc::MpcField::<Fr>::select(&is_target_werewolf_bit, &one_point, &zero_point)?;
 
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+//         // elgamal encryption
 
-        let is_wt = is_werewolf_bit
-            .iter()
-            .zip(is_target_bit.iter())
-            .map(|(x, y)| x.and(y))
-            .collect::<Result<Vec<_>, _>>()?;
+//         let param_var =
+//             <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalParamVar::new_input(
+//                 ark_relations::ns!(cs, "gadget_parameters"),
+//                 || Ok(common_input.elgamal_param.clone()),
+//             )?;
 
-        let is_target_werewolf_bit = Boolean::kary_or(is_wt.as_slice())?;
+//         let randomness_bits_var =
+//             MpcBoolean::new_witness_vec(cs.clone(), &peculiar_input.randomness_bit)?;
 
-        let one_point =
-            <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::EdwardsVar::new_witness(
-                ark_relations::ns!(cs, "gadget_randomness"),
-                || {
-                    Ok(<hbc::MpcField<Fr> as ElGamalLocalOrMPC<
-                        hbc::MpcField<Fr>,
-                    >>::ElGamalPlaintext::prime_subgroup_generator(
-                    ))
-                },
-            )?;
+//         // allocate public key
+//         let pub_key_var = <hbc::MpcField<Fr>as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalPublicKeyVar::new_input(
+//             ark_relations::ns!(cs, "gadget_public_key"),
+//             || Ok(common_input.pub_key),
+//         )?;
 
-        let zero_point =
-            <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::EdwardsVar::new_witness(
-                ark_relations::ns!(cs, "gadget_randomness"),
-                || {
-                    Ok(<hbc::MpcField<Fr> as ElGamalLocalOrMPC<
-                        hbc::MpcField<Fr>,
-                    >>::ElGamalPlaintext::default())
-                },
-            )?;
+//         // allocate the output
+//         let enc_result_var = {
+//             // flatten randomness to little-endian bit vector
+//             let randomness = randomness_bits_var;
 
-        let is_target_werewolf = is_target_werewolf_bit.select(&one_point, &zero_point)?;
+//             // compute s = randomness*pk
+//             let s = hbc::MpcField::<Fr>::get_public_key(&pub_key_var)
+//                 .clone()
+//                 .scalar_mul_le(randomness.iter())?;
 
-        // elgamal encryption
+//             // compute c1 = randomness*generator
+//             let c1 = hbc::MpcField::<Fr>::get_generator(&param_var)
+//                 .clone()
+//                 .scalar_mul_le(randomness.iter())?;
 
-        let param_var = <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalParamVar::new_input(
-            ark_relations::ns!(cs, "gadget_parameters"),
-            || Ok(common_input.elgamal_param.clone()),
-        )?;
+//             // compute c2 = m + s
+//             let c2 = is_target_werewolf.clone() + s;
 
-        let randomness_bits_var = peculiar_input
-            .randomness_bit
-            .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(*b))?;
+//             <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalCiphertextVar::new(
+//                 c1, c2,
+//             )
+//         };
 
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
+//         // compare
+//         let enc_result_var2 = <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalCiphertextVar::new_input(
+//             ark_relations::ns!(cs, "gadget_commitment"),
+//             || {
+//                 let is_werewolf: hbc::MpcField<Fr> = peculiar_input
+//                     .is_werewolf
+//                     .iter()
+//                     .zip(peculiar_input.is_target.iter())
+//                     .map(|(x, y)| x.input * y.input)
+//                     .sum();
 
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
+//                 let message = match is_werewolf.clone().reveal().is_one() {
+//                     true => {
+//                         <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalPlaintext::prime_subgroup_generator(
+//                         )
+//                     }
+//                     false => <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalPlaintext::default(),
+//                 };
+//                 let enc_result = <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalScheme::encrypt(
+//                     &common_input.elgamal_param,
+//                     &common_input.pub_key,
+//                     &message,
+//                     &peculiar_input.randomness,
+//                 )
+//                 .unwrap();
+//                 Ok(enc_result)
+//             },
+//         )?;
 
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+//         enc_result_var.enforce_equal(&enc_result_var2)?;
 
-        // allocate public key
-        let pub_key_var = <hbc::MpcField<Fr>as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalPublicKeyVar::new_input(
-            ark_relations::ns!(cs, "gadget_public_key"),
-            || Ok(common_input.pub_key),
-        )?;
+//         // self.verify_commitments(cs.clone())?;
 
-        // allocate the output
-        let enc_result_var = {
-            // flatten randomness to little-endian bit vector
-            let randomness = randomness_bits_var;
+//         println!("total number of constraints: {}", cs.num_constraints());
 
-            // compute s = randomness*pk
-            let s = pub_key_var.pk().clone().scalar_mul_le(randomness.iter())?;
-
-            // compute c1 = randomness*generator
-            let c1 = param_var
-                .generator()
-                .clone()
-                .scalar_mul_le(randomness.iter())?;
-
-            // compute c2 = m + s
-            let c2 = is_target_werewolf.clone() + s;
-
-            <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalCiphertextVar::new(
-                c1, c2,
-            )
-        };
-
-        // compare
-        let enc_result_var2 = <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalCiphertextVar::new_input(
-            ark_relations::ns!(cs, "gadget_commitment"),
-            || {
-                let is_werewolf: hbc::MpcField<Fr> = peculiar_input
-                    .is_werewolf
-                    .iter()
-                    .zip(peculiar_input.is_target.iter())
-                    .map(|(x, y)| x.input * y.input)
-                    .sum();
-
-                let message = match is_werewolf.clone().reveal().is_one() {
-                    true => {
-                        <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalPlaintext::prime_subgroup_generator(
-                        )
-                    }
-                    false => <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalPlaintext::default(),
-                };
-                let enc_result = <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalScheme::encrypt(
-                    &common_input.elgamal_param,
-                    &common_input.pub_key,
-                    &message,
-                    &peculiar_input.randomness,
-                )
-                .unwrap();
-                Ok(enc_result)
-            },
-        )?;
-
-        enc_result_var.enforce_equal(&enc_result_var2)?;
-
-        // self.verify_commitments(cs.clone())?;
-
-        println!("total number of constraints: {}", cs.num_constraints());
-
-        Ok(())
-    }
-}
+//         Ok(())
+//     }
+// }
 
 impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<Fr>> {
     fn generate_constraints(
@@ -538,57 +433,25 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
         let common_input = self.clone().mpc_input.common.unwrap();
         let peculiar_input = self.clone().mpc_input.peculiar.unwrap();
 
-        let is_werewolf_bit = peculiar_input
-            .is_werewolf
-            .clone()
-            .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(b.input))?;
+        let is_werewolf_bit = MpcBoolean::new_witness_vec(
+            cs.clone(),
+            &peculiar_input
+                .is_werewolf
+                .clone()
+                .iter()
+                .map(|b| b.input)
+                .collect::<Vec<_>>(),
+        )?;
 
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
-
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
-
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let is_target_bit = peculiar_input
-            .is_target
-            .clone()
-            .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(b.input))?;
-
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
-
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
-
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let is_target_bit = MpcBoolean::new_witness_vec(
+            cs.clone(),
+            &peculiar_input
+                .is_target
+                .clone()
+                .iter()
+                .map(|b| b.input)
+                .collect::<Vec<_>>(),
+        )?;
 
         let is_wt = is_werewolf_bit
             .iter()
@@ -596,7 +459,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
             .map(|(x, y)| x.and(y))
             .collect::<Result<Vec<_>, _>>()?;
 
-        let is_target_werewolf_bit = Boolean::kary_or(is_wt.as_slice())?;
+        let is_target_werewolf_bit = MpcBoolean::kary_or(is_wt.as_slice())?;
 
         let one_point =
             <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::EdwardsVar::new_witness(
@@ -619,7 +482,8 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
                 },
             )?;
 
-        let is_target_werewolf = is_target_werewolf_bit.select(&one_point, &zero_point)?;
+        let is_target_werewolf =
+            mm::MpcField::<Fr>::select(&is_target_werewolf_bit, &one_point, &zero_point)?;
 
         // elgamal encryption
 
@@ -629,30 +493,8 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
                 || Ok(common_input.elgamal_param.clone()),
             )?;
 
-        let randomness_bits_var = peculiar_input
-            .randomness_bit
-            .iter()
-            .map(|b| {
-                let alloc_bool = {
-                    let variable = cs.new_witness_variable(|| Ok(*b))?;
-
-                    // Constrain: (1 - a) * a = 0
-                    // This constrains a to be either 0 or 1.
-
-                    cs.enforce_constraint(
-                        lc!() + Variable::One - variable,
-                        lc!() + variable,
-                        lc!(),
-                    )?;
-
-                    AllocatedBool {
-                        variable,
-                        cs: cs.clone(),
-                    }
-                };
-                Ok(Boolean::Is(alloc_bool))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let randomness_bits_var =
+            MpcBoolean::new_witness_vec(cs.clone(), &peculiar_input.randomness_bit)?;
 
         // allocate public key
         let pub_key_var = <mm::MpcField<Fr>as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalPublicKeyVar::new_input(
@@ -666,11 +508,12 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
             let randomness = randomness_bits_var;
 
             // compute s = randomness*pk
-            let s = pub_key_var.pk().clone().scalar_mul_le(randomness.iter())?;
+            let s = mm::MpcField::<Fr>::get_public_key(&pub_key_var)
+                .clone()
+                .scalar_mul_le(randomness.iter())?;
 
             // compute c1 = randomness*generator
-            let c1 = param_var
-                .generator()
+            let c1 = mm::MpcField::<Fr>::get_generator(&param_var)
                 .clone()
                 .scalar_mul_le(randomness.iter())?;
 
@@ -739,7 +582,8 @@ pub trait ElGamalLocalOrMPC<ConstraintF: PrimeField> {
     type ElGamalPlaintext: Clone;
     type ElGamalCiphertext: Clone;
 
-    type EdwardsVar: CurveVar<Self::JubJub, ConstraintF>;
+    type BooleanVar;
+    type EdwardsVar: AllocVar<Self::JubJub, ConstraintF> + Clone;
 
     type ElGamalGadget: AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
@@ -749,15 +593,26 @@ pub trait ElGamalLocalOrMPC<ConstraintF: PrimeField> {
         PublicKeyVar = Self::ElGamalPublicKeyVar,
         RandomnessVar = Self::ElGamalRandomnessVar,
     >;
-    type ElGamalParamVar: AllocVar<Self::ElGamalParam, ConstraintF>
-        + Clone
-        + GetElGamalParam<Self::JubJub, Self::EdwardsVar, ConstraintF>;
-    type ElGamalPublicKeyVar: AllocVar<Self::ElGamalPubKey, ConstraintF>
-        + Clone
-        + GetPubKey<Self::JubJub, Self::EdwardsVar, ConstraintF>;
+    type ElGamalParamVar: AllocVar<Self::ElGamalParam, ConstraintF> + Clone;
+    type ElGamalPublicKeyVar: AllocVar<Self::ElGamalPubKey, ConstraintF> + Clone;
     type ElGamalRandomnessVar: AllocVar<Self::ElGamalRandomness, ConstraintF> + Clone;
     type ElGamalPlaintextVar: AllocVar<Self::ElGamalPlaintext, ConstraintF> + Clone;
     type ElGamalCiphertextVar: AllocVar<Self::ElGamalCiphertext, ConstraintF> + Clone;
+
+    fn get_generator(a: &Self::ElGamalParamVar) -> Self::EdwardsVar;
+
+    fn get_public_key(a: &Self::ElGamalPublicKeyVar) -> Self::EdwardsVar;
+
+    fn select(
+        boolean: &Self::BooleanVar,
+        frist: &Self::EdwardsVar,
+        second: &Self::EdwardsVar,
+    ) -> Result<Self::EdwardsVar, SynthesisError>;
+
+    fn enforce_equal_output(
+        a: &Self::ElGamalCiphertextVar,
+        b: &Self::ElGamalCiphertextVar,
+    ) -> Result<(), SynthesisError>;
 }
 
 impl ElGamalLocalOrMPC<Fr> for Fr {
@@ -772,6 +627,7 @@ impl ElGamalLocalOrMPC<Fr> for Fr {
     type ElGamalCiphertext = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Ciphertext;
 
     type EdwardsVar = EdwardsVar;
+    type BooleanVar = Boolean<Fr>;
 
     type ElGamalGadget = ElGamalEncGadget<ark_ed_on_bls12_377::EdwardsProjective, EdwardsVar>;
     type ElGamalParamVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
@@ -794,48 +650,95 @@ impl ElGamalLocalOrMPC<Fr> for Fr {
         Self::ElGamalScheme,
         ark_bls12_377::Fr,
     >>::OutputVar;
+
+    fn get_generator(a: &Self::ElGamalParamVar) -> Self::EdwardsVar {
+        a.generator.clone()
+    }
+
+    fn get_public_key(a: &Self::ElGamalPublicKeyVar) -> Self::EdwardsVar {
+        a.pk.clone()
+    }
+
+    fn select(
+        boolean: &Self::BooleanVar,
+        frist: &Self::EdwardsVar,
+        second: &Self::EdwardsVar,
+    ) -> Result<Self::EdwardsVar, SynthesisError> {
+        boolean.select(frist, second)
+    }
+
+    fn enforce_equal_output(
+        a: &Self::ElGamalCiphertextVar,
+        b: &Self::ElGamalCiphertextVar,
+    ) -> Result<(), SynthesisError> {
+        a.enforce_equal(b)
+    }
 }
 
-impl ElGamalLocalOrMPC<hbc::MpcField<Fr>> for hbc::MpcField<Fr> {
-    type JubJub = hbc::MpcEdwardsProjective;
+// impl ElGamalLocalOrMPC<hbc::MpcField<Fr>> for hbc::MpcField<Fr> {
+//     type JubJub = hbc::MpcEdwardsProjective;
 
-    type ElGamalScheme = ElGamal<hbc::MpcEdwardsProjective>;
-    type ElGamalParam = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Parameters;
-    type ElGamalPubKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::PublicKey;
-    type ElGamalSecretKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::SecretKey;
-    type ElGamalRandomness = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Randomness;
-    type ElGamalPlaintext = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Plaintext;
-    type ElGamalCiphertext = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Ciphertext;
+//     type ElGamalScheme = MpcElGamal<hbc::MpcEdwardsProjective>;
+//     type ElGamalParam = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Parameters;
+//     type ElGamalPubKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::PublicKey;
+//     type ElGamalSecretKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::SecretKey;
+//     type ElGamalRandomness = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Randomness;
+//     type ElGamalPlaintext = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Plaintext;
+//     type ElGamalCiphertext = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Ciphertext;
 
-    type EdwardsVar = hbc::MpcEdwardsVar;
+//     type EdwardsVar = hbc::MpcEdwardsVar;
+//     type BooleanVar = MpcBoolean<hbc::MpcField<Fr>>;
 
-    type ElGamalGadget = ElGamalEncGadget<hbc::MpcEdwardsProjective, hbc::MpcEdwardsVar>;
-    type ElGamalParamVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
-        Self::ElGamalScheme,
-        hbc::MpcField<Fr>,
-    >>::ParametersVar;
-    type ElGamalRandomnessVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
-        Self::ElGamalScheme,
-        hbc::MpcField<Fr>,
-    >>::RandomnessVar;
-    type ElGamalPublicKeyVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
-        Self::ElGamalScheme,
-        hbc::MpcField<Fr>,
-    >>::PublicKeyVar;
-    type ElGamalPlaintextVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
-        Self::ElGamalScheme,
-        hbc::MpcField<Fr>,
-    >>::PlaintextVar;
-    type ElGamalCiphertextVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
-        Self::ElGamalScheme,
-        hbc::MpcField<Fr>,
-    >>::OutputVar;
-}
+//     type ElGamalGadget = MpcElGamalEncGadget<hbc::MpcEdwardsProjective, hbc::MpcEdwardsVar>;
+//     type ElGamalParamVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
+//         Self::ElGamalScheme,
+//         hbc::MpcField<Fr>,
+//     >>::ParametersVar;
+//     type ElGamalRandomnessVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
+//         Self::ElGamalScheme,
+//         hbc::MpcField<Fr>,
+//     >>::RandomnessVar;
+//     type ElGamalPublicKeyVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
+//         Self::ElGamalScheme,
+//         hbc::MpcField<Fr>,
+//     >>::PublicKeyVar;
+//     type ElGamalPlaintextVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
+//         Self::ElGamalScheme,
+//         hbc::MpcField<Fr>,
+//     >>::PlaintextVar;
+//     type ElGamalCiphertextVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
+//         Self::ElGamalScheme,
+//         hbc::MpcField<Fr>,
+//     >>::OutputVar;
+
+//     fn get_generator(a: &Self::ElGamalParamVar) -> Self::EdwardsVar {
+//         a.generator.clone()
+//     }
+
+//     fn get_public_key(a: &Self::ElGamalPublicKeyVar) -> Self::EdwardsVar {
+//         a.pk.clone()
+//     }
+
+//     fn select(
+//         boolean: &Self::BooleanVar,
+//         frist: &Self::EdwardsVar,
+//         second: &Self::EdwardsVar,
+//     ) -> Result<Self::EdwardsVar, SynthesisError> {
+//         boolean.select(frist, second)
+//     }
+
+//     fn enforce_equal_output(
+//         a: &Self::ElGamalCiphertextVar,
+//         b: &Self::ElGamalCiphertextVar,
+//     ) -> Result<(), SynthesisError> {
+//         a.enforce_equal(b)
+//     }
+// }
 
 impl ElGamalLocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
     type JubJub = mm::MpcEdwardsProjective;
 
-    type ElGamalScheme = ElGamal<mm::MpcEdwardsProjective>;
+    type ElGamalScheme = MpcElGamal<mm::MpcEdwardsProjective>;
     type ElGamalParam = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Parameters;
     type ElGamalPubKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::PublicKey;
     type ElGamalSecretKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::SecretKey;
@@ -844,8 +747,9 @@ impl ElGamalLocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
     type ElGamalCiphertext = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Ciphertext;
 
     type EdwardsVar = mm::MpcEdwardsVar;
+    type BooleanVar = MpcBoolean<mm::MpcField<Fr>>;
 
-    type ElGamalGadget = ElGamalEncGadget<mm::MpcEdwardsProjective, mm::MpcEdwardsVar>;
+    type ElGamalGadget = MpcElGamalEncGadget<mm::MpcEdwardsProjective, mm::MpcEdwardsVar>;
     type ElGamalParamVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
         mm::MpcField<Fr>,
@@ -866,76 +770,27 @@ impl ElGamalLocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
         Self::ElGamalScheme,
         mm::MpcField<Fr>,
     >>::OutputVar;
-}
 
-pub trait GetPubKey<C: ProjectiveCurve, GG: CurveVar<C, ConstraintF>, ConstraintF: Field> {
-    fn pk(&self) -> GG;
-}
-
-impl GetPubKey<<Fr as LocalOrMPC<Fr>>::JubJub, EdwardsVar, Fr>
-    for <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPublicKeyVar
-{
-    fn pk(&self) -> EdwardsVar {
-        self.pk.clone()
+    fn get_generator(a: &Self::ElGamalParamVar) -> Self::EdwardsVar {
+        a.generator.clone()
     }
-}
 
-impl
-    GetPubKey<
-        <hbc::MpcField<Fr> as LocalOrMPC<hbc::MpcField<Fr>>>::JubJub,
-        hbc::MpcEdwardsVar,
-        hbc::MpcField<Fr>,
-    > for <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalPublicKeyVar
-{
-    fn pk(&self) -> hbc::MpcEdwardsVar {
-        self.pk.clone()
+    fn get_public_key(a: &Self::ElGamalPublicKeyVar) -> Self::EdwardsVar {
+        a.pk.clone()
     }
-}
 
-impl
-    GetPubKey<
-        <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::JubJub,
-        mm::MpcEdwardsVar,
-        mm::MpcField<Fr>,
-    > for <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalPublicKeyVar
-{
-    fn pk(&self) -> mm::MpcEdwardsVar {
-        self.pk.clone()
+    fn select(
+        boolean: &Self::BooleanVar,
+        frist: &Self::EdwardsVar,
+        second: &Self::EdwardsVar,
+    ) -> Result<Self::EdwardsVar, SynthesisError> {
+        boolean.select(frist, second)
     }
-}
 
-pub trait GetElGamalParam<C: ProjectiveCurve, GG: CurveVar<C, ConstraintF>, ConstraintF: Field> {
-    fn generator(&self) -> GG;
-}
-
-impl GetElGamalParam<<Fr as LocalOrMPC<Fr>>::JubJub, EdwardsVar, Fr>
-    for <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParamVar
-{
-    fn generator(&self) -> EdwardsVar {
-        self.generator.clone()
-    }
-}
-
-impl
-    GetElGamalParam<
-        <hbc::MpcField<Fr> as LocalOrMPC<hbc::MpcField<Fr>>>::JubJub,
-        hbc::MpcEdwardsVar,
-        hbc::MpcField<Fr>,
-    > for <hbc::MpcField<Fr> as ElGamalLocalOrMPC<hbc::MpcField<Fr>>>::ElGamalParamVar
-{
-    fn generator(&self) -> hbc::MpcEdwardsVar {
-        self.generator.clone()
-    }
-}
-
-impl
-    GetElGamalParam<
-        <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::JubJub,
-        mm::MpcEdwardsVar,
-        mm::MpcField<Fr>,
-    > for <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalParamVar
-{
-    fn generator(&self) -> mm::MpcEdwardsVar {
-        self.generator.clone()
+    fn enforce_equal_output(
+        a: &Self::ElGamalCiphertextVar,
+        b: &Self::ElGamalCiphertextVar,
+    ) -> Result<(), SynthesisError> {
+        a.enforce_equal(b)
     }
 }

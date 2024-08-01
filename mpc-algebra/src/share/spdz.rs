@@ -246,6 +246,18 @@ impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
                 .collect(),
         ))
     }
+
+    fn modulus_conversion<F2: PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
+    where
+        F: PrimeField,
+    {
+        // TODO: bad implementation, so it's just for testing
+        let revealed_val = self.reveal();
+        let bits = revealed_val.into_repr().to_bits_le();
+        let converted_val = F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap();
+
+        S2::king_share(converted_val, &mut ark_std::test_rng())
+    }
 }
 
 #[derive(Derivative)]
@@ -260,7 +272,7 @@ impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
     Hash(bound = "T: Hash")
 )]
 pub struct SpdzGroupShare<T, M> {
-    sh: AdditiveGroupShare<T, M>,
+    pub sh: AdditiveGroupShare<T, M>,
     mac: AdditiveGroupShare<T, M>,
 }
 
@@ -300,6 +312,9 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
                 t
             }),
         }
+    }
+    fn unwrap_as_public(self) -> Self::Base {
+        self.sh.unwrap_as_public()
     }
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
         let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
@@ -380,16 +395,16 @@ macro_rules! impl_spdz_basics_2_param {
                 unimplemented!("deserialize_with_flags")
             }
         }
-        impl<T: $bound, M> UniformRand for $share<T, M> {
-            fn rand<R: Rng + ?Sized>(_rng: &mut R) -> Self {
-                todo!()
-                //Self::from_add_shared(<T as UniformRand>::rand(rng))
-            }
-        }
     };
 }
 
 impl_spdz_basics_2_param!(SpdzGroupShare, Group);
+
+impl<G: Group, M> UniformRand for SpdzGroupShare<G, M> {
+    fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+        Self::from_add_shared(<G as UniformRand>::rand(rng))
+    }
+}
 
 impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M> {
     type FieldShare = SpdzFieldShare<G::ScalarField>;
@@ -474,6 +489,12 @@ pub struct SpdzMulFieldShare<T, S> {
     _phants: PhantomData<S>,
 }
 impl_spdz_basics_2_param!(SpdzMulFieldShare, Field);
+
+impl<T: Field, S: PrimeField> UniformRand for SpdzMulFieldShare<T, S> {
+    fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+        Self::from_add_shared(<T as UniformRand>::rand(rng))
+    }
+}
 
 impl<F: Field, S: PrimeField> Reveal for SpdzMulFieldShare<F, S> {
     type Base = F;
