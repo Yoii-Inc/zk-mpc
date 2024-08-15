@@ -26,7 +26,7 @@ use crate::{
     input::{MpcInputTrait, SampleMpcInput},
 };
 
-fn setup_and_index<C: ConstraintSynthesizer<Fr>>(
+pub fn setup_and_index<C: ConstraintSynthesizer<Fr>>(
     circuit: C,
 ) -> (
     IndexProverKey<MFr, MpcMarlinKZG10>,
@@ -39,7 +39,7 @@ fn setup_and_index<C: ConstraintSynthesizer<Fr>>(
     (mpc_index_pk, index_vk)
 }
 
-fn prove_and_verify<C: ConstraintSynthesizer<MFr>>(
+pub fn prove_and_verify<C: ConstraintSynthesizer<MFr>>(
     mpc_index_pk: &IndexProverKey<MFr, MpcMarlinKZG10>,
     index_vk: &IndexVerifierKey<Fr, LocalMarlinKZG10>,
     circuit: C,

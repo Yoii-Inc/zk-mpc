@@ -252,3 +252,6 @@ jobs:
 
       - name: Run werewolf night
         run: ./run_werewolf.zsh night
+      
+      - name: Run werewolf vote
+        run: ./run_werewolf.zsh vote

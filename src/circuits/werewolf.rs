@@ -11,11 +11,15 @@ use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::select::CondSelectGadget;
+use ark_r1cs_std::ToBitsGadget;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
-use ark_std::One;
-use ark_std::Zero;
+use ark_std::{test_rng, One, Zero};
 use mpc_algebra::groups::MpcCurveVar;
-use mpc_algebra::{MpcBoolean, MpcEqGadget, Reveal};
+use mpc_algebra::mpc_fields::MpcFieldVar;
+use mpc_algebra::{
+    MpcBoolean, MpcCondSelectGadget, MpcEqGadget, MpcFpVar, MpcToBitsGadget, Reveal,
+};
 
 use mpc_algebra::honest_but_curious as hbc;
 use mpc_algebra::malicious_majority as mm;
@@ -557,6 +561,157 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
         enc_result_var.enforce_equal(&enc_result_var2)?;
 
         // self.verify_commitments(cs.clone())?;
+
+        println!("total number of constraints: {}", cs.num_constraints());
+
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct AnonymousVotingCircuit<F: PrimeField + LocalOrMPC<F>> {
+    pub is_target_id: Vec<Vec<F>>,
+    pub is_most_voted_id: F,
+}
+
+impl ConstraintSynthesizer<Fr> for AnonymousVotingCircuit<Fr> {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<()> {
+        // initialize
+        let player_num = self.is_target_id.len();
+
+        let is_target_id_var = self
+            .is_target_id
+            .iter()
+            .map(|id| {
+                id.iter()
+                    .map(|b| FpVar::new_witness(cs.clone(), || Ok(b)))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let is_most_voted_id_var = FpVar::new_input(cs.clone(), || Ok(self.is_most_voted_id))?;
+
+        // calculate
+        let mut num_voted_var = Vec::new();
+
+        for i in 0..player_num {
+            let mut each_num_voted = FpVar::zero();
+
+            for j in 0..player_num {
+                each_num_voted += is_target_id_var[j][i].clone();
+            }
+
+            num_voted_var.push(each_num_voted);
+        }
+
+        let constant = (0..4)
+            .map(|i| FpVar::Constant(Fr::from(i as i32)))
+            .collect::<Vec<_>>();
+
+        let mut calced_is_most_voted_id = FpVar::new_witness(cs.clone(), || Ok(Fr::zero()))?;
+
+        for i in 0..player_num {
+            let a_now = FpVar::conditionally_select_power_of_two_vector(
+                &calced_is_most_voted_id.to_bits_le().unwrap()[..2],
+                &constant,
+            )?;
+
+            let res = FpVar::is_cmp(
+                //&num_voted_var[calced_is_most_voted_id],
+                &a_now,
+                &num_voted_var[i],
+                std::cmp::Ordering::Greater,
+                true,
+            )?;
+
+            let false_value = FpVar::new_witness(cs.clone(), || Ok(Fr::from(i as i32)))?;
+
+            calced_is_most_voted_id =
+                FpVar::conditionally_select(&res, &calced_is_most_voted_id, &false_value)?;
+        }
+
+        // enforce equal
+        is_most_voted_id_var.enforce_equal(&calced_is_most_voted_id);
+
+        println!("total number of constraints: {}", cs.num_constraints());
+
+        Ok(())
+    }
+}
+
+impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcField<Fr>> {
+    fn generate_constraints(
+        self,
+        cs: ConstraintSystemRef<mm::MpcField<Fr>>,
+    ) -> ark_relations::r1cs::Result<()> {
+        // initialize
+        let player_num = self.is_target_id.len();
+
+        let is_target_id_var = self
+            .is_target_id
+            .iter()
+            .map(|id| {
+                id.iter()
+                    .map(|b| MpcFpVar::new_witness(cs.clone(), || Ok(b)))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let is_most_voted_id_var = MpcFpVar::new_input(cs.clone(), || Ok(self.is_most_voted_id))?;
+
+        // calculate
+        let mut num_voted_var = Vec::new();
+
+        for i in 0..player_num {
+            let mut each_num_voted = MpcFpVar::zero();
+
+            for j in 0..player_num {
+                each_num_voted += is_target_id_var[j][i].clone();
+            }
+
+            num_voted_var.push(each_num_voted);
+        }
+
+        let constant = (0..4)
+            .map(|i| {
+                MpcFpVar::Constant(mm::MpcField::<Fr>::king_share(
+                    Fr::from(i as i32),
+                    &mut test_rng(),
+                ))
+            })
+            .collect::<Vec<_>>();
+
+        let mut calced_is_most_voted_id = MpcFpVar::new_witness(cs.clone(), || {
+            Ok(mm::MpcField::<Fr>::king_share(Fr::zero(), &mut test_rng()))
+        })?;
+
+        for i in 0..player_num {
+            let a_now = MpcFpVar::conditionally_select_power_of_two_vector(
+                &calced_is_most_voted_id.to_bits_le().unwrap()[..2],
+                &constant,
+            )?;
+
+            let res = MpcFpVar::is_cmp(
+                //&num_voted_var[calced_is_most_voted_id],
+                &a_now,
+                &num_voted_var[i],
+                std::cmp::Ordering::Greater,
+                true,
+            )?;
+
+            let false_value = MpcFpVar::new_witness(cs.clone(), || {
+                Ok(mm::MpcField::<Fr>::king_share(
+                    Fr::from(i as i32),
+                    &mut test_rng(),
+                ))
+            })?;
+
+            calced_is_most_voted_id =
+                MpcFpVar::conditionally_select(&res, &calced_is_most_voted_id, &false_value)?;
+        }
+
+        // enforce equal
+        is_most_voted_id_var.enforce_equal(&calced_is_most_voted_id);
 
         println!("total number of constraints: {}", cs.num_constraints());
 
