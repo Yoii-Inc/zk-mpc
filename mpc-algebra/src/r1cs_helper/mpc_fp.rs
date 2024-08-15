@@ -125,7 +125,7 @@ impl<F: PrimeField> MpcAllocatedFp<F> {
     pub fn from(other: MpcBoolean<F>) -> Self {
         let cs = other.cs();
         let variable = cs.new_lc(other.lc()).unwrap();
-        Self::new(other.value().ok().map(|b| F::from(b as u8)), variable, cs)
+        Self::new(other.value_field().ok(), variable, cs)
     }
 
     /// Returns the value assigned to `self` in the underlying constraint system
