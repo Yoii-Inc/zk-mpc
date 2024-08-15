@@ -14,13 +14,16 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use serde::Deserialize;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
-use zk_mpc::circuits::{DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit};
+use zk_mpc::circuits::{
+    AnonymousVotingCircuit, DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit,
+};
 use zk_mpc::input::MpcInputTrait;
 use zk_mpc::input::WerewolfKeyInput;
 use zk_mpc::input::WerewolfMpcInput;
 use zk_mpc::marlin::LocalMarlin;
 use zk_mpc::marlin::MFr;
 use zk_mpc::marlin::MpcMarlin;
+use zk_mpc::marlin::{prove_and_verify, setup_and_index};
 use zk_mpc::preprocessing;
 use zk_mpc::serialize::{write_r, write_to_file};
 use zk_mpc::she;
@@ -44,6 +47,16 @@ struct Opt {
     // Input address file
     #[structopt(parse(from_os_str))]
     input: Option<PathBuf>,
+}
+
+struct VoteArg {
+    target_id: usize,
+}
+
+impl VoteArg {
+    fn new(target_id: usize) -> Self {
+        Self { target_id }
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -71,6 +84,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Night mode");
             // run the night phase
             night_werewolf(&opt)?;
+        }
+        "vote" => {
+            println!("Vote mode");
+            // run the vote phase
+            voting(&opt)?;
         }
         _ => {
             Err(std::io::Error::new(
@@ -499,6 +517,73 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
         )
         .unwrap();
     }
+
+    Ok(())
+}
+
+fn voting(opt: &Opt) -> Result<(), std::io::Error> {
+    // init
+    Net::init_from_file(
+        opt.input.clone().unwrap().to_str().unwrap(),
+        opt.id.unwrap(),
+    );
+    // calc
+    let most_voted_id = Fr::from(1);
+    let invalid_most_voted_id = Fr::from(0);
+
+    // prove
+    let local_voting_circuit = AnonymousVotingCircuit {
+        is_target_id: vec![
+            vec![Fr::from(0), Fr::from(1), Fr::from(0)],
+            vec![Fr::from(0), Fr::from(1), Fr::from(0)],
+            vec![Fr::from(0), Fr::from(0), Fr::from(1)],
+        ],
+        is_most_voted_id: Fr::from(1),
+    };
+
+    let (mpc_index_pk, index_vk) = setup_and_index(local_voting_circuit);
+
+    let rng = &mut test_rng();
+
+    let mpc_voting_circuit = AnonymousVotingCircuit {
+        is_target_id: vec![
+            vec![
+                MFr::king_share(Fr::from(0), rng),
+                MFr::king_share(Fr::from(1), rng),
+                MFr::king_share(Fr::from(0), rng),
+            ],
+            vec![
+                MFr::king_share(Fr::from(0), rng),
+                MFr::king_share(Fr::from(1), rng),
+                MFr::king_share(Fr::from(0), rng),
+            ],
+            vec![
+                MFr::king_share(Fr::from(0), rng),
+                MFr::king_share(Fr::from(0), rng),
+                MFr::king_share(Fr::from(1), rng),
+            ],
+        ],
+        is_most_voted_id: MFr::king_share(Fr::from(1), rng),
+    };
+
+    let inputs = vec![most_voted_id];
+    let invalid_inputs = vec![invalid_most_voted_id];
+
+    assert!(prove_and_verify(
+        &mpc_index_pk,
+        &index_vk,
+        mpc_voting_circuit.clone(),
+        inputs
+    ));
+
+    assert!(!prove_and_verify(
+        &mpc_index_pk,
+        &index_vk,
+        mpc_voting_circuit,
+        invalid_inputs
+    ));
+
+    println!("Player {} received the most votes", most_voted_id);
 
     Ok(())
 }
