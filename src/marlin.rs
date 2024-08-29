@@ -20,8 +20,10 @@ use crate::circuits::enforce_smaller_or_eq_than::SmallerEqThanCircuit;
 use crate::circuits::smaller_than::SmallerThanCircuit;
 use crate::{
     circuits::{
-        bit_decomposition::BitDecompositionCircuit, circuit::MyCircuit,
-        equality_zero::EqualityZeroCircuit, LocalOrMPC, PedersenComCircuit,
+        bit_decomposition::BitDecompositionCircuit,
+        circuit::MyCircuit,
+        equality_zero::{EqualityZeroCircuit, NotEqualityZeroCircuit},
+        LocalOrMPC, PedersenComCircuit,
     },
     input::{MpcInputTrait, SampleMpcInput},
 };
@@ -245,6 +247,35 @@ pub fn test_equality_zero(n_iters: usize) {
             &index_vk,
             invalid_mpc_circuit,
             vec![]
+        ));
+    }
+}
+
+pub fn test_not_equality_zero(n_iters: usize) {
+    let local_circuit = NotEqualityZeroCircuit { a: Fr::one() };
+    let (mpc_index_pk, index_vk) = setup_and_index(local_circuit);
+
+    let rng = &mut test_rng();
+
+    for _ in 0..n_iters {
+        let valid_mpc_circuit = NotEqualityZeroCircuit {
+            a: MFr::king_share(Fr::one(), rng),
+        };
+        let invalid_mpc_circuit = NotEqualityZeroCircuit {
+            a: MFr::king_share(Fr::zero(), rng),
+        };
+
+        assert!(prove_and_verify(
+            &mpc_index_pk,
+            &index_vk,
+            valid_mpc_circuit,
+            vec![Fr::zero()]
+        ));
+        assert!(prove_and_verify(
+            &mpc_index_pk,
+            &index_vk,
+            invalid_mpc_circuit,
+            vec![Fr::one()]
         ));
     }
 }
