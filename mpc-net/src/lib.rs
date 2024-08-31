@@ -9,6 +9,7 @@ use ark_std::{end_timer, perf_trace::TimerInfo, start_timer};
 use lazy_static::lazy_static;
 use log::debug;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use serde::{Deserialize, Serialize};
 
 lazy_static! {
     static ref CONNECTIONS: Mutex<Connections> = Mutex::new(Connections::default());
@@ -266,10 +267,31 @@ impl Connections {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum MPCNetError {
+    Generic(String),
+    Protocol { err: String, party: u32 },
+    NotConnected,
+    BadInput { err: &'static str },
+}
+
+impl<T: ToString> From<T> for MPCNetError {
+    fn from(e: T) -> Self {
+        MPCNetError::Generic(e.to_string())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, Copy)]
+pub enum MultiplexedStreamID {
+    Zero = 0,
+    One = 1,
+    Two = 2,
+}
+
 pub trait MpcNet {
     /// Am I the first party?
     #[inline]
-    fn am_king() -> bool {
+    fn is_leader() -> bool {
         Self::party_id() == 0
     }
     /// How many parties are there?
@@ -293,10 +315,10 @@ pub trait MpcNet {
     /// All parties send bytes to each other.
     fn broadcast_bytes(bytes: &[u8]) -> Vec<Vec<u8>>;
     /// All parties send bytes to the king.
-    fn send_bytes_to_king(bytes: &[u8]) -> Option<Vec<Vec<u8>>>;
+    fn worker_send_or_leader_receive(bytes: &[u8]) -> Option<Vec<Vec<u8>>>;
     /// All parties recv bytes from the king.
     /// Provide bytes iff you're the king!
-    fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8>;
+    fn worker_receive_or_leader_send(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8>;
 
     /// Everyone sends bytes to the king, who recieves those bytes, runs a computation on them, and
     /// redistributes the resulting bytes.
@@ -304,9 +326,9 @@ pub trait MpcNet {
     /// The king's computation is given by a function, `f`
     /// proceeds.
     #[inline]
-    fn king_compute(bytes: &[u8], f: impl Fn(Vec<Vec<u8>>) -> Vec<Vec<u8>>) -> Vec<u8> {
-        let king_response = Self::send_bytes_to_king(bytes).map(f);
-        Self::recv_bytes_from_king(king_response)
+    fn leader_compute(bytes: &[u8], f: impl Fn(Vec<Vec<u8>>) -> Vec<Vec<u8>>) -> Vec<u8> {
+        let king_response = Self::worker_send_or_leader_receive(bytes).map(f);
+        Self::worker_receive_or_leader_send(king_response)
     }
 
     fn uninit();
@@ -362,12 +384,12 @@ impl MpcNet for MpcMultiNet {
     }
 
     #[inline]
-    fn send_bytes_to_king(bytes: &[u8]) -> Option<Vec<Vec<u8>>> {
+    fn worker_send_or_leader_receive(bytes: &[u8]) -> Option<Vec<Vec<u8>>> {
         get_ch!().send_to_king(bytes)
     }
 
     #[inline]
-    fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8> {
+    fn worker_receive_or_leader_send(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8> {
         get_ch!().recv_from_king(bytes)
     }
 

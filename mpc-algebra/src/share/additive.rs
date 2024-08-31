@@ -88,7 +88,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
 
     fn from_public(f: Self::Base) -> Self {
         Self {
-            val: if Net::am_king() { f } else { F::zero() },
+            val: if Net::is_leader() { f } else { F::zero() },
         }
     }
 
@@ -99,7 +99,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
         let mut r: Vec<F> = (0..(Net::n_parties() - 1)).map(|_| F::rand(rng)).collect();
         let sum_r: F = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
+        Self::from_add_shared(Net::receive_from_king(if Net::is_leader() {
             Some(r)
         } else {
             None
@@ -113,7 +113,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
             .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
             .collect();
         rs.push(final_shares);
-        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
+        Net::receive_from_king(if Net::is_leader() { Some(rs) } else { None })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -144,7 +144,7 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
     }
 
     fn shift(&mut self, other: &F) -> &mut Self {
-        if Net::am_king() {
+        if Net::is_leader() {
             self.val += other;
         }
         self
@@ -262,7 +262,7 @@ impl<F: Field> Reveal for MulFieldShare<F> {
     }
     fn from_public(f: F) -> Self {
         Self {
-            val: if Net::am_king() { f } else { F::one() },
+            val: if Net::is_leader() { f } else { F::one() },
         }
     }
     fn from_add_shared(f: F) -> Self {
@@ -290,7 +290,7 @@ impl<F: Field> FieldShare<F> for MulFieldShare<F> {
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
-        if Net::am_king() {
+        if Net::is_leader() {
             self.val *= other;
         }
         self
@@ -367,7 +367,7 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
 
     fn from_public(b: G) -> Self {
         Self {
-            val: if Net::am_king() { b } else { G::zero() },
+            val: if Net::is_leader() { b } else { G::zero() },
             _phants: PhantomData,
         }
     }
@@ -379,7 +379,7 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
         let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
         let sum_r: G = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
+        Self::from_add_shared(Net::receive_from_king(if Net::is_leader() {
             Some(r)
         } else {
             None
@@ -393,7 +393,7 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
             .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
             .collect();
         rs.push(final_shares);
-        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
+        Net::receive_from_king(if Net::is_leader() { Some(rs) } else { None })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -483,7 +483,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {
-        if Net::am_king() {
+        if Net::is_leader() {
             self.val += other;
         }
         self

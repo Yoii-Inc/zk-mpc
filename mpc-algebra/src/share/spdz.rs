@@ -29,7 +29,7 @@ use crate::Reveal;
 
 #[inline]
 pub fn mac_share<F: Field>() -> F {
-    if Net::am_king() {
+    if Net::is_leader() {
         F::one()
     } else {
         F::zero()
@@ -145,7 +145,7 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
         let mut r: Vec<F> = (0..(Net::n_parties() - 1)).map(|_| F::rand(rng)).collect();
         let sum_r: F = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
+        Self::from_add_shared(Net::receive_from_king(if Net::is_leader() {
             Some(r)
         } else {
             None
@@ -159,7 +159,7 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
             .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
             .collect();
         rs.push(final_shares);
-        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
+        Net::receive_from_king(if Net::is_leader() { Some(rs) } else { None })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -320,7 +320,7 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
         let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
         let sum_r: G = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
+        Self::from_add_shared(Net::receive_from_king(if Net::is_leader() {
             Some(r)
         } else {
             None
@@ -334,7 +334,7 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
             .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
             .collect();
         rs.push(final_shares);
-        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
+        Net::receive_from_king(if Net::is_leader() { Some(rs) } else { None })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -455,7 +455,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {
-        if Net::am_king() {
+        if Net::is_leader() {
             self.sh.shift(other);
         }
         let mut other = other.clone();
@@ -531,7 +531,7 @@ impl<F: Field, S: PrimeField> FieldShare<F> for SpdzMulFieldShare<F, S> {
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
-        if Net::am_king() {
+        if Net::is_leader() {
             self.sh.scale(other);
         }
         self.mac.scale(&other.pow(&mac_share::<S>().into_repr()));

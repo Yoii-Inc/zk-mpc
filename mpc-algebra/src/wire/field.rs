@@ -47,15 +47,35 @@ pub struct DummyFieldTripleSource<F, S> {
 impl<T: Field, S: FieldShare<T>> BeaverSource<S, S, S> for DummyFieldTripleSource<T, S> {
     fn triple(&mut self) -> (S, S, S) {
         (
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net::is_leader() {
+                T::one()
+            } else {
+                T::zero()
+            }),
+            S::from_add_shared(if Net::is_leader() {
+                T::one()
+            } else {
+                T::zero()
+            }),
+            S::from_add_shared(if Net::is_leader() {
+                T::one()
+            } else {
+                T::zero()
+            }),
         )
     }
     fn inv_pair(&mut self) -> (S, S) {
         (
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net::is_leader() {
+                T::one()
+            } else {
+                T::zero()
+            }),
+            S::from_add_shared(if Net::is_leader() {
+                T::one()
+            } else {
+                T::zero()
+            }),
         )
     }
 }

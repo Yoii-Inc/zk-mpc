@@ -469,7 +469,7 @@ where
         let revealed_xr = xytzrsuv.reveal();
 
         // step5: allocate share
-        let share = if Net::am_king() {
+        let share = if Net::is_leader() {
             MpcTEProjective::from_public(revealed_xr) - rsuv
         } else {
             -rsuv

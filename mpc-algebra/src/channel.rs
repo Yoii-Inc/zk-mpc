@@ -20,7 +20,7 @@ pub trait MpcSerNet: MpcNet {
     fn send_to_king<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Option<Vec<T>> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
-        Self::send_bytes_to_king(&bytes_out).map(|bytes_in| {
+        Self::worker_send_or_leader_receive(&bytes_out).map(|bytes_in| {
             bytes_in
                 .into_iter()
                 .map(|b| T::deserialize(&b[..]).unwrap())
@@ -29,7 +29,7 @@ pub trait MpcSerNet: MpcNet {
     }
 
     fn receive_from_king<T: CanonicalSerialize + CanonicalDeserialize>(out: Option<Vec<T>>) -> T {
-        let bytes_in = Self::recv_bytes_from_king(out.map(|outs| {
+        let bytes_in = Self::worker_receive_or_leader_send(out.map(|outs| {
             outs.iter()
                 .map(|out| {
                     let mut bytes_out = Vec::new();
