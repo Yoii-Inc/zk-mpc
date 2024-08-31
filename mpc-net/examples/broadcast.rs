@@ -16,15 +16,18 @@ struct Opt {
 }
 
 fn main() {
-    env_logger::builder().format_timestamp(None).format_module_path(false).init();
+    env_logger::builder()
+        .format_timestamp(None)
+        .format_module_path(false)
+        .init();
     debug!("Start");
     let opt = Opt::from_args();
     println!("{:?}", opt);
     MpcMultiNet::init_from_file(opt.input.to_str().unwrap(), opt.id);
     let all = MpcMultiNet::broadcast_bytes(&[opt.id as u8]);
     println!("{:?}", all);
-    let r = MpcMultiNet::send_bytes_to_king(&[opt.id as u8]);
-    let all = MpcMultiNet::recv_bytes_from_king(r);
+    let r = MpcMultiNet::worker_send_or_leader_receive(&[opt.id as u8]);
+    let all = MpcMultiNet::worker_receive_or_leader_send(r);
     println!("{:?}", all);
     // TODO
     MpcMultiNet::uninit();
