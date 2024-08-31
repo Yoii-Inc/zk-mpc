@@ -524,7 +524,7 @@ macro_rules! groups_share {
                 mut a: Self::ProjectiveShare,
                 o: &E::$affine,
             ) -> Self::ProjectiveShare {
-                if Net::am_king() {
+                if Net::is_leader() {
                     a.val.add_assign_mixed(&o);
                 }
                 a

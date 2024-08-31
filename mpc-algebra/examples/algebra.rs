@@ -8,12 +8,11 @@ use ark_poly::reveal;
 use ark_std::PubUniformRand;
 use ark_std::{end_timer, start_timer};
 use log::debug;
-use mpc_algebra::pedersen::Randomness;
 use mpc_algebra::boolean_field::MpcBooleanField;
+use mpc_algebra::pedersen::Randomness;
 use mpc_algebra::{
     edwards2, share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, BooleanWire,
-    CommitmentScheme as MpcCommitmentScheme, EqualityZero, LessThan,
-    LogicalOperations,
+    CommitmentScheme as MpcCommitmentScheme, EqualityZero, LessThan, LogicalOperations,
     MpcEdwardsProjective, MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::{MpcMultiNet as Net, MpcNet};
@@ -412,7 +411,7 @@ fn test_pedersen_commitment() {
     // mpc calculation
     let mpc_parameters = MpcPed::setup(rng).unwrap();
 
-    let scalar_x_bytes = if Net::am_king() {
+    let scalar_x_bytes = if Net::is_leader() {
         x_bits
         .iter()
         .map(|b| {

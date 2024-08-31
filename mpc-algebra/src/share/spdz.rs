@@ -642,7 +642,7 @@ macro_rules! groups_share {
                 mut a: Self::ProjectiveShare,
                 o: &E::$affine,
             ) -> Self::ProjectiveShare {
-                if Net::am_king() {
+                if Net::is_leader() {
                     a.sh.val.add_assign_mixed(&o);
                 }
                 a.mac.val += &o.scalar_mul(mac_share::<E::Fr>());
