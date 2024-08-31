@@ -223,7 +223,7 @@ where
         unimplemented!()
     }
 
-    fn from_public(_b: Self::Base) -> Self {
-        unimplemented!()
+    fn from_public(b: Self::Base) -> Self {
+        Self(C::ScalarField::from_public(b.0))
     }
 }

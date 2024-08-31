@@ -733,7 +733,6 @@ pub struct WinningJudgeCircuit<F: PrimeField + LocalOrMPC<F>> {
 impl ConstraintSynthesizer<Fr> for WinningJudgeCircuit<Fr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<()> {
         // initialize
-
         let num_alive_var = FpVar::new_input(cs.clone(), || Ok(self.num_alive))?;
 
         let am_werewolf_var = self
@@ -745,10 +744,8 @@ impl ConstraintSynthesizer<Fr> for WinningJudgeCircuit<Fr> {
         let game_state_var = FpVar::new_input(cs.clone(), || Ok(self.game_state))?;
 
         // calculate
-
         let num_werewolf_var = am_werewolf_var.iter().fold(FpVar::zero(), |mut acc, x| {
             acc += x;
-
             acc
         });
 
@@ -765,15 +762,11 @@ impl ConstraintSynthesizer<Fr> for WinningJudgeCircuit<Fr> {
         )?;
 
         // check commitment
-
         for am_werewolf_with_commit in self.am_werewolf.iter() {
             let am_werewolf_com_circuit = PedersenComCircuit {
                 param: Some(self.pedersen_param.clone()),
-
                 input: am_werewolf_with_commit.input,
-
                 open: am_werewolf_with_commit.randomness.clone(),
-
                 commit: am_werewolf_with_commit.commitment.clone(),
             };
 
@@ -781,7 +774,6 @@ impl ConstraintSynthesizer<Fr> for WinningJudgeCircuit<Fr> {
         }
 
         // enforce equal
-
         game_state_var.enforce_equal(&calced_game_state_var)?;
 
         println!("total number of constraints: {}", cs.num_constraints());
@@ -797,7 +789,6 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
         cs: ConstraintSystemRef<mm::MpcField<Fr>>,
     ) -> ark_relations::r1cs::Result<()> {
         //initialize
-
         let num_alive_var = MpcFpVar::new_input(cs.clone(), || Ok(self.num_alive))?;
 
         let am_werewolf_var = self
@@ -808,8 +799,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
 
         let game_state_var = MpcFpVar::new_input(cs.clone(), || Ok(self.game_state))?;
 
-        //calculate
-
+        // calculate
         let num_werewolf_var = am_werewolf_var.iter().fold(MpcFpVar::zero(), |mut acc, x| {
             acc += x;
             acc
@@ -819,32 +809,27 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
 
         let calced_game_state_var = MpcFpVar::conditionally_select(
             &num_werewolf_var.is_zero()?,
-            &MpcFpVar::constant(mm::MpcField::<Fr>::from(2_u32)), //villagerwin
+            &MpcFpVar::constant(mm::MpcField::<Fr>::from(2_u32)), // villager win
             &MpcFpVar::conditionally_select(
                 &num_werewolf_var.is_cmp(&num_citizen_var, std::cmp::Ordering::Less, false)?,
-                &MpcFpVar::constant(mm::MpcField::<Fr>::from(3_u32)), //gamecontinues
-                &MpcFpVar::constant(mm::MpcField::<Fr>::from(1_u32)), //werewolfwin
+                &MpcFpVar::constant(mm::MpcField::<Fr>::from(3_u32)), // game continues
+                &MpcFpVar::constant(mm::MpcField::<Fr>::from(1_u32)), //werewol fwin
             )?,
         )?;
 
-        //checkcommitment
-
+        // check commitment
         for am_werewolf_with_commit in self.am_werewolf.iter() {
             let am_werewolf_com_circuit = PedersenComCircuit {
                 param: Some(self.pedersen_param.clone()),
-
                 input: am_werewolf_with_commit.input,
-
                 open: am_werewolf_with_commit.randomness.clone(),
-
                 commit: am_werewolf_with_commit.commitment.clone(),
             };
 
             am_werewolf_com_circuit.generate_constraints(cs.clone())?;
         }
 
-        //enforceequal
-
+        // enforce equal
         game_state_var.enforce_equal(&calced_game_state_var)?;
 
         println!("total number of constraints: {}", cs.num_constraints());
