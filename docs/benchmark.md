@@ -1,10 +1,10 @@
 # 1. MPC Calculation
 
 ## Preprocessing phase
+
 Groth16: 1.5s
 
 Marlin: 10s
-
 
 ## Online phase
 
@@ -17,13 +17,12 @@ For example, when the constraints $\approx 2^{10}$ and executing in Marlin, then
 ![image](./../images/constraints-times.png)
 cited from [Collaborative zk-SNARKs](https://eprint.iacr.org/2021/1530).
 
+## MPC (Bitwise Operations) components
 
-## MPC (Bitwise Operations) components 
-| Calculation Name | Total Time | Content |
-| -------- | -------- | -------- |
-| BitDecomposition | 479ms ~ 652ms | Input: 1 field element. Output: bitwise share.|
-| LessThan |   1.092s ~ 1.178s | Input: 2 field elements. Output: comparison result value |
-
+| Calculation Name | Total Time      | Content                                                  |
+| ---------------- | --------------- | -------------------------------------------------------- |
+| BitDecomposition | 479ms ~ 652ms   | Input: 1 field element. Output: bitwise share.           |
+| LessThan         | 1.092s ~ 1.178s | Input: 2 field elements. Output: comparison result value |
 
 # 2. Circuits Constraints
 
@@ -31,23 +30,23 @@ Main Circuits are:
 | Circuit Name | Total Constrarints | Content |
 | -------- | -------- | -------- |
 | MySecretInputCircuit | 6574 | 1 secret & its Pedersen commitment & additional range constraints |
-| (PedersenComCircuit)     | 2544     | 1 secret & its Pedernsen commitment     |
-| MyCircuit | 5094 | 2 commited secrets & their multiplication | 
+| (PedersenComCircuit) | 2544 | 1 secret & its Pedersen commitment |
+| MyCircuit | 5094 | 2 commited secrets & their multiplication |
 
 Werewolf's circuits are:
 | Circuit Name | Total Constrarints | Content |
 | -------- | -------- | -------- |
-| KeyPublicizeCircuit (3 parties)     | 15266     | 3 commited secrets & their sum     |
-| DivinationCircuit (3 parties)     | 22249     | many commited secrets & ElGamal encryption   |
-
+| KeyPublicizeCircuit (3 parties) | 15266 | 3 commited secrets & their sum |
+| DivinationCircuit (3 parties) | 22249 | many commited secrets & ElGamal encryption |
 
 ## Main Circuits (MPC Bitwise Operations)
+
 Main circuits are:
 
-| Circuit Name | Total Constrarints | Proving Time | Content |
-| -------- | -------- | -------- | -------- |
-| BitDecompositionCircuit | 672 | 2.028s | 1 secret |
-| (SmallerEqThanCircuit) |   621~625   |   1.468s~1.483s   | 1 bitwise secret & 1 comparison |
-| (EqualityZeroCircuit) | 4 | 368.426ms | 1 secret | 
-| (PedersenComCircuit) | 2,543 | 6.572s | 1 secret & its Pedernsen commitment |
-| (SmallerThanCircuit) | 2,016 | 4.039s | 2 secrets and ordering | 
+| Circuit Name            | Total Constrarints | Proving Time  | Content                            |
+| ----------------------- | ------------------ | ------------- | ---------------------------------- |
+| BitDecompositionCircuit | 672                | 2.028s        | 1 secret                           |
+| (SmallerEqThanCircuit)  | 621~625            | 1.468s~1.483s | 1 bitwise secret & 1 comparison    |
+| (EqualityZeroCircuit)   | 4                  | 368.426ms     | 1 secret                           |
+| (PedersenComCircuit)    | 2,543              | 6.572s        | 1 secret & its Pedersen commitment |
+| (SmallerThanCircuit)    | 2,016              | 4.039s        | 2 secrets and ordering             |
