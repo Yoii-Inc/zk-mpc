@@ -2,31 +2,59 @@ This repositry is zk-mpc.
 
 ## Directory Structure
 The following is the main directory structure.
-- `/circuits`
-    - This module contains various circuits.
-    - `circuit.rs`
-        - This file defines the circuit for MPC.
-    - `input_circuit.rs`
-        - This file defines the input circuit for prove the correctness of secret inputs sharing.
-- `/she`
-    - This file defines the Somewhat Hmomorphic Encryption protocol. Concrete implementation is based on these papers.
-        - [Fully Homomorphic Encryption from Ring-LWE
-and Security for Key Dependent Messages](https://www.wisdom.weizmann.ac.il/~zvikab/localpapers/IdealHom.pdf).
-        - [Fully Homomorphic SIMD Operations
-](https://eprint.iacr.org/2011/133.pdf).
-        - [Multiparty Computation from Somewhat Homomorphic
-Encryption](https://eprint.iacr.org/2011/535.pdf).
-- `input.rs`
-    - This file defines the input struct used in the corresponding circuit.
-- `bin_werewolf.rs`
-    - This is the binary file for werewolf game.
-- `main.rs`
-    - This file is the main binary file. Mainly, used for preprocessing phase.
-- `online.rs`
-    - This file is the second binary file. Mainly, used for online phase.
-- `preprocessing.rs`
-    - This file defines the preprocessing module.
-    - MPC protocol requires preprocessing.
+
+```
+.
+|-- Cargo.lock
+|-- Cargo.toml
+|-- README.md
+|-- arkworks                     # Arkworks libraries
+|-- benches                      # Benchmarking
+|-- data
+|   `-- address
+|-- examples                     # Binary files are here.
+|   |-- bin_test_groth16.rs
+|   |-- bin_test_marlin.rs
+|   |-- bin_werewolf.rs          # Werewolf game binary file.
+|   `-- online.rs                # Online phase (in MPC) binary file.
+|-- inputs
+|   |-- inputs-template.json
+|   `-- inputs.json
+|-- mpc-algebra                  # Sub crate: MPC algebra. MpcField, MpcVar, etc.
+|   |-- Cargo.lock
+|   |-- Cargo.toml
+|   |-- README.md
+|   |-- data
+|   |-- examples
+|   |-- src
+|   `-- test.zsh
+|-- mpc-net                      # Sub crate: MPC network. MpcNet, MpcNetServer, etc.
+|   |-- Cargo.lock
+|   |-- Cargo.toml
+|   |-- data
+|   |-- examples
+|   `-- src
+|-- mpc-trait
+|   |-- Cargo.toml
+|   `-- src
+|-- run_groth16.zsh              # Script for Run groth16
+|-- run_marlin.zsh               # Script for Run marlin
+|-- run_online.zsh               # Script for Run online phase
+|-- run_werewolf.zsh             # Script for Run werewolf game
+`-- src
+    |-- algebra.rs
+    |-- circuits                 # Circuits modules. Various circuits are defined here.
+    |-- circuits.rs
+    |-- groth16.rs               # Groth16(zk-SNARKs) module
+    |-- input.rs                 # Input structs are defined in circuits.
+    |-- lib.rs
+    |-- main.rs                  # Main binary file used for preprocessing phase.
+    |-- marlin.rs                # Marlin(zk-SNARKs) module
+    |-- preprocessing.rs         # Preprocessing module, which is required for MPC.
+    |-- serialize.rs
+    |-- she                      # Somewhat Homomorphic Encryption sub module. 
+    `-- she.rs                   # Somewhat Homomorphic Encryption
+```
 
 ## Build guide
 Clone this repositry:
@@ -79,11 +107,24 @@ run online phase
 
 ## Tests
 
+### Non-MPC tests
 The tests performed by the following **DOES NOT** include MPC. Therefore, testing of the MPC itself is performed by executing preprocessing and online as described above.
 
 ```bash
 cargo test --bin main
 ```
+
+### MPC tests
+```bash
+./run_marlin.zsh
+```
+
+or
+
+```bash
+./mpc-algebra/test.zsh
+```
+
 
 ## Usage
 
@@ -197,6 +238,16 @@ The command is written in Default zsh file, that player allocated `fortune telle
 ```
 
 ## Technical Details
+
+### SHE (Somewhat Homomorphic Encryption) protocol
+In `she` module, we implement somewhat homomorphic encryption. Concrete implementation is based on these papers.
+- [Fully Homomorphic Encryption from Ring-LWE
+and Security for Key Dependent Messages](https://www.wisdom.weizmann.ac.il/~zvikab/localpapers/IdealHom.pdf).
+- [Fully Homomorphic SIMD Operations
+](https://eprint.iacr.org/2011/133.pdf).
+- [Multiparty Computation from Somewhat Homomorphic
+Encryption](https://eprint.iacr.org/2011/535.pdf).
+
 ### Generating secret sharing of inputs and ZKP verification
 
 The additive secret sharing method is used in SPDZ, and the secret information $S$ is kept in the form of shares $S_i$ such that
