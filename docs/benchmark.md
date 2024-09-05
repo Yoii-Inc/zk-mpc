@@ -15,6 +15,7 @@ Since proving and verifying time of ciruits are depends on the number of constra
 For example, when the constraints $\approx 2^{10}$ and executing in Marlin, then the Proving time $\approx 2$ s as follows.
 
 ![image](./../images/constraints-times.png)
+
 cited from [Collaborative zk-SNARKs](https://eprint.iacr.org/2021/1530).
 
 ## MPC (Bitwise Operations) components
