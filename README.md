@@ -282,3 +282,7 @@ $$
 where the 1st equation is the condition that $x$ must satisfy.
 
 Requirement for $r$ and $\varepsilon$ isn't necessary, since SPDZ protocol has MAC verification for authenticated shares.s
+
+## Benchmarking
+
+Result of benchmarking is shown in [benchmark.md](./docs/benchmark.md).
