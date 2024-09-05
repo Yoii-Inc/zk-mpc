@@ -1,3 +1,7 @@
+//! # Groth16: zk-SNARKs
+//!
+//! This module provides functions for setting up, proving, and verifying MPC (Multi-Party Computation) circuits using the Groth16 zkSNARK.
+
 #[cfg(test)]
 mod tests {
     use ark_bls12_377::{Bls12_377, Fr};
