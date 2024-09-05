@@ -12,7 +12,7 @@ run_online.zsh(Marlin): 7s
 
 Since proving and verifying time of ciruits are depends on the number of constrains, and the way it depends is roughly the same as in the previous study, Collaboative zk-SNARKs, only the number of constrains will be recorded here.
 
-For example, when the constraints $\approx 2^{10}$ and executing in Marlin, then the Proving time $\approx 2$s as follows.
+For example, when the constraints $\approx 2^{10}$ and executing in Marlin, then the Proving time $\approx 2$ s as follows.
 
 ![image](./../images/constraints-times.png)
 cited from [Collaborative zk-SNARKs](https://eprint.iacr.org/2021/1530).
