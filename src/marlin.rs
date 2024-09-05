@@ -1,3 +1,7 @@
+//! # Marlin: zk-SNARKs
+//!
+//! This module provides functions for setting up, proving, and verifying MPC (Multi-Party Computation) circuits using the Marlin zkSNARK.
+
 use ark_ff::{BigInteger, PrimeField};
 use ark_marlin::{ahp::prover::*, *};
 use ark_poly::univariate::DensePolynomial;

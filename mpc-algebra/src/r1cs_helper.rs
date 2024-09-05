@@ -1,3 +1,5 @@
+//! This module contains helper functions for creating R1CS constraints for MPC protocols.
+
 pub mod mpc_boolean;
 pub use mpc_boolean::*;
 pub mod mpc_eq;

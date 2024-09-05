@@ -576,6 +576,14 @@ impl<F: Field, S: FieldShare<F>> Zero for MpcField<F, S> {
 
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcField<F, S> {
     type Output = MpcBooleanField<F, S>;
+
+    /// Check if the MPC field element is zero in MPC.
+    ///
+    /// # Arguments
+    /// `self` - A MPC field element.
+    ///
+    /// # Returns
+    /// A MPC boolean field element.
     fn is_zero_shared(&self) -> Self::Output {
         let res = match self {
             MpcField::Public(_) => {
@@ -626,6 +634,14 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
 
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for MpcField<F, S> {
     type BooleanField = MpcBooleanField<F, S>;
+
+    /// Bit decomposition of a field element.
+    ///
+    /// # Arguments
+    /// `self` - A Mpc field element.
+    ///
+    /// # Returns
+    /// A vector of bits of the Mpc field element(Little-Endian).
     fn bit_decomposition(&self) -> Vec<Self::BooleanField> {
         match self.is_shared() {
             true => {

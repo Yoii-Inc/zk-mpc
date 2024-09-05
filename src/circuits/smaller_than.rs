@@ -13,6 +13,7 @@ use mpc_algebra::{MpcBoolean, MpcEqGadget, MpcFpVar};
 type Fr = ark_bls12_377::Fr;
 type MFr = MpcField<Fr>;
 
+/// This circuit checks if a value is smaller than another value.
 pub struct SmallerThanCircuit<F: PrimeField> {
     pub a: F,
     pub b: F,
