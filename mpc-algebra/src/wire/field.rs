@@ -262,6 +262,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
     }
 
     fn is_smaller_than(&self, other: &Self) -> Self::Output {
+        let timer = start_timer!(|| "LessThan");
         // [z]=[other−self<p/2],[x]=[self<p/2],[y]=[other>p/2]
         // ([z]∧[x])∨([z]∧[y])∨(¬[z]∧[x]∧[y])=[z(x+y)+(1−2*z)xy].
         let z = (*other - self)
@@ -274,6 +275,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
             - other
                 .is_smaller_or_equal_than_mod_minus_one_div_two()
                 .field();
+        end_timer!(timer);
         (z * (x + y) + (Self::one() - Self::from_public(F::from(2u8)) * z) * x * y).into()
     }
 }
@@ -580,6 +582,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                 panic!("public is not expected here");
             }
             MpcField::Shared(_) => {
+                let timer = start_timer!(|| "EqualityZero");
                 let rng = &mut ark_std::test_rng();
 
                 let (vec_r, r) = Self::Output::rand_number_bitwise(rng);
@@ -613,6 +616,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                     })
                     .collect::<Vec<_>>();
 
+                end_timer!(timer);
                 c_prime.kary_and()
             }
         };
