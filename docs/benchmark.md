@@ -29,15 +29,15 @@ cited from [Collaborative zk-SNARKs](https://eprint.iacr.org/2021/1530).
 Main Circuits are:
 | Circuit Name | Total Constrarints | Content |
 | -------- | -------- | -------- |
-| MySecretInputCircuit | 6574 | 1 secret & its Pedersen commitment & additional range constraints |
-| (PedersenComCircuit) | 2544 | 1 secret & its Pedersen commitment |
-| MyCircuit | 5094 | 2 commited secrets & their multiplication |
+| MySecretInputCircuit | 6,574 | 1 secret & its Pedersen commitment & additional range constraints |
+| PedersenComCircuit | 2,544 | 1 secret & its Pedersen commitment |
+| MyCircuit | 5,094 | 2 commited secrets & their multiplication |
 
 Werewolf's circuits are:
 | Circuit Name | Total Constrarints | Content |
 | -------- | -------- | -------- |
-| KeyPublicizeCircuit (3 parties) | 15266 | 3 commited secrets & their sum |
-| DivinationCircuit (3 parties) | 22249 | many commited secrets & ElGamal encryption |
+| KeyPublicizeCircuit (3 parties) | 15,266 | 3 commited secrets & their sum |
+| DivinationCircuit (3 parties) | 22,249 | many commited secrets & ElGamal encryption |
 
 ## Main Circuits (MPC Bitwise Operations)
 
@@ -46,7 +46,7 @@ Main circuits are:
 | Circuit Name            | Total Constrarints | Proving Time  | Content                            |
 | ----------------------- | ------------------ | ------------- | ---------------------------------- |
 | BitDecompositionCircuit | 672                | 2.028s        | 1 secret                           |
-| (SmallerEqThanCircuit)  | 621~625            | 1.468s~1.483s | 1 bitwise secret & 1 comparison    |
-| (EqualityZeroCircuit)   | 4                  | 368.426ms     | 1 secret                           |
-| (PedersenComCircuit)    | 2,543              | 6.572s        | 1 secret & its Pedersen commitment |
-| (SmallerThanCircuit)    | 2,016              | 4.039s        | 2 secrets and ordering             |
+| SmallerEqThanCircuit    | 621~625            | 1.468s~1.483s | 1 bitwise secret & 1 comparison    |
+| EqualityZeroCircuit     | 4                  | 368.426ms     | 1 secret                           |
+| PedersenComCircuit      | 2,543              | 6.572s        | 1 secret & its Pedersen commitment |
+| SmallerThanCircuit      | 2,016              | 4.039s        | 2 secrets and ordering             |
