@@ -20,10 +20,15 @@ cited from [Collaborative zk-SNARKs](https://eprint.iacr.org/2021/1530).
 
 ## MPC (Bitwise Operations) components
 
-| Calculation Name | Total Time      | Content                                                  |
-| ---------------- | --------------- | -------------------------------------------------------- |
-| BitDecomposition | 479ms ~ 652ms   | Input: 1 field element. Output: bitwise share.           |
-| LessThan         | 1.092s ~ 1.178s | Input: 2 field elements. Output: comparison result value |
+256 bits Field is used in the MPC.
+
+| Calculation Name | Total Time      | Communications | Content                                                  |
+| ---------------- | --------------- | -------------- | -------------------------------------------------------- |
+| EqualityZeroTest | 211ms ~ 226ms   | 3,795          | Input: 1 field element. Output: is zero value            |
+| BitDecomposition | 479ms ~ 652ms   | 8,337          | Input: 1 field element. Output: bitwise share.           |
+| LessThan         | 1.092s ~ 1.178s | 20,529         | Input: 2 field elements. Output: comparison result value |
+
+where, Communications are the number of broadcasts communication in the protocols.
 
 # 2. Circuits Constraints
 
