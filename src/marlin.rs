@@ -257,26 +257,27 @@ pub fn test_not_equality_zero(n_iters: usize) {
 
     let rng = &mut test_rng();
 
-    for _ in 0..n_iters {
-        let valid_mpc_circuit = NotEqualityZeroCircuit {
-            a: MFr::king_share(Fr::one(), rng),
-        };
-        let invalid_mpc_circuit = NotEqualityZeroCircuit {
-            a: MFr::king_share(Fr::zero(), rng),
-        };
+    let is_zero_false_val = Fr::zero();
+    let is_zero_true_val = Fr::one();
 
-        assert!(prove_and_verify(
-            &mpc_index_pk,
-            &index_vk,
-            valid_mpc_circuit,
-            vec![Fr::zero()]
-        ));
-        assert!(prove_and_verify(
-            &mpc_index_pk,
-            &index_vk,
-            invalid_mpc_circuit,
-            vec![Fr::one()]
-        ));
+    for _ in 0..n_iters {
+        let mpc_circuit = NotEqualityZeroCircuit { a: MFr::rand(rng) };
+
+        if mpc_circuit.a.reveal() != Fr::zero() {
+            assert!(prove_and_verify(
+                &mpc_index_pk,
+                &index_vk,
+                mpc_circuit,
+                vec![is_zero_false_val]
+            ));
+        } else {
+            assert!(prove_and_verify(
+                &mpc_index_pk,
+                &index_vk,
+                mpc_circuit,
+                vec![is_zero_true_val]
+            ));
+        }
     }
 }
 
