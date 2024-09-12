@@ -6,17 +6,28 @@ use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
+use ark_std::PubUniformRand;
+use ark_std::{One, Zero};
 use core::panic;
 use mpc_algebra::encryption::elgamal::elgamal::Parameters;
 use mpc_algebra::malicious_majority::*;
+use mpc_algebra::BooleanWire;
+use mpc_algebra::CommitmentScheme;
+use mpc_algebra::EqualityZero;
+use mpc_algebra::FromLocal;
+use mpc_algebra::LessThan;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
+use rand::Rng;
 use serde::Deserialize;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
+use zk_mpc::circuits::LocalOrMPC;
+use zk_mpc::circuits::WinningJudgeCircuit;
 use zk_mpc::circuits::{
     AnonymousVotingCircuit, DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit,
 };
+use zk_mpc::input::InputWithCommit;
 use zk_mpc::input::MpcInputTrait;
 use zk_mpc::input::WerewolfKeyInput;
 use zk_mpc::input::WerewolfMpcInput;
@@ -90,6 +101,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // run the vote phase
             voting(&opt)?;
         }
+        "judgment" => {
+            println!("Judgment mode");
+            // run the judgement phase
+            winning_judgment(&opt)?;
+        }
+
         _ => {
             Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -584,6 +601,116 @@ fn voting(opt: &Opt) -> Result<(), std::io::Error> {
     ));
 
     println!("Player {} received the most votes", most_voted_id);
+
+    Ok(())
+}
+
+fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
+    // init
+    Net::init_from_file(
+        opt.input.clone().unwrap().to_str().unwrap(),
+        opt.id.unwrap(),
+    );
+
+    let player_num = 3;
+    let num_alive = Fr::from(3);
+
+    let rng = &mut test_rng();
+
+    let am_werewolf_vec = (0..player_num)
+        .map(|_| InputWithCommit::default())
+        .collect::<Vec<_>>();
+
+    let am_werewolf_val = (0..player_num)
+        .map(|_| rng.gen_bool(0.5))
+        .collect::<Vec<_>>();
+
+    let mpc_am_werewolf_vec = (0..player_num)
+        .map(|i| {
+            let mut a: InputWithCommit<MFr> = InputWithCommit::default();
+            a.allocation = i;
+            a.input = MFr::from(am_werewolf_val[i]);
+            a
+        })
+        .collect::<Vec<_>>();
+
+    let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+    let mpc_pedersen_param = <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&pedersen_param);
+
+    let common_randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
+    let mpc_common_randomness =
+        <MFr as LocalOrMPC<MFr>>::PedersenRandomness::from_public(common_randomness);
+
+    let mpc_am_werewolf_vec = mpc_am_werewolf_vec
+        .iter()
+        .map(|x| x.generate_input(&mpc_pedersen_param, &mpc_common_randomness))
+        .collect::<Vec<_>>();
+
+    // calc
+    // TODO: correctly.
+
+    let num_werewolf = mpc_am_werewolf_vec
+        .iter()
+        .fold(MFr::zero(), |acc, x| acc + x.input);
+    let num_citizen = MFr::from_public(num_alive) - num_werewolf;
+    let exists_werewolf = num_werewolf.is_zero_shared();
+
+    let game_state = exists_werewolf.field() * MFr::from(2_u32)
+        + (!exists_werewolf).field()
+            * (num_werewolf.is_smaller_than(&num_citizen).field() * MFr::from(3_u32)
+                + (MFr::one() - (num_werewolf.is_smaller_than(&num_citizen)).field())
+                    * MFr::from(1_u32));
+
+    // prove
+    let local_judgment_circuit = WinningJudgeCircuit {
+        num_alive,
+        pedersen_param: pedersen_param.clone(),
+        am_werewolf: am_werewolf_vec.clone(),
+        game_state: Fr::default(),
+    };
+
+    let (mpc_index_pk, index_vk) = setup_and_index(local_judgment_circuit);
+
+    let mpc_pedersen_param = <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&pedersen_param);
+
+    let mpc_judgment_circuit = WinningJudgeCircuit {
+        num_alive: MFr::from_public(num_alive),
+        pedersen_param: mpc_pedersen_param,
+        am_werewolf: mpc_am_werewolf_vec.clone(),
+        game_state,
+    };
+
+    let mut inputs = vec![num_alive, game_state.reveal()];
+
+    for iwc in mpc_am_werewolf_vec.iter() {
+        inputs.push(iwc.commitment.reveal().x);
+        inputs.push(iwc.commitment.reveal().y);
+    }
+
+    let invalid_inputs = vec![];
+
+    assert!(prove_and_verify(
+        &mpc_index_pk,
+        &index_vk,
+        mpc_judgment_circuit.clone(),
+        inputs
+    ));
+
+    assert!(!prove_and_verify(
+        &mpc_index_pk,
+        &index_vk,
+        mpc_judgment_circuit,
+        invalid_inputs
+    ));
+
+    println!("am_werewolf? {:?}", am_werewolf_val);
+
+    match game_state.reveal() {
+        ref state if *state == Fr::from(1) => println!("Werewolf win"),
+        ref state if *state == Fr::from(2) => println!("Villager win"),
+        ref state if *state == Fr::from(3) => println!("Game Continue"),
+        _ => println!("Error"),
+    }
 
     Ok(())
 }
