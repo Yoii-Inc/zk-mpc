@@ -12,6 +12,7 @@ use mpc_algebra::malicious_majority::*;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 use zk_mpc::circuits::{
@@ -27,6 +28,8 @@ use zk_mpc::marlin::{prove_and_verify, setup_and_index};
 use zk_mpc::preprocessing;
 use zk_mpc::serialize::{write_r, write_to_file};
 use zk_mpc::she;
+
+use nalgebra as na;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -288,6 +291,55 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+struct GroupingParameter(HashMap<Roles, (usize, bool)>);
+
+impl GroupingParameter {
+    fn new(input: HashMap<Roles, (usize, bool)>) -> Self {
+        Self(input)
+    }
+
+    fn generate_tau_matrix(&self) -> na::DMatrix<MFr> {
+        todo!()
+    }
+
+    fn get_num_roles(&self) -> usize {
+        self.0.len()
+    }
+
+    fn get_num_groups(&self) -> usize {
+        self.0
+            .values()
+            .map(|(count, is_not_alone)| if *is_not_alone { 1 } else { *count })
+            .sum()
+    }
+
+    fn get_num_players(&self) -> usize {
+        self.0.values().map(|x| x.0).sum()
+    }
+}
+
+#[test]
+fn test_grouping_parameter() {
+    let grouping_parameter = GroupingParameter::new(
+        vec![
+            (Roles::Villager, (4, false)),
+            (Roles::FortuneTeller, (1, false)),
+            (Roles::Werewolf, (2, true)),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    // Villager, FortuneTeller, Werewolf
+    assert_eq!(grouping_parameter.get_num_roles(), 3);
+
+    // Villager: 1, 2, 3, 4, FortuneTeller: 1, Werewolfs: 1
+    assert_eq!(grouping_parameter.get_num_groups(), 6);
+
+    // Total 4 + 1 + 2 = 7
+    assert_eq!(grouping_parameter.get_num_players(), 7);
+}
+
 fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     // init
     Net::init_from_file(
@@ -303,7 +355,7 @@ fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum Roles {
     FortuneTeller,
     Werewolf,
