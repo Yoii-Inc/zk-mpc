@@ -6,12 +6,16 @@ use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
+use ark_std::One;
+use ark_std::Zero;
+use core::num;
 use core::panic;
 use mpc_algebra::encryption::elgamal::elgamal::Parameters;
 use mpc_algebra::malicious_majority::*;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
@@ -291,15 +295,53 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-struct GroupingParameter(HashMap<Roles, (usize, bool)>);
+struct GroupingParameter(BTreeMap<Roles, (usize, bool)>);
 
 impl GroupingParameter {
-    fn new(input: HashMap<Roles, (usize, bool)>) -> Self {
+    fn new(input: BTreeMap<Roles, (usize, bool)>) -> Self {
         Self(input)
     }
 
     fn generate_tau_matrix(&self) -> na::DMatrix<MFr> {
-        todo!()
+        let num_players = self.get_num_players();
+        let num_groups = self.get_num_groups();
+
+        let mut tau = na::DMatrix::<MFr>::zeros(num_players + num_groups, num_players + num_groups);
+
+        let mut player_index = 0;
+        let mut group_index = 0;
+
+        for (_, (count, is_not_alone)) in self.0.iter() {
+            if *is_not_alone {
+                assert!(
+                    *count >= 2,
+                    "Error: not alone group count must be greater than 2"
+                );
+
+                // group
+                tau[(player_index, num_players + group_index)] = MFr::one();
+
+                // player
+                for _ in 0..*count - 1 {
+                    tau[(player_index + 1, player_index)] = MFr::one();
+                    player_index += 1;
+                }
+                tau[(num_players + group_index, player_index)] = MFr::one();
+                player_index += 1;
+                group_index += 1;
+            } else {
+                for _ in 0..*count {
+                    // group
+                    tau[(player_index, num_players + group_index)] = MFr::one();
+                    // player
+                    tau[(num_players + group_index, player_index)] = MFr::one();
+                    player_index += 1;
+                    group_index += 1;
+                }
+            }
+        }
+
+        tau
     }
 
     fn get_num_roles(&self) -> usize {
@@ -355,7 +397,7 @@ fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
 enum Roles {
     FortuneTeller,
     Werewolf,
