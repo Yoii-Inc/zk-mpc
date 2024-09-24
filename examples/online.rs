@@ -5,7 +5,8 @@ use ark_marlin::IndexProverKey;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
 use mpc_algebra::Reveal;
-use mpc_net::{MpcMultiNet as Net, MpcNet};
+use mpc_net::{LocalTestNet as Net, MPCNet};
+
 use serde::Deserialize;
 use std::{fs::File, path::PathBuf, vec};
 use structopt::StructOpt;

@@ -1,4 +1,4 @@
-use mpc_net::{MpcMultiNet as Net, MpcNet};
+use mpc_net::{LocalTestNet as Net, MPCNet};
 use std::path::PathBuf;
 use structopt::StructOpt;
 

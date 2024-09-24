@@ -73,7 +73,7 @@ fn test_div() {
 }
 
 fn test_sum() {
-    let a = [
+    let a = vec![
         MF::from_public(F::from(1u64)),
         MF::from_public(F::from(2u64)),
         MF::from_public(F::from(3u64)),

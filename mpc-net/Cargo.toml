@@ -7,9 +7,17 @@ edition = "2021"
 
 [dependencies]
 ark-std = { path = "../arkworks/std", version = "0.3.0", features = ["std"] }
+async-trait = "0.1.80"
+async_smux = "0.3.3"
+auto_impl = "1.2.0"
+futures = "0.3.30"
 lazy_static = "1.4.0"
 log = "0.4.20"
+parking_lot = "0.12.2"
 rayon = "1.8.0"
+serde = { version = "1.0.200", features = ["derive"] }
+tokio = { version = "1.37.0", features = ["net", "time", "fs", "io-util", "macros", "rt-multi-thread"] }
+tokio-util = "0.7.11"
 
 [dev-dependencies]
 env_logger = "0.10.0"

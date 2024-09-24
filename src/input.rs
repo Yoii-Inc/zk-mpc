@@ -10,7 +10,7 @@ use ark_std::PubUniformRand;
 use ark_std::UniformRand;
 use derivative::Derivative;
 use mpc_algebra::{FieldShare, FromLocal, Reveal, ToLocal};
-use mpc_net::{MpcMultiNet as Net, MpcNet};
+use mpc_net::{LocalTestNet as Net, MPCNet};
 use num_traits::One;
 use num_traits::Zero;
 use rand::Rng;
