@@ -21,6 +21,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
+use zk_mpc::circuits::RoleAssignmentCircuit;
 use zk_mpc::circuits::{
     AnonymousVotingCircuit, DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit,
 };
@@ -88,6 +89,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // preprocessing calculation of werewolf game
 
             preprocessing_werewolf(&opt)?;
+        }
+        "role_assignment" => {
+            println!("Role assignment mode");
+            // role assignment
+
+            role_assignment(&opt)?;
         }
         "night" => {
             println!("Night mode");
@@ -297,12 +304,83 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-// Compute shuffle matrix and return role and player id in the same group.
+fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
+    // init
+    Net::init_from_file(
+        opt.input.clone().unwrap().to_str().unwrap(),
+        opt.id.unwrap(),
+    );
+
+    let grouping_parameter = GroupingParameter::new(
+        vec![
+            (Roles::Villager, (3, false)),
+            (Roles::FortuneTeller, (1, false)),
+            (Roles::Werewolf, (2, true)),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    let n = grouping_parameter.get_num_players();
+    let m = grouping_parameter.get_num_groups();
+
+    let rng = &mut test_rng();
+
+    // calc
+    let shuffle_matrix = vec![
+        generate_individual_shuffle_matrix(
+            grouping_parameter.get_num_players(),
+            grouping_parameter.get_num_groups(),
+            rng,
+        );
+        2
+    ];
+
+    let mut inputs = vec![];
+
+    for id in 0..n {
+        let (role, role_val, player_ids) =
+            calc_shuffle_matrix(&grouping_parameter, &shuffle_matrix, id).unwrap();
+        println!("role is {:?}", role);
+        println!("fellow is {:?}", player_ids);
+        inputs.push(Fr::from(role_val as i32));
+    }
+
+    println!("inputs is {:?}", inputs);
+
+    // prove
+    let local_role_circuit = RoleAssignmentCircuit {
+        num_players: n,
+        tau_matrix: na::DMatrix::<Fr>::zeros(n + m, n + m),
+        result: inputs.clone(),
+        shuffle_matrices: vec![na::DMatrix::<Fr>::zeros(n + m, n + m); 2],
+    };
+
+    let (mpc_index_pk, index_vk) = setup_and_index(local_role_circuit);
+
+    let mpc_role_circuit = RoleAssignmentCircuit {
+        num_players: n,
+        tau_matrix: grouping_parameter.generate_tau_matrix(),
+        result: inputs.iter().map(|x| MFr::from_public(*x)).collect(),
+        shuffle_matrices: shuffle_matrix,
+    };
+
+    assert!(prove_and_verify(
+        &mpc_index_pk,
+        &index_vk,
+        mpc_role_circuit.clone(),
+        inputs
+    ));
+
+    Ok(())
+}
+
+// Compute shuffle matrix and return role, raw role id, and player id in the same group.
 fn calc_shuffle_matrix(
     grouping_parameter: &GroupingParameter,
     shuffle_matrix: &[na::DMatrix<MFr>],
     id: usize,
-) -> Result<(Roles, Option<Vec<usize>>), std::io::Error> {
+) -> Result<(Roles, usize, Option<Vec<usize>>), std::io::Error> {
     // parameters
     let n = grouping_parameter.get_num_players();
     let m = grouping_parameter.get_num_groups();
@@ -358,11 +436,11 @@ fn calc_shuffle_matrix(
         .collect::<Vec<_>>();
 
     if fellow.is_empty() {
-        Ok((role, None))
+        Ok((role, *role_val, None))
     } else {
         fellow.sort();
         fellow.dedup();
-        Ok((role, Some(fellow)))
+        Ok((role, *role_val, Some(fellow)))
     }
 }
 

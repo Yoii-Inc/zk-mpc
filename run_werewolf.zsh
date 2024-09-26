@@ -55,6 +55,23 @@ night)
         wait $pid
     done
     ;;
+role_assignment)
+    for i in $(seq 0 $((players - 1))); do
+        if [ $i == 0 ]; then
+            RUST_BACKTRACE=1 $BIN role_assignment $i ./data/address &
+            pid=$!
+            PROCS[$i]=$pid
+        else
+            $BIN role_assignment $i ./data/address >/dev/null &
+            pid=$!
+            PROCS[$i]=$pid
+        fi
+    done
+
+    for pid in ${PROCS[@]}; do
+        wait $pid
+    done
+    ;;
 vote)
     for i in $(seq 0 $((players - 1))); do
         if [ $i == 0 ]; then
