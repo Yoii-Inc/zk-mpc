@@ -3,7 +3,7 @@ use crate::{overhead, AllocatedNonNativeFieldVar};
 use ark_ff::{biginteger::BigInteger, fields::FpParameters, BitIteratorBE, One, PrimeField, Zero};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
+// use hark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::{alloc::AllocVar, boolean::Boolean, R1CSVar};
 use ark_relations::{
     ns,

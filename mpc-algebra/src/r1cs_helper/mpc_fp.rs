@@ -25,7 +25,7 @@ use crate::{
 
 /// Represents a variable in the constraint system whose
 /// value can be an arbitrary field element.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[must_use]
 pub struct MpcAllocatedFp<F: PrimeField> {
     pub(crate) value: Option<F>,
@@ -48,7 +48,7 @@ impl<F: PrimeField> MpcAllocatedFp<F> {
 }
 
 /// Represent variables corresponding to a field element in `F`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[must_use]
 pub enum MpcFpVar<F: PrimeField> {
     /// Represents a constant in the constraint system, which means that
@@ -712,6 +712,29 @@ impl<F: PrimeField> AllocVar<F, F> for MpcAllocatedFp<F> {
             };
             Ok(Self::new(value, variable, cs))
         }
+    }
+}
+
+// TODO: Consider security of this implementation
+impl<F: PrimeField + Reveal> Zero for MpcFpVar<F>
+where
+    <F as Reveal>::Base: Zero,
+{
+    fn zero() -> Self {
+        Self::Constant(F::zero())
+    }
+
+    fn is_zero(&self) -> bool {
+        match self {
+            Self::Constant(c) => c.reveal().is_zero(),
+            Self::Var(v) => v.value.expect("value is None").reveal().is_zero(),
+        }
+    }
+}
+
+impl<F: PrimeField> One for MpcFpVar<F> {
+    fn one() -> Self {
+        Self::Constant(F::one())
     }
 }
 

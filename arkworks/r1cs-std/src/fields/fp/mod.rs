@@ -15,7 +15,7 @@ mod cmp;
 
 /// Represents a variable in the constraint system whose
 /// value can be an arbitrary field element.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[must_use]
 pub struct AllocatedFp<F: PrimeField> {
     pub(crate) value: Option<F>,
@@ -38,7 +38,7 @@ impl<F: PrimeField> AllocatedFp<F> {
 }
 
 /// Represent variables corresponding to a field element in `F`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[must_use]
 pub enum FpVar<F: PrimeField> {
     /// Represents a constant in the constraint system, which means that
@@ -641,6 +641,25 @@ impl<F: PrimeField> AllocVar<F, F> for AllocatedFp<F> {
             };
             Ok(Self::new(value, variable, cs))
         }
+    }
+}
+
+impl<F: PrimeField> ark_std::Zero for FpVar<F> {
+    fn zero() -> Self {
+        Self::Constant(F::zero())
+    }
+
+    fn is_zero(&self) -> bool {
+        match self {
+            Self::Constant(c) => c.is_zero(),
+            Self::Var(v) => v.value.expect("value is None").is_zero(),
+        }
+    }
+}
+
+impl<F: PrimeField> ark_std::One for FpVar<F> {
+    fn one() -> Self {
+        Self::Constant(F::one())
     }
 }
 
