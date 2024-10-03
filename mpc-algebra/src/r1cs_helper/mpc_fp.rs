@@ -437,43 +437,51 @@ impl<F: PrimeField> MpcAllocatedFp<F> {
 
 impl<F: PrimeField + SquareRootField + EqualityZero> MpcAllocatedFp<F> {
     pub fn is_zero(&self) -> Result<MpcBoolean<F>, SynthesisError> {
-        let value = self.value.get()?;
+        let zero = MpcAllocatedFp::new_constant(self.cs.clone(), F::zero())?;
 
-        if value.is_shared() {
-            let is_zero_value = value.is_zero_shared();
+        let diff = zero.value.get()? - self.value.get()?;
+
+        if diff.is_shared() {
+            let is_zero_value = diff.is_zero_shared();
 
             let is_not_zero =
                 MpcBoolean::new_witness(self.cs.clone(), || Ok((!is_zero_value).field()))?;
 
-            let multiplier = self.cs.new_witness_variable(|| {
-                (self.value.get()? + is_zero_value.field()).inverse().get()
-            })?;
+            let multiplier = self
+                .cs
+                .new_witness_variable(|| (diff + is_zero_value.field()).inverse().get())?;
 
             self.cs.enforce_constraint(
-                lc!() + self.variable,
+                lc!() + zero.variable - self.variable,
                 lc!() + multiplier,
                 is_not_zero.lc(),
             )?;
-            self.cs
-                .enforce_constraint(lc!() + self.variable, is_not_zero.not().lc(), lc!())?;
+            self.cs.enforce_constraint(
+                lc!() + zero.variable - self.variable,
+                is_not_zero.not().lc(),
+                lc!(),
+            )?;
             Ok(is_not_zero.not())
         } else {
-            let is_zero_value = F::from(value.is_zero());
+            let is_zero_value = F::from(diff.is_zero());
 
             let is_not_zero =
                 MpcBoolean::new_witness(self.cs.clone(), || Ok(F::one() - is_zero_value))?;
 
             let multiplier = self
                 .cs
-                .new_witness_variable(|| (self.value.get()? + is_zero_value).inverse().get())?;
+                .new_witness_variable(|| (diff + is_zero_value).inverse().get())?;
 
             self.cs.enforce_constraint(
-                lc!() + self.variable,
+                lc!() + zero.variable - self.variable,
                 lc!() + multiplier,
                 is_not_zero.lc(),
             )?;
-            self.cs
-                .enforce_constraint(lc!() + self.variable, is_not_zero.not().lc(), lc!())?;
+            self.cs.enforce_constraint(
+                lc!() + zero.variable - self.variable,
+                is_not_zero.not().lc(),
+                lc!(),
+            )?;
             Ok(is_not_zero.not())
         }
     }

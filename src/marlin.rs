@@ -24,8 +24,10 @@ use crate::circuits::enforce_smaller_or_eq_than::SmallerEqThanCircuit;
 use crate::circuits::smaller_than::SmallerThanCircuit;
 use crate::{
     circuits::{
-        bit_decomposition::BitDecompositionCircuit, circuit::MyCircuit,
-        equality_zero::EqualityZeroCircuit, LocalOrMPC, PedersenComCircuit,
+        bit_decomposition::BitDecompositionCircuit,
+        circuit::MyCircuit,
+        equality_zero::{EqualityZeroCircuit, NotEqualityZeroCircuit},
+        LocalOrMPC, PedersenComCircuit,
     },
     input::{MpcInputTrait, SampleMpcInput},
 };
@@ -250,6 +252,36 @@ pub fn test_equality_zero(n_iters: usize) {
             invalid_mpc_circuit,
             vec![]
         ));
+    }
+}
+
+pub fn test_not_equality_zero(n_iters: usize) {
+    let local_circuit = NotEqualityZeroCircuit { a: Fr::one() };
+    let (mpc_index_pk, index_vk) = setup_and_index(local_circuit);
+
+    let rng = &mut test_rng();
+
+    let is_zero_false_val = Fr::zero();
+    let is_zero_true_val = Fr::one();
+
+    for _ in 0..n_iters {
+        let mpc_circuit = NotEqualityZeroCircuit { a: MFr::rand(rng) };
+
+        if mpc_circuit.a.reveal() != Fr::zero() {
+            assert!(prove_and_verify(
+                &mpc_index_pk,
+                &index_vk,
+                mpc_circuit,
+                vec![is_zero_false_val]
+            ));
+        } else {
+            assert!(prove_and_verify(
+                &mpc_index_pk,
+                &index_vk,
+                mpc_circuit,
+                vec![is_zero_true_val]
+            ));
+        }
     }
 }
 

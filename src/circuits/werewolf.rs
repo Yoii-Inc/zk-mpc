@@ -32,7 +32,7 @@ use mpc_algebra::encryption::elgamal::{
 };
 
 use super::{LocalOrMPC, PedersenComCircuit};
-use crate::input::{WerewolfKeyInput, WerewolfMpcInput};
+use crate::input::{InputWithCommit, WerewolfKeyInput, WerewolfMpcInput};
 
 #[derive(Clone)]
 pub struct KeyPublicizeCircuit<F: PrimeField + LocalOrMPC<F>> {
@@ -725,6 +725,124 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
 }
 
 #[derive(Clone)]
+pub struct WinningJudgeCircuit<F: PrimeField + LocalOrMPC<F>> {
+    pub num_alive: F,
+    //pubam_werewolf:Vec<F>,
+    //pubrole_commitment:Vec<F>,
+    pub pedersen_param: F::PedersenParam,
+    pub am_werewolf: Vec<InputWithCommit<F>>,
+    pub game_state: F,
+}
+
+impl ConstraintSynthesizer<Fr> for WinningJudgeCircuit<Fr> {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<()> {
+        // initialize
+        let num_alive_var = FpVar::new_input(cs.clone(), || Ok(self.num_alive))?;
+
+        let am_werewolf_var = self
+            .am_werewolf
+            .iter()
+            .map(|b| FpVar::new_witness(cs.clone(), || Ok(b.input)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let game_state_var = FpVar::new_input(cs.clone(), || Ok(self.game_state))?;
+
+        // calculate
+        let num_werewolf_var = am_werewolf_var.iter().fold(FpVar::zero(), |mut acc, x| {
+            acc += x;
+            acc
+        });
+
+        let num_citizen_var = num_alive_var - &num_werewolf_var;
+
+        let calced_game_state_var = FpVar::conditionally_select(
+            &num_werewolf_var.is_zero()?,
+            &FpVar::constant(Fr::from(2)), // villager win
+            &FpVar::conditionally_select(
+                &num_werewolf_var.is_cmp(&num_citizen_var, std::cmp::Ordering::Less, false)?,
+                &FpVar::constant(Fr::from(3)), // game continues
+                &FpVar::constant(Fr::from(1)), // werewolf win
+            )?,
+        )?;
+
+        // check commitment
+        for am_werewolf_with_commit in self.am_werewolf.iter() {
+            let am_werewolf_com_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: am_werewolf_with_commit.input,
+                open: am_werewolf_with_commit.randomness.clone(),
+                commit: am_werewolf_with_commit.commitment.clone(),
+            };
+
+            am_werewolf_com_circuit.generate_constraints(cs.clone())?;
+        }
+
+        // enforce equal
+        game_state_var.enforce_equal(&calced_game_state_var)?;
+
+        println!("total number of constraints: {}", cs.num_constraints());
+
+        Ok(())
+    }
+}
+
+impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcField<Fr>> {
+    fn generate_constraints(
+        self,
+
+        cs: ConstraintSystemRef<mm::MpcField<Fr>>,
+    ) -> ark_relations::r1cs::Result<()> {
+        //initialize
+        let num_alive_var = MpcFpVar::new_input(cs.clone(), || Ok(self.num_alive))?;
+
+        let am_werewolf_var = self
+            .am_werewolf
+            .iter()
+            .map(|b| MpcFpVar::new_witness(cs.clone(), || Ok(b.input)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let game_state_var = MpcFpVar::new_input(cs.clone(), || Ok(self.game_state))?;
+
+        // calculate
+        let num_werewolf_var = am_werewolf_var.iter().fold(MpcFpVar::zero(), |mut acc, x| {
+            acc += x;
+            acc
+        });
+
+        let num_citizen_var = num_alive_var - &num_werewolf_var;
+
+        let calced_game_state_var = MpcFpVar::conditionally_select(
+            &num_werewolf_var.is_zero()?,
+            &MpcFpVar::constant(mm::MpcField::<Fr>::from(2_u32)), // villager win
+            &MpcFpVar::conditionally_select(
+                &num_werewolf_var.is_cmp(&num_citizen_var, std::cmp::Ordering::Less, false)?,
+                &MpcFpVar::constant(mm::MpcField::<Fr>::from(3_u32)), // game continues
+                &MpcFpVar::constant(mm::MpcField::<Fr>::from(1_u32)), //werewol fwin
+            )?,
+        )?;
+
+        // check commitment
+        for am_werewolf_with_commit in self.am_werewolf.iter() {
+            let am_werewolf_com_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: am_werewolf_with_commit.input,
+                open: am_werewolf_with_commit.randomness.clone(),
+                commit: am_werewolf_with_commit.commitment.clone(),
+            };
+
+            am_werewolf_com_circuit.generate_constraints(cs.clone())?;
+        }
+
+        // enforce equal
+        game_state_var.enforce_equal(&calced_game_state_var)?;
+
+        println!("total number of constraints: {}", cs.num_constraints());
+
+        Ok(())
+    }
+}
+      
+#[derive(Clone)]
 pub struct RoleAssignmentCircuit<F: PrimeField + LocalOrMPC<F>> {
     // parameter
     pub num_players: usize,
@@ -851,7 +969,7 @@ impl ConstraintSynthesizer<Fr> for RoleAssignmentCircuit<Fr> {
         Ok(())
     }
 }
-
+      
 impl ConstraintSynthesizer<mm::MpcField<Fr>> for RoleAssignmentCircuit<mm::MpcField<Fr>> {
     fn generate_constraints(
         self,
