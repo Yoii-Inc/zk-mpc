@@ -9,7 +9,6 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::select::CondSelectGadget;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget};
@@ -729,13 +728,15 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
 pub struct RoleAssignmentCircuit<F: PrimeField + LocalOrMPC<F>> {
     // parameter
     pub num_players: usize,
+    pub pedersen_param: F::PedersenParam,
 
     // instance
     pub tau_matrix: na::DMatrix<F>,
-    pub result: Vec<F>, // TODO: delete later
+    pub role_commitment: Vec<F::PedersenCommitment>,
 
     // witness
     pub shuffle_matrices: Vec<na::DMatrix<F>>,
+    pub randomness: Vec<F::PedersenRandomness>,
 }
 
 impl ConstraintSynthesizer<Fr> for RoleAssignmentCircuit<Fr> {
@@ -749,13 +750,6 @@ impl ConstraintSynthesizer<Fr> for RoleAssignmentCircuit<Fr> {
                     .expect("tau matrix var is not allocated correctly")
             }),
         );
-
-        // TODO: delete later
-        let result_input_var = self
-            .result
-            .iter()
-            .map(|x| FpVar::new_input(cs.clone(), || Ok(x)))
-            .collect::<Result<Vec<_>, _>>()?;
 
         let shuffle_matrix_var = self
             .shuffle_matrices
@@ -843,11 +837,16 @@ impl ConstraintSynthesizer<Fr> for RoleAssignmentCircuit<Fr> {
             .map(|val| test_max(val, false).unwrap())
             .collect::<Vec<_>>();
 
+        // commitment
         for i in 0..self.num_players {
-            calced_role[i].enforce_equal(&result_input_var[i])?;
+            let pedersen_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: calced_role[i].value().unwrap_or_default(),
+                open: self.randomness[i].clone(),
+                commit: self.role_commitment[i],
+            };
+            pedersen_circuit.generate_constraints(cs.clone())?;
         }
-
-        // [ ]: commitment
 
         Ok(())
     }
@@ -867,13 +866,6 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for RoleAssignmentCircuit<mm::MpcFi
                     .expect("tau matrix var is not allocated correctly")
             }),
         );
-
-        // TODO: delete later
-        let result_input_var = self
-            .result
-            .iter()
-            .map(|x| MpcFpVar::new_input(cs.clone(), || Ok(x)))
-            .collect::<Result<Vec<_>, _>>()?;
 
         let shuffle_matrix_var = self
             .shuffle_matrices
@@ -961,11 +953,16 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for RoleAssignmentCircuit<mm::MpcFi
             .map(|val| test_max_mpc(val, false).unwrap())
             .collect::<Vec<_>>();
 
+        // commitment
         for i in 0..self.num_players {
-            calced_role[i].enforce_equal(&result_input_var[i])?;
+            let pedersen_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: calced_role[i].value().unwrap(),
+                open: self.randomness[i],
+                commit: self.role_commitment[i],
+            };
+            pedersen_circuit.generate_constraints(cs.clone())?;
         }
-
-        // [ ]: commitment
 
         println!("total number of constraints: {}", cs.num_constraints());
 
@@ -1215,7 +1212,7 @@ fn test_max<F: PrimeField>(
     })?;
 
     if should_enforce {
-        // [ ]: implement correctly
+        // each element must be less than half of the modulus
         a.iter().for_each(|x| {
             max_var
                 .enforce_cmp(x, core::cmp::Ordering::Greater, true)

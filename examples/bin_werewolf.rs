@@ -1,17 +1,23 @@
 use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::AffineCurve;
+use ark_ff::BigInteger;
 use ark_ff::FpParameters;
+use ark_ff::PrimeField;
 use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
 use ark_std::One;
+use ark_std::PubUniformRand;
+use ark_std::UniformRand;
 use ark_std::Zero;
 use core::num;
 use core::panic;
 use mpc_algebra::encryption::elgamal::elgamal::Parameters;
 use mpc_algebra::malicious_majority::*;
+use mpc_algebra::CommitmentScheme;
+use mpc_algebra::FromLocal;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use rand::seq::SliceRandom;
@@ -21,6 +27,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
+use zk_mpc::circuits::LocalOrMPC;
 use zk_mpc::circuits::RoleAssignmentCircuit;
 use zk_mpc::circuits::{
     AnonymousVotingCircuit, DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit,
@@ -326,6 +333,8 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
 
     let rng = &mut test_rng();
 
+    let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
     // calc
     let shuffle_matrix = vec![
         generate_individual_shuffle_matrix(
@@ -348,22 +357,70 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
 
     println!("inputs is {:?}", inputs);
 
+    let randomness = (0..n)
+        .map(|_| <Fr as LocalOrMPC<Fr>>::PedersenRandomness::rand(rng))
+        .collect::<Vec<_>>();
+
+    let commitment = (0..n)
+        .map(|i| {
+            <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
+                &pedersen_param,
+                &inputs[i].into_repr().to_bytes_le(),
+                &randomness[i],
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
     // prove
     let local_role_circuit = RoleAssignmentCircuit {
         num_players: n,
+        pedersen_param: pedersen_param.clone(),
         tau_matrix: na::DMatrix::<Fr>::zeros(n + m, n + m),
-        result: inputs.clone(),
         shuffle_matrices: vec![na::DMatrix::<Fr>::zeros(n + m, n + m); 2],
+        role_commitment: commitment,
+        randomness,
     };
 
     let (mpc_index_pk, index_vk) = setup_and_index(local_role_circuit);
 
+    let mpc_pedersen_param = <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&pedersen_param);
+
+    let mpc_randomness = (0..n)
+        .map(|_| <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng))
+        .collect::<Vec<_>>();
+
+    let converted_inputs = inputs
+        .iter()
+        .map(|x| <MFr as LocalOrMPC<MFr>>::convert_input(&MFr::from_public(*x)))
+        .collect::<Vec<_>>();
+
+    let role_commitment = (0..n)
+        .map(|i| {
+            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(
+                &mpc_pedersen_param,
+                &converted_inputs[i],
+                &mpc_randomness[i],
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
     let mpc_role_circuit = RoleAssignmentCircuit {
         num_players: n,
+        pedersen_param: mpc_pedersen_param,
         tau_matrix: grouping_parameter.generate_tau_matrix(),
-        result: inputs.iter().map(|x| MFr::from_public(*x)).collect(),
         shuffle_matrices: shuffle_matrix,
+        randomness: mpc_randomness,
+        role_commitment: role_commitment.clone(),
     };
+
+    let mut inputs = Vec::new();
+
+    role_commitment.iter().for_each(|x| {
+        inputs.push(x.reveal().x);
+        inputs.push(x.reveal().y);
+    });
 
     assert!(prove_and_verify(
         &mpc_index_pk,
