@@ -716,7 +716,9 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
                 h[..l].to_vec() // remove the last element
             }
             false => {
-                panic!("public is not expected here");
+                // This can be faster.
+                Self::king_share(self.unwrap_as_public(), &mut ark_std::test_rng())
+                    .bit_decomposition()
             }
         }
     }

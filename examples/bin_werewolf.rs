@@ -1,13 +1,18 @@
 use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
+use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
+use ark_ff::BigInteger;
 use ark_ff::FpParameters;
+use ark_ff::PrimeField;
 use ark_marlin::IndexProverKey;
 use ark_mnt4_753::FqParameters;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
 use ark_std::PubUniformRand;
+use ark_std::UniformRand;
 use ark_std::{One, Zero};
+use core::num;
 use core::panic;
 use mpc_algebra::encryption::elgamal::elgamal::Parameters;
 use mpc_algebra::malicious_majority::*;
@@ -18,14 +23,17 @@ use mpc_algebra::FromLocal;
 use mpc_algebra::LessThan;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
+use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::Deserialize;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 use zk_mpc::circuits::LocalOrMPC;
-use zk_mpc::circuits::WinningJudgeCircuit;
 use zk_mpc::circuits::{
     AnonymousVotingCircuit, DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit,
+    RoleAssignmentCircuit, WinningJudgeCircuit,
 };
 use zk_mpc::input::InputWithCommit;
 use zk_mpc::input::MpcInputTrait;
@@ -38,6 +46,8 @@ use zk_mpc::marlin::{prove_and_verify, setup_and_index};
 use zk_mpc::preprocessing;
 use zk_mpc::serialize::{write_r, write_to_file};
 use zk_mpc::she;
+
+use nalgebra as na;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -90,6 +100,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // preprocessing calculation of werewolf game
 
             preprocessing_werewolf(&opt)?;
+        }
+        "role_assignment" => {
+            println!("Role assignment mode");
+            // role assignment
+
+            role_assignment(&opt)?;
         }
         "night" => {
             println!("Night mode");
@@ -305,6 +321,342 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
+    // init
+    Net::init_from_file(
+        opt.input.clone().unwrap().to_str().unwrap(),
+        opt.id.unwrap(),
+    );
+
+    let grouping_parameter = GroupingParameter::new(
+        vec![
+            (Roles::Villager, (3, false)),
+            (Roles::FortuneTeller, (1, false)),
+            (Roles::Werewolf, (2, true)),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    let n = grouping_parameter.get_num_players();
+    let m = grouping_parameter.get_num_groups();
+
+    let rng = &mut test_rng();
+
+    let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
+    // calc
+    let shuffle_matrix = vec![
+        generate_individual_shuffle_matrix(
+            grouping_parameter.get_num_players(),
+            grouping_parameter.get_num_groups(),
+            rng,
+        );
+        2
+    ];
+
+    let mut inputs = vec![];
+
+    for id in 0..n {
+        let (role, role_val, player_ids) =
+            calc_shuffle_matrix(&grouping_parameter, &shuffle_matrix, id).unwrap();
+        println!("role is {:?}", role);
+        println!("fellow is {:?}", player_ids);
+        inputs.push(Fr::from(role_val as i32));
+    }
+
+    println!("inputs is {:?}", inputs);
+
+    let randomness = (0..n)
+        .map(|_| <Fr as LocalOrMPC<Fr>>::PedersenRandomness::rand(rng))
+        .collect::<Vec<_>>();
+
+    let commitment = (0..n)
+        .map(|i| {
+            <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
+                &pedersen_param,
+                &inputs[i].into_repr().to_bytes_le(),
+                &randomness[i],
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    // prove
+    let local_role_circuit = RoleAssignmentCircuit {
+        num_players: n,
+        pedersen_param: pedersen_param.clone(),
+        tau_matrix: na::DMatrix::<Fr>::zeros(n + m, n + m),
+        shuffle_matrices: vec![na::DMatrix::<Fr>::zeros(n + m, n + m); 2],
+        role_commitment: commitment,
+        randomness,
+    };
+
+    let srs = LocalMarlin::universal_setup(1000000, 50000, 100000, rng).unwrap();
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, local_role_circuit).unwrap();
+    let mpc_index_pk = IndexProverKey::from_public(index_pk);
+
+    let mpc_pedersen_param = <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&pedersen_param);
+
+    let mpc_randomness = (0..n)
+        .map(|_| <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng))
+        .collect::<Vec<_>>();
+
+    let converted_inputs = inputs
+        .iter()
+        .map(|x| <MFr as LocalOrMPC<MFr>>::convert_input(&MFr::from_public(*x)))
+        .collect::<Vec<_>>();
+
+    let role_commitment = (0..n)
+        .map(|i| {
+            <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(
+                &mpc_pedersen_param,
+                &converted_inputs[i],
+                &mpc_randomness[i],
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    let mpc_role_circuit = RoleAssignmentCircuit {
+        num_players: n,
+        pedersen_param: mpc_pedersen_param,
+        tau_matrix: grouping_parameter.generate_tau_matrix(),
+        shuffle_matrices: shuffle_matrix,
+        randomness: mpc_randomness,
+        role_commitment: role_commitment.clone(),
+    };
+
+    let mut inputs = Vec::new();
+
+    role_commitment.iter().for_each(|x| {
+        inputs.push(x.reveal().x);
+        inputs.push(x.reveal().y);
+    });
+
+    assert!(prove_and_verify(
+        &mpc_index_pk,
+        &index_vk,
+        mpc_role_circuit.clone(),
+        inputs
+    ));
+
+    Ok(())
+}
+
+// Compute shuffle matrix and return role, raw role id, and player id in the same group.
+fn calc_shuffle_matrix(
+    grouping_parameter: &GroupingParameter,
+    shuffle_matrix: &[na::DMatrix<MFr>],
+    id: usize,
+) -> Result<(Roles, usize, Option<Vec<usize>>), std::io::Error> {
+    // parameters
+    let n = grouping_parameter.get_num_players();
+    let m = grouping_parameter.get_num_groups();
+
+    // generate tau matrix
+    let tau_matrix = grouping_parameter.generate_tau_matrix();
+
+    // compute rho matrix
+    let m_matrix = shuffle_matrix
+        .iter()
+        .fold(na::DMatrix::<MFr>::identity(n + m, n + m), |acc, x| acc * x);
+    let rho_matrix = m_matrix.transpose() * tau_matrix * m_matrix;
+
+    // iterate. get rho^1, rho^2, ..., rho^num_players
+    let mut rho_sequence = Vec::with_capacity(n);
+    let mut current_rho = rho_matrix.clone();
+    for _ in 0..n {
+        rho_sequence.push(current_rho.clone());
+        current_rho *= rho_matrix.clone(); // rho^(i+1) = rho^i * rho
+    }
+
+    let mut unit_vec = na::DVector::<MFr>::zeros(n + m);
+    unit_vec[id] = MFr::one();
+
+    // player i: for each j in {1..n}, get rho^j(i)
+    let result = rho_sequence
+        .iter()
+        .map(|rho| rho * unit_vec.clone())
+        .map(|x| {
+            let index = x.column(0).into_iter().enumerate().find_map(|(j, value)| {
+                if *value != MFr::zero() {
+                    Some(j)
+                } else {
+                    None
+                }
+            });
+            index.unwrap_or_else(|| panic!("Error: No index found"))
+        }) // search for the index of the one element
+        .collect::<Vec<_>>();
+
+    println!("player {:?} result is {:?}", id, result);
+
+    // get role value. get val which is max value in result.
+    let role_val = result.iter().max().expect("Failed to get max value");
+
+    // get role
+    let role = grouping_parameter.get_corresponding_role(*role_val);
+
+    let mut fellow = result
+        .iter()
+        .filter(|x| **x != id && **x < n)
+        .copied()
+        .collect::<Vec<_>>();
+
+    if fellow.is_empty() {
+        Ok((role, *role_val, None))
+    } else {
+        fellow.sort();
+        fellow.dedup();
+        Ok((role, *role_val, Some(fellow)))
+    }
+}
+
+fn generate_individual_shuffle_matrix<R: Rng>(n: usize, m: usize, rng: &mut R) -> na::DMatrix<MFr> {
+    let mut shuffle_matrix = na::DMatrix::<MFr>::zeros(n + m, n + m);
+
+    // generate permutation
+    let mut permutation: Vec<usize> = (0..n).collect();
+    permutation.shuffle(rng);
+
+    // shuffle_matrix
+    for i in 0..n {
+        shuffle_matrix[(i, permutation[i])] = MFr::one();
+    }
+
+    for i in n..n + m {
+        shuffle_matrix[(i, i)] = MFr::one();
+    }
+
+    shuffle_matrix
+}
+
+#[test]
+fn test_shuffle_matrix() {
+    let grouping_parameter = GroupingParameter::new(
+        vec![
+            (Roles::Villager, (4, false)),
+            (Roles::FortuneTeller, (1, false)),
+            (Roles::Werewolf, (2, true)),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    let shuffle_matrix = vec![generate_individual_shuffle_matrix(
+        grouping_parameter.get_num_players(),
+        grouping_parameter.get_num_groups(),
+        &mut test_rng(),
+    )];
+
+    for id in 0..grouping_parameter.get_num_players() {
+        let (role, _, player_ids) =
+            calc_shuffle_matrix(&grouping_parameter, &shuffle_matrix, id).unwrap();
+        println!("role is {:?}", role);
+        println!("fellow is {:?}", player_ids);
+    }
+}
+
+struct GroupingParameter(BTreeMap<Roles, (usize, bool)>);
+
+impl GroupingParameter {
+    fn new(input: BTreeMap<Roles, (usize, bool)>) -> Self {
+        Self(input)
+    }
+
+    fn generate_tau_matrix(&self) -> na::DMatrix<MFr> {
+        let num_players = self.get_num_players();
+        let num_groups = self.get_num_groups();
+
+        let mut tau = na::DMatrix::<MFr>::zeros(num_players + num_groups, num_players + num_groups);
+
+        let mut player_index = 0;
+        let mut group_index = 0;
+
+        for (_, (count, is_not_alone)) in self.0.iter() {
+            if *is_not_alone {
+                assert!(
+                    *count >= 2,
+                    "Error: not alone group count must be greater than 2"
+                );
+
+                // group
+                tau[(player_index, num_players + group_index)] = MFr::one();
+
+                // player
+                for _ in 0..*count - 1 {
+                    tau[(player_index + 1, player_index)] = MFr::one();
+                    player_index += 1;
+                }
+                tau[(num_players + group_index, player_index)] = MFr::one();
+                player_index += 1;
+                group_index += 1;
+            } else {
+                for _ in 0..*count {
+                    // group
+                    tau[(player_index, num_players + group_index)] = MFr::one();
+                    // player
+                    tau[(num_players + group_index, player_index)] = MFr::one();
+                    player_index += 1;
+                    group_index += 1;
+                }
+            }
+        }
+
+        tau
+    }
+
+    fn get_num_roles(&self) -> usize {
+        self.0.len()
+    }
+
+    fn get_num_groups(&self) -> usize {
+        self.0
+            .values()
+            .map(|(count, is_not_alone)| if *is_not_alone { 1 } else { *count })
+            .sum()
+    }
+
+    fn get_num_players(&self) -> usize {
+        self.0.values().map(|x| x.0).sum()
+    }
+
+    fn get_corresponding_role(&self, role_id: usize) -> Roles {
+        let mut count = self.get_num_players();
+        for (role, (role_count, is_not_alone)) in self.0.iter() {
+            count += if *is_not_alone { 1 } else { *role_count };
+            if role_id < count {
+                return role.clone();
+            }
+        }
+
+        panic!("Error: Invalid role id is given");
+    }
+}
+
+#[test]
+fn test_grouping_parameter() {
+    let grouping_parameter = GroupingParameter::new(
+        vec![
+            (Roles::Villager, (4, false)),
+            (Roles::FortuneTeller, (1, false)),
+            (Roles::Werewolf, (2, true)),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    // Villager, FortuneTeller, Werewolf
+    assert_eq!(grouping_parameter.get_num_roles(), 3);
+
+    // Villager: 1, 2, 3, 4, FortuneTeller: 1, Werewolfs: 1
+    assert_eq!(grouping_parameter.get_num_groups(), 6);
+
+    // Total 4 + 1 + 2 = 7
+    assert_eq!(grouping_parameter.get_num_players(), 7);
+}
+
 fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     // init
     Net::init_from_file(
@@ -320,7 +672,7 @@ fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash, Ord, PartialOrd, Clone)]
 enum Roles {
     FortuneTeller,
     Werewolf,
