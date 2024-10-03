@@ -48,6 +48,7 @@ mpc-net = { path = "mpc-net", version = "0.1.0" }
 mpc-trait = { path = "mpc-trait", version = "0.1.0" }
 itertools = "0.13.0"
 nalgebra = "0.33.0"
+tokio = { version = "1.40.0", features = ["sync", "net"] }
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }
