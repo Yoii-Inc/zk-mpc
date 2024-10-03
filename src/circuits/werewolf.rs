@@ -855,6 +855,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
 pub struct RoleAssignmentCircuit<F: PrimeField + LocalOrMPC<F>> {
     // parameter
     pub num_players: usize,
+    pub max_group_size: usize,
     pub pedersen_param: F::PedersenParam,
 
     // instance
@@ -961,7 +962,7 @@ impl ConstraintSynthesizer<Fr> for RoleAssignmentCircuit<Fr> {
 
         let calced_role = calced_vec
             .iter()
-            .map(|val| test_max(val, false).unwrap())
+            .map(|val| test_max(val, self.max_group_size + 1, true).unwrap())
             .collect::<Vec<_>>();
 
         // commitment
@@ -1077,7 +1078,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for RoleAssignmentCircuit<mm::MpcFi
 
         let calced_role = calced_vec
             .iter()
-            .map(|val| test_max_mpc(val, false).unwrap())
+            .map(|val| test_max_mpc(val, self.max_group_size + 1, true).unwrap())
             .collect::<Vec<_>>();
 
         // commitment
@@ -1328,8 +1329,10 @@ impl ElGamalLocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
     }
 }
 
+// return maximum value in the vector a, index runs from 0 to use_index_len
 fn test_max<F: PrimeField>(
     a: &[FpVar<F>],
+    use_index_len: usize,
     should_enforce: bool,
 ) -> Result<FpVar<F>, SynthesisError> {
     let cs = a[0].cs().clone();
@@ -1340,11 +1343,9 @@ fn test_max<F: PrimeField>(
 
     if should_enforce {
         // each element must be less than half of the modulus
-        a.iter().for_each(|x| {
-            max_var
-                .enforce_cmp(x, core::cmp::Ordering::Greater, true)
-                .unwrap()
-        });
+        for i in 0..use_index_len {
+            a[i].enforce_cmp(&max_var, core::cmp::Ordering::Less, true)?;
+        }
     }
 
     Ok(max_var)
@@ -1352,6 +1353,7 @@ fn test_max<F: PrimeField>(
 
 fn test_max_mpc<F: PrimeField + SquareRootField + BitDecomposition + EqualityZero>(
     a: &[MpcFpVar<F>],
+    use_index_len: usize,
     should_enforce: bool,
 ) -> Result<MpcFpVar<F>, SynthesisError> {
     let cs = a[0].cs().clone();
@@ -1361,12 +1363,9 @@ fn test_max_mpc<F: PrimeField + SquareRootField + BitDecomposition + EqualityZer
     })?;
 
     if should_enforce {
-        // [ ]: implement correctly
-        a.iter().for_each(|x| {
-            max_var
-                .enforce_cmp(x, core::cmp::Ordering::Greater, true)
-                .unwrap()
-        });
+        for i in 0..use_index_len {
+            a[i].enforce_cmp(&max_var, core::cmp::Ordering::Less, true)?;
+        }
     }
 
     Ok(max_var)

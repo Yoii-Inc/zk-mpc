@@ -385,6 +385,7 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
     // prove
     let local_role_circuit = RoleAssignmentCircuit {
         num_players: n,
+        max_group_size: grouping_parameter.get_max_group_size(),
         pedersen_param: pedersen_param.clone(),
         tau_matrix: na::DMatrix::<Fr>::zeros(n + m, n + m),
         shuffle_matrices: vec![na::DMatrix::<Fr>::zeros(n + m, n + m); 2],
@@ -420,6 +421,7 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
 
     let mpc_role_circuit = RoleAssignmentCircuit {
         num_players: n,
+        max_group_size: grouping_parameter.get_max_group_size(),
         pedersen_param: mpc_pedersen_param,
         tau_matrix: grouping_parameter.generate_tau_matrix(),
         shuffle_matrices: shuffle_matrix,
@@ -620,6 +622,14 @@ impl GroupingParameter {
 
     fn get_num_players(&self) -> usize {
         self.0.values().map(|x| x.0).sum()
+    }
+
+    fn get_max_group_size(&self) -> usize {
+        self.0
+            .values()
+            .map(|(count, is_not_alone)| if *is_not_alone { *count } else { 1 })
+            .max()
+            .expect("Error: No max value found")
     }
 
     fn get_corresponding_role(&self, role_id: usize) -> Roles {
