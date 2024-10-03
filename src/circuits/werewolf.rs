@@ -1533,10 +1533,9 @@ where
             // all check 0 or 1 -> row sum and column sum is 1
             let val = &matrix[(i, j)];
 
-            (<MpcFpVar<F> as Zero>::zero() - val)
-                .is_zero()
+            val.is_zero()
                 .unwrap()
-                .or(&(<MpcFpVar<F> as One>::one() - val).is_zero().unwrap())
+                .or(&(val - <MpcFpVar<F> as One>::one()).is_zero().unwrap())
                 .unwrap()
                 .enforce_equal(&MpcBoolean::TRUE)?;
 
