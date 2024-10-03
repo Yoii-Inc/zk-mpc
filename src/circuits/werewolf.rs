@@ -9,6 +9,7 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::select::CondSelectGadget;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget};
@@ -109,21 +110,23 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for KeyPublicizeCir
             is_bool.enforce_equal(&Boolean::constant(true))?;
         }
 
-        let _sum_x_var = x_var
-            .iter()
-            .enumerate()
-            .fold(FpVar::<F>::zero(), |mut acc, (i, x)| {
-                acc = acc + x * &is_ft_var[i];
-                acc
-            });
+        let _sum_x_var =
+            x_var
+                .iter()
+                .enumerate()
+                .fold(<FpVar<F> as Zero>::zero(), |mut acc, (i, x)| {
+                    acc = acc + x * &is_ft_var[i];
+                    acc
+                });
 
-        let _sum_y_var = y_var
-            .iter()
-            .enumerate()
-            .fold(FpVar::<F>::zero(), |mut acc, (i, y)| {
-                acc = acc + y * &is_ft_var[i];
-                acc
-            });
+        let _sum_y_var =
+            y_var
+                .iter()
+                .enumerate()
+                .fold(<FpVar<F> as Zero>::zero(), |mut acc, (i, y)| {
+                    acc = acc + y * &is_ft_var[i];
+                    acc
+                });
 
         // self.verify_commitments(cs.clone())?;
 
@@ -597,7 +600,7 @@ impl ConstraintSynthesizer<Fr> for AnonymousVotingCircuit<Fr> {
         let mut num_voted_var = Vec::new();
 
         for i in 0..player_num {
-            let mut each_num_voted = FpVar::zero();
+            let mut each_num_voted = <FpVar<Fr> as Zero>::zero();
 
             for j in 0..player_num {
                 each_num_voted += is_target_id_var[j][i].clone();
@@ -748,15 +751,18 @@ impl ConstraintSynthesizer<Fr> for WinningJudgeCircuit<Fr> {
         let game_state_var = FpVar::new_input(cs.clone(), || Ok(self.game_state))?;
 
         // calculate
-        let num_werewolf_var = am_werewolf_var.iter().fold(FpVar::zero(), |mut acc, x| {
-            acc += x;
-            acc
-        });
+        let num_werewolf_var =
+            am_werewolf_var
+                .iter()
+                .fold(<FpVar<Fr> as Zero>::zero(), |mut acc, x| {
+                    acc += x;
+                    acc
+                });
 
         let num_citizen_var = num_alive_var - &num_werewolf_var;
 
         let calced_game_state_var = FpVar::conditionally_select(
-            &num_werewolf_var.is_zero()?,
+            &FieldVar::is_zero(&num_werewolf_var)?,
             &FpVar::constant(Fr::from(2)), // villager win
             &FpVar::conditionally_select(
                 &num_werewolf_var.is_cmp(&num_citizen_var, std::cmp::Ordering::Less, false)?,
@@ -804,10 +810,13 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
         let game_state_var = MpcFpVar::new_input(cs.clone(), || Ok(self.game_state))?;
 
         // calculate
-        let num_werewolf_var = am_werewolf_var.iter().fold(MpcFpVar::zero(), |mut acc, x| {
-            acc += x;
-            acc
-        });
+        let num_werewolf_var = am_werewolf_var.iter().fold(
+            <MpcFpVar<mm::MpcField<Fr>> as Zero>::zero(),
+            |mut acc, x| {
+                acc += x;
+                acc
+            },
+        );
 
         let num_citizen_var = num_alive_var - &num_werewolf_var;
 
@@ -841,7 +850,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
         Ok(())
     }
 }
-      
+
 #[derive(Clone)]
 pub struct RoleAssignmentCircuit<F: PrimeField + LocalOrMPC<F>> {
     // parameter
@@ -969,7 +978,7 @@ impl ConstraintSynthesizer<Fr> for RoleAssignmentCircuit<Fr> {
         Ok(())
     }
 }
-      
+
 impl ConstraintSynthesizer<mm::MpcField<Fr>> for RoleAssignmentCircuit<mm::MpcField<Fr>> {
     fn generate_constraints(
         self,
@@ -1463,16 +1472,16 @@ fn enforce_permutation_matrix<F: PrimeField>(
     // (0,0) ~ (n-1,n-1) is arbitrary permutation matrix
 
     for i in 0..n {
-        let mut i_th_row_sum = FpVar::zero();
-        let mut i_th_column_sum = FpVar::zero();
+        let mut i_th_row_sum = <FpVar<F> as Zero>::zero();
+        let mut i_th_column_sum = <FpVar<F> as Zero>::zero();
 
         for j in 0..n {
             // all check 0 or 1 -> row sum and column sum is 1
             let val = &matrix[(i, j)];
 
-            val.is_eq(&FpVar::zero())
+            val.is_eq(&<FpVar<F> as Zero>::zero())
                 .unwrap()
-                .or(&val.is_eq(&FpVar::one()).unwrap())
+                .or(&val.is_eq(&<FpVar<F> as One>::one()).unwrap())
                 .unwrap()
                 .enforce_equal(&Boolean::TRUE)?;
 
@@ -1481,8 +1490,8 @@ fn enforce_permutation_matrix<F: PrimeField>(
             i_th_column_sum += &matrix[(j, i)];
         }
 
-        i_th_row_sum.enforce_equal(&FpVar::one())?;
-        i_th_column_sum.enforce_equal(&FpVar::one())?;
+        i_th_row_sum.enforce_equal(&<FpVar<F> as One>::one())?;
+        i_th_column_sum.enforce_equal(&<FpVar<F> as One>::one())?;
     }
 
     for i in 0..size {
@@ -1491,11 +1500,11 @@ fn enforce_permutation_matrix<F: PrimeField>(
                 // (n~n+m-1, n~n+m-1) is identity matrix
                 if i == j {
                     let val = &matrix[(i, j)];
-                    val.enforce_equal(&FpVar::one())?;
+                    val.enforce_equal(&<FpVar<F> as One>::one())?;
                 } else {
                     // other is 0
                     let val = &matrix[(i, j)];
-                    val.enforce_equal(&FpVar::zero())?;
+                    val.enforce_equal(&<FpVar<F> as Zero>::zero())?;
                 }
             }
         }
