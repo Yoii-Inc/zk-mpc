@@ -32,7 +32,8 @@ use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 use zk_mpc::circuits::LocalOrMPC;
 use zk_mpc::circuits::{
-    AnonymousVotingCircuit, DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit, RoleAssignmentCircuit, WinningJudgeCircuit
+    AnonymousVotingCircuit, DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit,
+    RoleAssignmentCircuit, WinningJudgeCircuit,
 };
 use zk_mpc::input::InputWithCommit;
 use zk_mpc::input::MpcInputTrait;
