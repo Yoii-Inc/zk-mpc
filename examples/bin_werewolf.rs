@@ -1,5 +1,6 @@
 use ark_bls12_377::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
+use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::AffineCurve;
 use ark_ff::BigInteger;
 use ark_ff::FpParameters;
@@ -382,7 +383,9 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
         randomness,
     };
 
-    let (mpc_index_pk, index_vk) = setup_and_index(local_role_circuit);
+    let srs = LocalMarlin::universal_setup(1000000, 50000, 100000, rng).unwrap();
+    let (index_pk, index_vk) = LocalMarlin::index(&srs, local_role_circuit).unwrap();
+    let mpc_index_pk = IndexProverKey::from_public(index_pk);
 
     let mpc_pedersen_param = <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&pedersen_param);
 
@@ -539,7 +542,7 @@ fn test_shuffle_matrix() {
     )];
 
     for id in 0..grouping_parameter.get_num_players() {
-        let (role, player_ids) =
+        let (role, _, player_ids) =
             calc_shuffle_matrix(&grouping_parameter, &shuffle_matrix, id).unwrap();
         println!("role is {:?}", role);
         println!("fellow is {:?}", player_ids);

@@ -37,8 +37,7 @@ pub fn setup_and_index<C: ConstraintSynthesizer<Fr>>(
     IndexVerifierKey<Fr, LocalMarlinKZG10>,
 ) {
     let rng = &mut test_rng();
-    let srs = LocalMarlin::universal_setup(1000000, 50000, 100000, rng).unwrap();
-    // let srs = LocalMarlin::universal_setup(30000, 500, 1000, rng).unwrap();
+    let srs = LocalMarlin::universal_setup(30000, 500, 1000, rng).unwrap();
     let (index_pk, index_vk) = LocalMarlin::index(&srs, circuit).unwrap();
     let mpc_index_pk = IndexProverKey::from_public(index_pk);
     (mpc_index_pk, index_vk)
