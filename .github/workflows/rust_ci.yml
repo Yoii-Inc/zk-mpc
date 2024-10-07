@@ -255,3 +255,6 @@ jobs:
       
       - name: Run werewolf vote
         run: ./run_werewolf.zsh vote
+
+      - name: Run werewolf role assignment
+        run: ./run_werewolf.zsh role_assignment
