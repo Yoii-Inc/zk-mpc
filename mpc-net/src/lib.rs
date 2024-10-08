@@ -23,16 +23,15 @@ pub enum MultiplexedStreamID {
     Two = 2,
 }
 
-pub trait MpcNet {
+pub trait MpcNet: Send + Sync {
     /// Am I the first party?
-    #[inline]
-    fn is_leader() -> bool {
-        Self::party_id() == 0
+    fn is_leader(&self) -> bool {
+        self.party_id() == 0
     }
     /// How many parties are there?
-    fn n_parties() -> usize;
+    fn n_parties(&self) -> usize;
     /// What is my party number (0 to n-1)?
-    fn party_id() -> usize;
+    fn party_id(&self) -> usize;
     /// Initialize the network layer from a file.
     /// The file should contain one HOST:PORT setting per line, corresponding to the addresses of
     /// the parties in increasing order.
@@ -40,7 +39,7 @@ pub trait MpcNet {
     /// Parties are zero-indexed.
     fn init_from_file(path: &str, party_id: usize);
     /// Is the network layer initalized?
-    fn is_init() -> bool;
+    fn is_init(&self) -> bool;
     /// Uninitialize the network layer, closing all connections.
     fn deinit();
     /// Set statistics to zero.
@@ -48,12 +47,12 @@ pub trait MpcNet {
     /// Get statistics.
     fn stats() -> Stats;
     /// All parties send bytes to each other.
-    fn broadcast_bytes(bytes: &[u8]) -> Vec<Vec<u8>>;
+    fn broadcast_bytes(&self, bytes: &[u8]) -> Vec<Vec<u8>>;
     /// All parties send bytes to the king.
-    fn worker_send_or_leader_receive(bytes: &[u8]) -> Option<Vec<Vec<u8>>>;
+    fn worker_send_or_leader_receive(&self, bytes: &[u8]) -> Option<Vec<Vec<u8>>>;
     /// All parties recv bytes from the king.
     /// Provide bytes iff you're the king!
-    fn worker_receive_or_leader_send(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8>;
+    fn worker_receive_or_leader_send(&self, bytes: Option<Vec<Vec<u8>>>) -> Vec<u8>;
 
     /// Everyone sends bytes to the king, who recieves those bytes, runs a computation on them, and
     /// redistributes the resulting bytes.
@@ -61,9 +60,9 @@ pub trait MpcNet {
     /// The king's computation is given by a function, `f`
     /// proceeds.
     #[inline]
-    fn leader_compute(bytes: &[u8], f: impl Fn(Vec<Vec<u8>>) -> Vec<Vec<u8>>) -> Vec<u8> {
-        let king_response = Self::worker_send_or_leader_receive(bytes).map(f);
-        Self::worker_receive_or_leader_send(king_response)
+    fn leader_compute(&self, bytes: &[u8], f: impl Fn(Vec<Vec<u8>>) -> Vec<Vec<u8>>) -> Vec<u8> {
+        let king_response = self.worker_send_or_leader_receive(bytes).map(f);
+        self.worker_receive_or_leader_send(king_response)
     }
 
     fn uninit();
