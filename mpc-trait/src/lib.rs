@@ -1,3 +1,6 @@
+pub mod pub_rand;
+pub use pub_rand::*;
+
 use std::borrow::Cow;
 
 pub trait MpcWire: Clone {
