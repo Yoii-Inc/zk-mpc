@@ -1,5 +1,6 @@
 use std::fmt::{self, Display};
 use std::io::{self, Read, Write};
+use std::marker::PhantomData;
 use std::ops::*;
 
 use std::iter::Sum;
@@ -12,10 +13,12 @@ use ark_serialize::{
     CanonicalSerializeWithFlags,
 };
 use ark_serialize::{Flags, SerializationError};
+use derivative::Derivative;
+use mpc_net::{MpcMultiNet as Net, MpcNet};
 use mpc_trait::MpcWire;
 
 use crate::share::group::GroupShare;
-use crate::Reveal;
+use crate::{BeaverSource, Reveal};
 
 use super::field::MpcField;
 
@@ -23,6 +26,45 @@ use super::field::MpcField;
 pub enum MpcGroup<G: Group, S: GroupShare<G>> {
     Public(G),
     Shared(S),
+}
+
+#[derive(Derivative)]
+#[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+pub struct DummyGroupTripleSource<T, S> {
+    _scalar: PhantomData<T>,
+    _share: PhantomData<S>,
+}
+
+impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::FieldShare, S>
+    for DummyGroupTripleSource<T, S>
+{
+    #[inline]
+    fn triple(&mut self) -> (S, S::FieldShare, S) {
+        (
+            S::from_add_shared(T::zero()),
+            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
+                T::ScalarField::one()
+            } else {
+                T::ScalarField::zero()
+            }),
+            S::from_add_shared(T::zero()),
+        )
+    }
+    #[inline]
+    fn inv_pair(&mut self) -> (S::FieldShare, S::FieldShare) {
+        (
+            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
+                T::ScalarField::one()
+            } else {
+                T::ScalarField::zero()
+            }),
+            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
+                T::ScalarField::one()
+            } else {
+                T::ScalarField::zero()
+            }),
+        )
+    }
 }
 
 impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
@@ -78,8 +120,11 @@ impl<G: Group, S: GroupShare<G>> Mul<MpcField<G::ScalarField, S::FieldShare>> fo
 }
 
 impl<G: Group, S: GroupShare<G>> Display for MpcGroup<G, S> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MpcGroup::Public(x) => write!(f, "{x} (public)"),
+            MpcGroup::Shared(x) => write!(f, "{x} (shared)"),
+        }
     }
 }
 
@@ -308,16 +353,18 @@ impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::F
                 MpcField::Public(y) => {
                     *x *= *y;
                 }
-                MpcField::Shared(_y) => {
-                    todo!()
+                MpcField::Shared(y) => {
+                    let t = MpcGroup::Shared(S::scale_pub_group(*x, y));
+                    *self = t;
                 }
             },
-            MpcGroup::Shared(_x) => match other {
-                MpcField::Public(_y) => {
-                    todo!()
+            MpcGroup::Shared(x) => match other {
+                MpcField::Public(y) => {
+                    x.scale_pub_scalar(y);
                 }
-                MpcField::Shared(_y) => {
-                    todo!()
+                MpcField::Shared(y) => {
+                    let t = x.scale(*y, &mut DummyGroupTripleSource::default());
+                    *x = t;
                 }
             },
         }

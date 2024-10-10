@@ -402,6 +402,11 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
 
 macro_rules! impl_group_basics {
     ($share:ident, $bound:ident) => {
+        impl<T: $bound, M> Display for $share<T, M> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.val)
+            }
+        }
         impl<T: $bound, M> Debug for $share<T, M> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "{:?}", self.val)

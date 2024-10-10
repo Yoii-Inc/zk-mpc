@@ -549,13 +549,14 @@ macro_rules! impl_pairing_curve_wrapper {
                 }
             }
             #[inline]
-            fn from_add_shared(_t: Self::Base) -> Self {
-                todo!()
+            fn from_add_shared(t: Self::Base) -> Self {
+                Self {
+                    val: $wrapped::from_add_shared(t),
+                }
             }
             #[inline]
             fn unwrap_as_public(self) -> Self::Base {
-                // self.val.unwrap_as_public()
-                todo!()
+                self.val.unwrap_as_public()
             }
             #[inline]
             fn king_share<R: Rng>(_f: Self::Base, _rng: &mut R) -> Self {
@@ -578,8 +579,8 @@ macro_rules! impl_pairing_curve_wrapper {
         }
 
         impl<E: $bound1, PS: $bound2<E>> MulAssign<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
-            fn mul_assign(&mut self, _rhs: MpcField<E::Fr, PS::FrShare>) {
-                todo!()
+            fn mul_assign(&mut self, other: MpcField<E::Fr, PS::FrShare>) {
+                self.val.mul_assign(other);
             }
         }
     };
