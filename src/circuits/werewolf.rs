@@ -32,7 +32,7 @@ use mpc_algebra::encryption::elgamal::{
     constraints::ElGamalEncGadget as MpcElGamalEncGadget, elgamal::ElGamal as MpcElGamal,
 };
 
-use super::{LocalOrMPC, PedersenComCircuit};
+use super::{circuit, LocalOrMPC, PedersenComCircuit};
 use crate::input::{InputWithCommit, WerewolfKeyInput, WerewolfMpcInput};
 
 #[derive(Clone)]
@@ -577,12 +577,27 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
 pub struct AnonymousVotingCircuit<F: PrimeField + LocalOrMPC<F>> {
     pub is_target_id: Vec<Vec<F>>,
     pub is_most_voted_id: F,
+
+    pub pedersen_param: F::PedersenParam,
+    pub player_randomness: Vec<F>,
+    pub player_commitment: Vec<F::PedersenCommitment>,
 }
 
 impl ConstraintSynthesizer<Fr> for AnonymousVotingCircuit<Fr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<()> {
         // initialize
         let player_num = self.is_target_id.len();
+
+        // check player commitment
+        for i in 0..player_num {
+            let pedersen_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: self.player_randomness[i],
+                open: <Fr as LocalOrMPC<Fr>>::PedersenRandomness::default(),
+                commit: self.player_commitment[i],
+            };
+            pedersen_circuit.generate_constraints(cs.clone())?;
+        }
 
         let is_target_id_var = self
             .is_target_id
@@ -651,6 +666,19 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
     ) -> ark_relations::r1cs::Result<()> {
         // initialize
         let player_num = self.is_target_id.len();
+
+        // check player commitment
+        for i in 0..player_num {
+            let pedersen_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: self.player_randomness[i],
+                open:
+                    <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::PedersenRandomness::default(
+                    ),
+                commit: self.player_commitment[i],
+            };
+            pedersen_circuit.generate_constraints(cs.clone())?;
+        }
 
         let is_target_id_var = self
             .is_target_id
@@ -735,10 +763,25 @@ pub struct WinningJudgeCircuit<F: PrimeField + LocalOrMPC<F>> {
     pub pedersen_param: F::PedersenParam,
     pub am_werewolf: Vec<InputWithCommit<F>>,
     pub game_state: F,
+
+    pub player_randomness: Vec<F>,
+    pub player_commitment: Vec<F::PedersenCommitment>,
 }
 
 impl ConstraintSynthesizer<Fr> for WinningJudgeCircuit<Fr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<()> {
+        // check player commitment
+        let player_num = self.player_randomness.len();
+        for i in 0..player_num {
+            let pedersen_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: self.player_randomness[i],
+                open: <Fr as LocalOrMPC<Fr>>::PedersenRandomness::default(),
+                commit: self.player_commitment[i],
+            };
+            pedersen_circuit.generate_constraints(cs.clone())?;
+        }
+
         // initialize
         let num_alive_var = FpVar::new_input(cs.clone(), || Ok(self.num_alive))?;
 
@@ -798,6 +841,20 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
 
         cs: ConstraintSystemRef<mm::MpcField<Fr>>,
     ) -> ark_relations::r1cs::Result<()> {
+        // check player commitment
+        let player_num = self.player_randomness.len();
+        for i in 0..player_num {
+            let pedersen_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: self.player_randomness[i],
+                open:
+                    <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::PedersenRandomness::default(
+                    ),
+                commit: self.player_commitment[i],
+            };
+            pedersen_circuit.generate_constraints(cs.clone())?;
+        }
+
         //initialize
         let num_alive_var = MpcFpVar::new_input(cs.clone(), || Ok(self.num_alive))?;
 
@@ -861,14 +918,29 @@ pub struct RoleAssignmentCircuit<F: PrimeField + LocalOrMPC<F>> {
     // instance
     pub tau_matrix: na::DMatrix<F>,
     pub role_commitment: Vec<F::PedersenCommitment>,
+    pub player_commitment: Vec<F::PedersenCommitment>,
 
     // witness
     pub shuffle_matrices: Vec<na::DMatrix<F>>,
     pub randomness: Vec<F::PedersenRandomness>,
+    pub player_randomness: Vec<F>,
 }
 
 impl ConstraintSynthesizer<Fr> for RoleAssignmentCircuit<Fr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<()> {
+        // check player commitment
+        assert_eq!(self.num_players, self.player_randomness.len());
+        assert_eq!(self.num_players, self.player_commitment.len());
+        for i in 0..self.num_players {
+            let pedersen_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: self.player_randomness[i],
+                open: <Fr as LocalOrMPC<Fr>>::PedersenRandomness::default(),
+                commit: self.player_commitment[i],
+            };
+            pedersen_circuit.generate_constraints(cs.clone())?;
+        }
+
         // initialize
         let tau_matrix_var = na::DMatrix::from_iterator(
             self.tau_matrix.nrows(),
@@ -985,6 +1057,21 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for RoleAssignmentCircuit<mm::MpcFi
         self,
         cs: ConstraintSystemRef<mm::MpcField<Fr>>,
     ) -> ark_relations::r1cs::Result<()> {
+        // check player commitment
+        assert_eq!(self.num_players, self.player_randomness.len());
+        assert_eq!(self.num_players, self.player_commitment.len());
+        for i in 0..self.num_players {
+            let pedersen_circuit = PedersenComCircuit {
+                param: Some(self.pedersen_param.clone()),
+                input: self.player_randomness[i],
+                open:
+                    <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::PedersenRandomness::default(
+                    ),
+                commit: self.player_commitment[i],
+            };
+            pedersen_circuit.generate_constraints(cs.clone())?;
+        }
+
         // initialize
         let tau_matrix_var = na::DMatrix::from_iterator(
             self.tau_matrix.nrows(),

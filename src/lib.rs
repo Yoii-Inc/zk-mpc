@@ -5,3 +5,5 @@ pub mod marlin;
 pub mod preprocessing;
 pub mod serialize;
 pub mod she;
+
+pub mod werewolf;
