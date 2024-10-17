@@ -885,7 +885,7 @@ impl<P: Parameters> AffProjShare<P::ScalarField, GroupAffine<P>, GroupProjective
         mut a: Self::ProjectiveShare,
         o: &GroupAffine<P>,
     ) -> Self::ProjectiveShare {
-        if Net::am_king() {
+        if Net::is_leader() {
             a.val.add_assign_mixed(&o);
         }
         a
@@ -928,7 +928,7 @@ impl<P: Parameters> AffProjShare<P::ScalarField, GroupAffine<P>, GroupProjective
         mut a: Self::ProjectiveShare,
         o: &GroupAffine<P>,
     ) -> Self::ProjectiveShare {
-        if Net::am_king() {
+        if Net::is_leader() {
             a.sh.val.add_assign_mixed(&o);
         }
         a
