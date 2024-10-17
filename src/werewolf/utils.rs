@@ -135,36 +135,37 @@ pub fn generate_random_commitment<R: Rng>(
     commitment_vec
 }
 
+// TODO: change to return mpc shared value
 pub fn load_random_value() -> Result<Vec<Fr>, std::io::Error> {
-    // let id = Net::party_id();
-    // let file_path = format!("./werewolf_game/{}/random.json", id);
-    // let mut file = std::fs::File::open(file_path)?;
-    // let mut output_string = String::new();
-    // file.read_to_string(&mut output_string)
-    //     .expect("Failed to read file");
+    let id = Net::party_id();
+    let file_path = format!("./werewolf_game/{}/random.json", id);
+    let mut file = std::fs::File::open(file_path)?;
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
 
-    // let data: serde_json::Value = serde_json::from_str(&output_string)?;
+    let data: serde_json::Value = serde_json::from_str(&output_string)?;
 
-    // let data = data
-    //     .as_object()
-    //     .ok_or_else(|| {
-    //         std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to parse JSON data")
-    //     })?
-    //     .iter()
-    //     .collect::<Vec<_>>();
+    let data = data
+        .as_object()
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to parse JSON data")
+        })?
+        .iter()
+        .collect::<Vec<_>>();
 
-    // let random_value = data
-    //     .iter()
-    //     .map(|v| {
-    //         let reader: &[u8] =
-    //             &hex::decode(v.1.as_str().unwrap().strip_prefix("0x").unwrap()).unwrap();
-    //         Fr::deserialize(reader).unwrap()
-    //     })
-    //     .collect::<Vec<_>>()[0];
+    let random_value = data
+        .iter()
+        .map(|v| {
+            let reader: &[u8] =
+                &hex::decode(v.1.as_str().unwrap().strip_prefix("0x").unwrap()).unwrap();
+            Fr::deserialize(reader).unwrap()
+        })
+        .collect::<Vec<_>>()[0];
 
-    // Ok(random_value)
+    let random_vec = Net::broadcast(&random_value);
 
-    todo!()
+    Ok(random_vec)
 }
 
 pub fn load_random_commitment(

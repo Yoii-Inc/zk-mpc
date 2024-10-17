@@ -339,9 +339,9 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
 
     let grouping_parameter = GroupingParameter::new(
         vec![
-            (Role::Villager, (3, false)),
+            (Role::Villager, (1, false)),
             (Role::FortuneTeller, (1, false)),
-            (Role::Werewolf, (2, true)),
+            (Role::Werewolf, (1, false)),
         ]
         .into_iter()
         .collect(),
@@ -451,7 +451,10 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
             .collect::<Vec<_>>(),
     };
 
-    let mut inputs = Vec::new();
+    let mut inputs = player_commitment
+        .iter()
+        .flat_map(|c| vec![c.x, c.y])
+        .collect::<Vec<_>>();
 
     role_commitment.iter().for_each(|x| {
         inputs.push(x.reveal().x);
@@ -755,7 +758,12 @@ fn voting(opt: &Opt) -> Result<(), std::io::Error> {
             .collect::<Vec<_>>(),
     };
 
-    let inputs = vec![most_voted_id];
+    let mut inputs = player_commitment
+        .iter()
+        .flat_map(|c| vec![c.x, c.y])
+        .collect::<Vec<_>>();
+
+    inputs.push(most_voted_id);
     let invalid_inputs = vec![invalid_most_voted_id];
 
     assert!(prove_and_verify(
@@ -866,7 +874,12 @@ fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
             .collect::<Vec<_>>(),
     };
 
-    let mut inputs = vec![num_alive, game_state.reveal()];
+    let mut inputs = player_commitment
+        .iter()
+        .flat_map(|c| vec![c.x, c.y])
+        .collect::<Vec<_>>();
+
+    inputs.extend_from_slice(&[num_alive, game_state.reveal()]);
 
     for iwc in mpc_am_werewolf_vec.iter() {
         inputs.push(iwc.commitment.reveal().x);
