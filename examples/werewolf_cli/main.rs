@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 
-use game::{player::Player, role::Role, Game, GameRules};
+use game::{player::Player, Game, GameRules};
+use zk_mpc::werewolf::types::Role;
 
 pub mod game;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -63,20 +64,21 @@ fn night_phase(game: &mut Game) {
         if player.is_alive {
             let mut events = Vec::new();
             match player.role {
-                Role::Werewolf => {
+                Some(Role::Werewolf) => {
                     let werewolf_target = get_werewolf_target(game, player);
                     events.extend(game.werewolf_attack(werewolf_target));
                 }
-                Role::Seer => {
+                Some(Role::FortuneTeller) => {
                     let seer_target = get_seer_target(game, player);
                     events.extend(game.seer_divination(seer_target));
                 }
-                Role::Villager => {
+                Some(Role::Villager) => {
                     println!(
                         "{}さん、あなたは村人です。次の人に渡してください。",
                         player.name
                     );
                 }
+                None => unreachable!(),
             }
             for event in events {
                 println!("{}", event);

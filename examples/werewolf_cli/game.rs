@@ -4,7 +4,7 @@ pub mod player;
 pub mod role;
 
 use player::Player;
-use role::Role;
+use zk_mpc::werewolf::types::Role;
 
 pub struct Game {
     pub state: GameState,
@@ -105,7 +105,7 @@ impl Game {
             .state
             .players
             .iter()
-            .find(|p| p.role == Role::Seer && p.is_alive)
+            .find(|p| p.role == Some(Role::FortuneTeller) && p.is_alive)
         {
             if let Some(target) = self
                 .state
