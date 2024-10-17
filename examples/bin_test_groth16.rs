@@ -16,5 +16,8 @@ struct Opt {
 fn main() {
     let opt = Opt::from_args();
     Net::init_from_file(opt.input.to_str().unwrap(), opt.id);
-    // groth16::mpc_test_prove_and_verify(1);
+    zk_mpc::groth16::mpc_test_prove_and_verify::<
+        ark_bls12_377::Bls12_377,
+        mpc_algebra::AdditivePairingShare<ark_bls12_377::Bls12_377>,
+    >(1);
 }
