@@ -96,6 +96,27 @@ pub fn generate_individual_shuffle_matrix<F: PrimeField, R: Rng>(
     shuffle_matrix
 }
 
+pub fn generate_random_commitment<F: PrimeField + LocalOrMPC<F>, R: Rng>(
+    rng: &mut R,
+    pedersen_param: &F::PedersenParam,
+) -> F::PedersenCommitment {
+    let random_value = F::rand(rng);
+
+    let commitment = <F as LocalOrMPC<F>>::PedersenComScheme::commit(
+        pedersen_param,
+        &random_value.convert_input(),
+        &F::PedersenRandomness::default(),
+    )
+    .unwrap();
+
+    // record random value
+    let id = Net::party_id();
+    let file_path = format!("./werewolf_game/{}/random.json", id);
+    write_to_file(vec![("random".to_string(), random_value)], &file_path).unwrap();
+
+    commitment
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
