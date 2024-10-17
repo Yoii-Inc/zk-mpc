@@ -76,14 +76,12 @@ impl<ConstraintF: PrimeField + LocalOrMPC<ConstraintF>> ConstraintSynthesizer<Co
 }
 
 #[derive(Clone)]
-pub struct MySimpleCircuit<F: PrimeField + LocalOrMPC<F>> {
+pub struct MySimpleCircuit<F: PrimeField> {
     pub a: Option<F>,
     pub b: Option<F>,
 }
 
-impl<ConstraintF: PrimeField + LocalOrMPC<ConstraintF>> ConstraintSynthesizer<ConstraintF>
-    for MySimpleCircuit<ConstraintF>
-{
+impl<ConstraintF: PrimeField> ConstraintSynthesizer<ConstraintF> for MySimpleCircuit<ConstraintF> {
     fn generate_constraints(
         self,
         cs: ConstraintSystemRef<ConstraintF>,

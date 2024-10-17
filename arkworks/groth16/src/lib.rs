@@ -34,6 +34,8 @@ pub mod prover;
 /// Verify proofs for the Groth16 zkSNARK construction.
 pub mod verifier;
 
+pub mod reveal;
+
 /// Constraints for the Groth16 verifier.
 #[cfg(feature = "r1cs")]
 pub mod constraints;
