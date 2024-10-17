@@ -1,4 +1,4 @@
 target/
 /outputs
 inputs/inputs.json
-werewolf/
+werewolf_game/
