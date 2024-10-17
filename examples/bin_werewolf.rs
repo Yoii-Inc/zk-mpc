@@ -43,6 +43,8 @@ use zk_mpc::marlin::{prove_and_verify, setup_and_index};
 use zk_mpc::preprocessing;
 use zk_mpc::serialize::{write_r, write_to_file};
 use zk_mpc::she;
+use zk_mpc::werewolf::utils::load_random_commitment;
+use zk_mpc::werewolf::utils::load_random_value;
 use zk_mpc::werewolf::{
     types::{GroupingParameter, Role, RoleData},
     utils::{calc_shuffle_matrix, generate_individual_shuffle_matrix},
@@ -137,7 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn initialize_game(opt: &Opt) -> Result<(), std::io::Error> {
     // public.json
-    let file_path = "./werewolf/public.json";
+    let file_path = "./werewolf_game/public.json";
     File::create(file_path)?;
 
     let datas = vec![
@@ -161,7 +163,7 @@ fn initialize_game(opt: &Opt) -> Result<(), std::io::Error> {
     // TODO: randomize
     let role = ["FortuneTeller", "Werewolf", "Villager"];
     for i in 0..opt.num_players.unwrap() {
-        let file_path = format!("./werewolf/{}/role.json", i);
+        let file_path = format!("./werewolf_game/{}/role.json", i);
         File::create(&file_path)?;
 
         let datas = vec![("role".to_string(), role[i].to_string())];
@@ -212,7 +214,13 @@ fn preprocessing_mpc(opt: &Opt) -> Result<(), std::io::Error> {
 
     // save to file
     // <r>, [r] for input share
-    write_r(opt.num_players.unwrap(), "werewolf", r_angle, r_bracket).unwrap();
+    write_r(
+        opt.num_players.unwrap(),
+        "werewolf_game",
+        r_angle,
+        r_bracket,
+    )
+    .unwrap();
 
     Ok(())
 }
@@ -304,19 +312,19 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     if Net::party_id() == 0 {
         let datas = vec![("public_key".to_string(), pk)];
 
-        write_to_file(datas, "./werewolf/fortune_teller_key.json").unwrap();
+        write_to_file(datas, "./werewolf_game/fortune_teller_key.json").unwrap();
 
         let secret_data = vec![("secret_key".to_string(), sk.0)];
 
         write_to_file(
             secret_data,
-            format!("./werewolf/{}/secret_key.json", Net::party_id()).as_str(),
+            format!("./werewolf_game/{}/secret_key.json", Net::party_id()).as_str(),
         )
         .unwrap();
 
         let elgamal_parameter_data = vec![("elgamal_param".to_string(), elgamal_params.generator)];
 
-        write_to_file(elgamal_parameter_data, "./werewolf/elgamal_param.json").unwrap();
+        write_to_file(elgamal_parameter_data, "./werewolf_game/elgamal_param.json").unwrap();
     }
 
     Ok(())
@@ -345,6 +353,9 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
     let rng = &mut test_rng();
 
     let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
+    let player_randomness = load_random_value()?;
+    let player_commitment = load_random_commitment()?;
 
     // calc
     let shuffle_matrix = vec![
@@ -392,6 +403,8 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
         shuffle_matrices: vec![na::DMatrix::<Fr>::zeros(n + m, n + m); 2],
         role_commitment: commitment,
         randomness,
+        player_randomness: player_randomness.clone(),
+        player_commitment: player_commitment.clone(),
     };
 
     let srs = LocalMarlin::universal_setup(1000000, 50000, 100000, rng).unwrap();
@@ -428,6 +441,14 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
         shuffle_matrices: shuffle_matrix,
         randomness: mpc_randomness,
         role_commitment: role_commitment.clone(),
+        player_randomness: player_randomness
+            .iter()
+            .map(|x| MFr::from_public(*x))
+            .collect::<Vec<_>>(),
+        player_commitment: player_commitment
+            .iter()
+            .map(|x| <MFr as LocalOrMPC<MFr>>::PedersenCommitment::from_public(*x))
+            .collect::<Vec<_>>(),
     };
 
     let mut inputs = Vec::new();
@@ -473,7 +494,7 @@ fn get_my_role() -> Role {
     println!("id is {:?}", id);
 
     // read role.json
-    let file_path = format!("./werewolf/{}/role.json", id);
+    let file_path = format!("./werewolf_game/{}/role.json", id);
     let mut file = File::open(file_path).unwrap();
     let mut output_string = String::new();
     file.read_to_string(&mut output_string)
@@ -608,7 +629,7 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     assert!(is_valid);
 
     // save divination reesult
-    let file_path = format!("./werewolf/{}/secret_key.json", 0);
+    let file_path = format!("./werewolf_game/{}/secret_key.json", 0);
     let mut file = File::open(file_path).unwrap();
     let mut output_string = String::new();
     file.read_to_string(&mut output_string)
@@ -660,7 +681,7 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
 
         write_to_file(
             datas,
-            format!("./werewolf/{}/divination_result.json", Net::party_id()).as_str(),
+            format!("./werewolf_game/{}/divination_result.json", Net::party_id()).as_str(),
         )
         .unwrap();
     }
@@ -674,6 +695,14 @@ fn voting(opt: &Opt) -> Result<(), std::io::Error> {
         opt.input.clone().unwrap().to_str().unwrap(),
         opt.id.unwrap(),
     );
+
+    let rng = &mut test_rng();
+
+    let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
+    let player_randomness = load_random_value()?;
+    let player_commitment = load_random_commitment()?;
+
     // calc
     let most_voted_id = Fr::from(1);
     let invalid_most_voted_id = Fr::from(0);
@@ -686,11 +715,15 @@ fn voting(opt: &Opt) -> Result<(), std::io::Error> {
             vec![Fr::from(0), Fr::from(0), Fr::from(1)],
         ],
         is_most_voted_id: Fr::from(1),
+        pedersen_param: pedersen_param.clone(),
+        player_randomness: player_randomness.clone(),
+        player_commitment: player_commitment.clone(),
     };
 
     let (mpc_index_pk, index_vk) = setup_and_index(local_voting_circuit);
 
     let rng = &mut test_rng();
+    let mpc_pedersen_param = <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&pedersen_param);
 
     let mpc_voting_circuit = AnonymousVotingCircuit {
         is_target_id: vec![
@@ -711,6 +744,15 @@ fn voting(opt: &Opt) -> Result<(), std::io::Error> {
             ],
         ],
         is_most_voted_id: MFr::king_share(Fr::from(1), rng),
+        pedersen_param: mpc_pedersen_param,
+        player_randomness: player_randomness
+            .iter()
+            .map(|x| MFr::from_public(*x))
+            .collect::<Vec<_>>(),
+        player_commitment: player_commitment
+            .iter()
+            .map(|x| <MFr as LocalOrMPC<MFr>>::PedersenCommitment::from_public(*x))
+            .collect::<Vec<_>>(),
     };
 
     let inputs = vec![most_voted_id];
@@ -776,6 +818,9 @@ fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
         .map(|x| x.generate_input(&mpc_pedersen_param, &mpc_common_randomness))
         .collect::<Vec<_>>();
 
+    let player_randomness = load_random_value()?;
+    let player_commitment = load_random_commitment()?;
+
     // calc
     // TODO: correctly.
 
@@ -797,6 +842,9 @@ fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
         pedersen_param: pedersen_param.clone(),
         am_werewolf: am_werewolf_vec.clone(),
         game_state: Fr::default(),
+
+        player_randomness: player_randomness.clone(),
+        player_commitment: player_commitment.clone(),
     };
 
     let (mpc_index_pk, index_vk) = setup_and_index(local_judgment_circuit);
@@ -808,6 +856,14 @@ fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
         pedersen_param: mpc_pedersen_param,
         am_werewolf: mpc_am_werewolf_vec.clone(),
         game_state,
+        player_randomness: player_randomness
+            .iter()
+            .map(|x| MFr::from_public(*x))
+            .collect::<Vec<_>>(),
+        player_commitment: player_commitment
+            .iter()
+            .map(|x| <MFr as LocalOrMPC<MFr>>::PedersenCommitment::from_public(*x))
+            .collect::<Vec<_>>(),
     };
 
     let mut inputs = vec![num_alive, game_state.reveal()];
@@ -867,7 +923,7 @@ fn get_elgamal_param_pubkey() -> (
     <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPubKey,
 ) {
     // loading public key
-    let file_path = format!("./werewolf/fortune_teller_key.json");
+    let file_path = format!("./werewolf_game/fortune_teller_key.json");
     let mut file = File::open(file_path).unwrap();
     let mut output_string = String::new();
     file.read_to_string(&mut output_string)
@@ -890,7 +946,7 @@ fn get_elgamal_param_pubkey() -> (
 
     // loading secret key
     // let file_path = format!("./werewolf/{}/secret_key.json", opt.target.unwrap());
-    let file_path = format!("./werewolf/{}/secret_key.json", 0);
+    let file_path = format!("./werewolf_game/{}/secret_key.json", 0);
 
     let mut file = File::open(file_path).unwrap();
     let mut output_string = String::new();
@@ -918,7 +974,7 @@ fn get_elgamal_param_pubkey() -> (
         );
 
     // loading elgamal param
-    let file_path = format!("./werewolf/elgamal_param.json");
+    let file_path = format!("./werewolf_game/elgamal_param.json");
     let mut file = File::open(file_path).unwrap();
     let mut output_string = String::new();
     file.read_to_string(&mut output_string)
@@ -949,7 +1005,7 @@ fn get_elgamal_param_pubkey() -> (
 #[ignore]
 fn test_encryption_decryption() -> Result<(), std::io::Error> {
     // loading public key
-    let file_path = format!("./werewolf/fortune_teller_key.json");
+    let file_path = format!("./werewolf_game/fortune_teller_key.json");
     let mut file = File::open(file_path).unwrap();
     let mut output_string = String::new();
     file.read_to_string(&mut output_string)
@@ -972,7 +1028,7 @@ fn test_encryption_decryption() -> Result<(), std::io::Error> {
 
     // loading secret key
     // let file_path = format!("./werewolf/{}/secret_key.json", opt.target.unwrap());
-    let file_path = format!("./werewolf/{}/secret_key.json", 0);
+    let file_path = format!("./werewolf_game/{}/secret_key.json", 0);
 
     let mut file = File::open(file_path).unwrap();
     let mut output_string = String::new();
@@ -1000,7 +1056,7 @@ fn test_encryption_decryption() -> Result<(), std::io::Error> {
         );
 
     // loading elgamal param
-    let file_path = format!("./werewolf/elgamal_param.json");
+    let file_path = format!("./werewolf_game/elgamal_param.json");
     let mut file = File::open(file_path).unwrap();
     let mut output_string = String::new();
     file.read_to_string(&mut output_string)
