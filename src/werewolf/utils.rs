@@ -1,8 +1,16 @@
-use ark_ff::PrimeField;
-use nalgebra::{DMatrix, DVector};
-use rand::{seq::SliceRandom, Rng};
+use std::io::Read;
 
 use super::types::{GroupingParameter, Role};
+use crate::{circuits::LocalOrMPC, serialize::write_to_file};
+
+use ark_bls12_377::Fr;
+use ark_ff::PrimeField;
+use ark_ff::UniformRand;
+use ark_serialize::CanonicalDeserialize;
+use mpc_algebra::{channel::MpcSerNet, CommitmentScheme};
+use mpc_net::{MpcMultiNet as Net, MpcNet};
+use nalgebra::{DMatrix, DVector};
+use rand::{seq::SliceRandom, Rng};
 
 // Compute shuffle matrix and return role, raw role id, and player id in the same group.
 pub fn calc_shuffle_matrix<F: PrimeField>(
@@ -96,16 +104,16 @@ pub fn generate_individual_shuffle_matrix<F: PrimeField, R: Rng>(
     shuffle_matrix
 }
 
-pub fn generate_random_commitment<F: PrimeField + LocalOrMPC<F>, R: Rng>(
+pub fn generate_random_commitment<R: Rng>(
     rng: &mut R,
-    pedersen_param: &F::PedersenParam,
-) -> F::PedersenCommitment {
-    let random_value = F::rand(rng);
+    pedersen_param: &<Fr as LocalOrMPC<Fr>>::PedersenParam,
+) -> Vec<<Fr as LocalOrMPC<Fr>>::PedersenCommitment> {
+    let random_value = Fr::rand(rng);
 
-    let commitment = <F as LocalOrMPC<F>>::PedersenComScheme::commit(
+    let commitment = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
         pedersen_param,
         &random_value.convert_input(),
-        &F::PedersenRandomness::default(),
+        &<Fr as LocalOrMPC<Fr>>::PedersenRandomness::default(),
     )
     .unwrap();
 
@@ -114,7 +122,47 @@ pub fn generate_random_commitment<F: PrimeField + LocalOrMPC<F>, R: Rng>(
     let file_path = format!("./werewolf_game/{}/random.json", id);
     write_to_file(vec![("random".to_string(), random_value)], &file_path).unwrap();
 
-    commitment
+    let commitment_vec = Net::broadcast(&commitment);
+    let commitment_vec_data = commitment_vec
+        .clone()
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| (i.to_string(), c))
+        .collect::<Vec<_>>();
+    let file_path = "./werewolf_game/rand_commitmnet.json".to_string();
+    write_to_file(commitment_vec_data, &file_path).unwrap();
+
+    commitment_vec
+}
+
+pub fn load_random_commitment(
+) -> Result<Vec<<Fr as LocalOrMPC<Fr>>::PedersenCommitment>, std::io::Error> {
+    let file_path = "./werewolf_game/rand_commitmnet.json".to_string();
+    let mut file = std::fs::File::open(file_path)?;
+    let mut output_string = String::new();
+    file.read_to_string(&mut output_string)
+        .expect("Failed to read file");
+
+    let data: serde_json::Value = serde_json::from_str(&output_string)?;
+
+    let data = data
+        .as_object()
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to parse JSON data")
+        })?
+        .iter()
+        .collect::<Vec<_>>();
+
+    let commitment_vec = data
+        .iter()
+        .map(|v| {
+            let reader: &[u8] =
+                &hex::decode(v.1.as_str().unwrap().strip_prefix("0x").unwrap()).unwrap();
+            <Fr as LocalOrMPC<Fr>>::PedersenCommitment::deserialize(reader).unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    Ok(commitment_vec)
 }
 
 #[cfg(test)]
