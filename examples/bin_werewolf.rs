@@ -23,6 +23,7 @@ use mpc_algebra::FromLocal;
 use mpc_algebra::LessThan;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
+use rand::thread_rng;
 use rand::Rng;
 use serde::Deserialize;
 use std::{fs::File, path::PathBuf};
@@ -43,6 +44,7 @@ use zk_mpc::marlin::{prove_and_verify, setup_and_index};
 use zk_mpc::preprocessing;
 use zk_mpc::serialize::{write_r, write_to_file};
 use zk_mpc::she;
+use zk_mpc::werewolf::utils::generate_random_commitment;
 use zk_mpc::werewolf::utils::load_random_commitment;
 use zk_mpc::werewolf::utils::load_random_value;
 use zk_mpc::werewolf::{
@@ -234,6 +236,9 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
 
     // TODO: changable
     let num_players = 3;
+
+    let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(&mut test_rng()).unwrap();
+    generate_random_commitment(&mut thread_rng(), &pedersen_param);
 
     // dummmy input
     let mut pub_key_or_dummy_x = vec![Fr::from(0); num_players];
