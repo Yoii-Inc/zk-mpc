@@ -13,12 +13,12 @@ players=3
 case $mode in
 init)
     for i in $(seq 0 $((players - 1))); do
-        mkdir -p ./werewolf/$i
+        mkdir -p ./werewolf_game/$i
     done
     RUST_BACKTRACE=1 $BIN init --num-players $players
     wait
     for i in $(seq 0 $((players - 1))); do
-        mkdir -p ./werewolf/$i
+        mkdir -p ./werewolf_game/$i
         if [ $i == 0 ]; then
             RUST_BACKTRACE=1 $BIN preprocessing $i ./data/address &
             pid=$!
@@ -35,7 +35,7 @@ init)
     done
     ;;
 night)
-    if [ ! -f "./werewolf/public.json" ]; then
+    if [ ! -f "./werewolf_game/public.json" ]; then
         echo "not found public.json"
         exit 1
     fi
