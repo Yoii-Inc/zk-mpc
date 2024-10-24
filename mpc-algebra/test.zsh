@@ -15,11 +15,11 @@ for i in $(seq 0 2)
 do
 if [ $i == 0 ]
 then
-    RUST_BACKTRACE=1  $BIN $i ./data/address &
+    RUST_BACKTRACE=1  $BIN $i ./data/3 &
     pid=$!
     PROCS[$i]=$pid
 else
-    $BIN $i ./data/address > /dev/null &
+    $BIN $i ./data/3 > /dev/null &
     pid=$!
     PROCS[$i]=$pid
 fi
