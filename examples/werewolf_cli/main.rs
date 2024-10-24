@@ -1,12 +1,34 @@
-use std::io::{self, Write};
-
 use game::{player::Player, Game, GameRules};
+use mpc_algebra::channel::MpcSerNet;
+use mpc_net::{MpcMultiNet as Net, MpcNet};
+use std::io::{self, Write};
+use std::path::PathBuf;
+use structopt::StructOpt;
 use zk_mpc::werewolf::types::Role;
 
 pub mod game;
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    // Player Id
+    id: Option<usize>,
+
+    // Input address file
+    #[structopt(parse(from_os_str))]
+    input: Option<PathBuf>,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let stream = TcpStream::connect("127.0.0.1:8080").await?;
     // println!("サーバーに接続しました。");
+
+    let opt = Opt::from_args();
+
+    // init
+    Net::init_from_file(
+        opt.input.clone().unwrap().to_str().unwrap(),
+        opt.id.unwrap(),
+    );
 
     let game_rule = GameRules {
         min_players: 4,
