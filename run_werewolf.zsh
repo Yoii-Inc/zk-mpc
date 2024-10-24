@@ -20,11 +20,11 @@ init)
     for i in $(seq 0 $((players - 1))); do
         mkdir -p ./werewolf_game/$i
         if [ $i == 0 ]; then
-            RUST_BACKTRACE=1 $BIN preprocessing $i ./data/address &
+            RUST_BACKTRACE=1 $BIN preprocessing $i ./data/3 &
             pid=$!
             PROCS[$i]=$pid
         else
-            $BIN preprocessing $i ./data/address >/dev/null &
+            $BIN preprocessing $i ./data/3 >/dev/null &
             pid=$!
             PROCS[$i]=$pid
         fi
@@ -41,11 +41,11 @@ night)
     fi
     for i in $(seq 0 $((players - 1))); do
         if [ $i == 0 ]; then
-            RUST_BACKTRACE=1 $BIN night --target 1 $i ./data/address &
+            RUST_BACKTRACE=1 $BIN night --target 1 $i ./data/3 &
             pid=$!
             PROCS[$i]=$pid
         else
-            $BIN night $i ./data/address >/dev/null &
+            $BIN night $i ./data/3 >/dev/null &
             pid=$!
             PROCS[$i]=$pid
         fi
@@ -58,11 +58,11 @@ night)
 role_assignment)
     for i in $(seq 0 $((players - 1))); do
         if [ $i == 0 ]; then
-            RUST_BACKTRACE=1 $BIN role_assignment $i ./data/address &
+            RUST_BACKTRACE=1 $BIN role_assignment $i ./data/3 &
             pid=$!
             PROCS[$i]=$pid
         else
-            $BIN role_assignment $i ./data/address >/dev/null &
+            $BIN role_assignment $i ./data/3 >/dev/null &
             pid=$!
             PROCS[$i]=$pid
         fi
@@ -75,11 +75,11 @@ role_assignment)
 vote)
     for i in $(seq 0 $((players - 1))); do
         if [ $i == 0 ]; then
-            RUST_BACKTRACE=1 $BIN vote $i ./data/address &
+            RUST_BACKTRACE=1 $BIN vote $i ./data/3 &
             pid=$!
             PROCS[$i]=$pid
         else
-            $BIN vote $i ./data/address >/dev/null &
+            $BIN vote $i ./data/3 >/dev/null &
             pid=$!
             PROCS[$i]=$pid
         fi
@@ -92,11 +92,11 @@ vote)
 judgment)
     for i in $(seq 0 $((players - 1))); do
         if [ $i == 0 ]; then
-            RUST_BACKTRACE=1 $BIN judgment $i ./data/address &
+            RUST_BACKTRACE=1 $BIN judgment $i ./data/3 &
             pid=$!
             PROCS[$i]=$pid
         else
-            $BIN judgment $i ./data/address >/dev/null &
+            $BIN judgment $i ./data/3 >/dev/null &
             pid=$!
             PROCS[$i]=$pid
         fi
