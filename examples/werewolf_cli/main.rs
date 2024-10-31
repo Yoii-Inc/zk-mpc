@@ -1,9 +1,12 @@
+use ark_bls12_377::Fr;
 use game::{player::Player, Game, GameRules};
 use mpc_algebra::channel::MpcSerNet;
+use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use structopt::StructOpt;
+use zk_mpc::marlin::MFr;
 use zk_mpc::werewolf::types::{GroupingParameter, Role};
 
 pub mod game;
@@ -99,34 +102,37 @@ fn register_players() -> Vec<String> {
 fn night_phase(game: &mut Game) {
     println!("\n--- 夜のフェーズ ---");
     let players = game.state.players.clone();
-    for player in &players {
-        if player.is_alive {
-            let mut events = Vec::new();
+
+    let player = players.iter().find(|p| p.id == Net::party_id()).unwrap();
+
+    let mut events = Vec::new();
+
             match player.role {
+        Some(Role::Villager) => {
+            println!("You are a villager. Please wait until everyone has finished their actions.");
+        }
                 Some(Role::Werewolf) => {
-                    let werewolf_target = get_werewolf_target(game, player);
-                    events.extend(game.werewolf_attack(werewolf_target));
+            println!("You are a werewolf.");
                 }
                 Some(Role::FortuneTeller) => {
+            println!("You are a fortune Teller. Please wait until other roles actions.");
+        }
+        None => todo!(),
+    }
+
+    let attack_target = get_werewolf_target(game, player);
+    events.extend(game.werewolf_attack(attack_target));
+
                     let seer_target = get_seer_target(game, player);
                     events.extend(game.seer_divination(seer_target));
-                }
-                Some(Role::Villager) => {
-                    println!(
-                        "{}さん、あなたは村人です。次の人に渡してください。",
-                        player.name
-                    );
-                }
-                None => unreachable!(),
-            }
+
             for event in events {
                 println!("{}", event);
             }
             wait_for_enter();
-            // 各プレイヤーのフェーズ後にCLIをフラッシュ
+    println!("Waiting for all players to finish their actions.");
+    wait_for_everyone();
             clear_screen();
-        }
-    }
 }
 
 fn wait_for_enter() {
@@ -135,15 +141,23 @@ fn wait_for_enter() {
     io::stdin().read_line(&mut input).unwrap();
 }
 
+fn wait_for_everyone() {
+    let dummy = 0_u32;
+    Net::broadcast(&dummy);
+}
+
 fn clear_screen() {
     print!("\x1B[2J\x1B[1;1H"); // ANSI escape code for clearing the screen
     io::stdout().flush().unwrap();
 }
 
-fn get_werewolf_target(game: &Game, werewolf: &Player) -> usize {
+fn get_werewolf_target(game: &Game, player: &Player) -> MFr {
+    let mut target_id = Fr::default();
+
+    if player.role.unwrap().is_werewolf() {
     println!(
         "{}さん、あなたは人狼です。襲撃する対象を選んでください：",
-        werewolf.name
+            player.name
     );
     game.state
         .players
@@ -157,30 +171,38 @@ fn get_werewolf_target(game: &Game, werewolf: &Player) -> usize {
 
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
-        let target_id: usize = input.trim().parse().unwrap_or(0);
+            target_id = Fr::from(input.trim().parse().unwrap_or(0) as i32);
 
         if game
             .state
             .players
             .iter()
-            .any(|p| p.id == target_id && p.is_alive && !p.is_werewolf())
+                .any(|p| Fr::from(p.id as i32) == target_id && p.is_alive && !p.is_werewolf())
         {
-            return target_id;
+                break;
         } else {
             println!("無効な選択です。もう一度選んでください。");
         }
     }
+    } else {
+        target_id = Fr::default();
+    }
+
+    return MFr::from_add_shared(target_id);
 }
 
-fn get_seer_target(game: &Game, seer: &Player) -> usize {
+fn get_seer_target(game: &Game, player: &Player) -> MFr {
+    let mut target_id = Fr::default();
+
+    if player.role.unwrap() == Role::FortuneTeller {
     println!(
         "{}さん、あなたは占い師です。占う対象を選んでください：",
-        seer.name
+            player.name
     );
     game.state
         .players
         .iter()
-        .filter(|p| p.is_alive && p.id != seer.id)
+            .filter(|p| p.is_alive && p.id != player.id)
         .for_each(|p| println!("{}: {}", p.id, p.name));
 
     loop {
@@ -189,19 +211,24 @@ fn get_seer_target(game: &Game, seer: &Player) -> usize {
 
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
-        let target_id: usize = input.trim().parse().unwrap_or(0);
+            target_id = Fr::from(input.trim().parse().unwrap_or(0) as i32);
 
         if game
             .state
             .players
             .iter()
-            .any(|p| p.id == target_id && p.is_alive && p.id != seer.id)
+                .any(|p| Fr::from(p.id as i32) == target_id && p.is_alive && p.id != player.id)
         {
-            return target_id;
+                break;
         } else {
             println!("無効な選択です。もう一度選んでください。");
         }
     }
+    } else {
+        target_id = Fr::default();
+    }
+
+    return MFr::from_add_shared(target_id);
 }
 
 fn morning_phase(game: &mut Game) {
