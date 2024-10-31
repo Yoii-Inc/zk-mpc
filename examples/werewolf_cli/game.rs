@@ -69,16 +69,18 @@ impl Game {
         }
     }
 
-    pub fn role_assignment(&mut self) {
+    pub fn role_assignment(&mut self, is_prove: bool) {
         let role = role::calc_role(self.state.players.len(), &self.rules);
 
         for (player, role) in self.state.players.iter_mut().zip(role) {
             player.role = Some(role);
         }
 
-        // prove and verify
-        if let Err(e) = self.prove_and_verify() {
-            eprintln!("Failed to prove and verify: {}", e);
+        if is_prove {
+            // prove and verify
+            if let Err(e) = self.prove_and_verify() {
+                eprintln!("Failed to prove and verify: {}", e);
+            }
         }
     }
 
