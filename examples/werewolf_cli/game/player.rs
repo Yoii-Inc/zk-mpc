@@ -1,14 +1,15 @@
-use serde::{Deserialize, Serialize};
+use ark_bls12_377::Fr;
+use mpc_algebra::{AdditiveFieldShare, BooleanWire, MpcBooleanField};
 use zk_mpc::werewolf::types::Role;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Player {
     pub id: usize,
     pub name: String,
     pub role: Option<Role>,
     pub is_alive: bool,
     pub death_day: Option<u32>,
-    pub marked_for_death: bool,
+    pub marked_for_death: MpcBooleanField<Fr, AdditiveFieldShare<Fr>>,
 }
 
 impl Player {
@@ -19,7 +20,7 @@ impl Player {
             role,
             is_alive: true,
             death_day: None,
-            marked_for_death: false,
+            marked_for_death: MpcBooleanField::pub_false(),
         }
     }
 
@@ -33,7 +34,7 @@ impl Player {
     }
 
     pub fn mark_for_death(&mut self) {
-        self.marked_for_death = true;
+        self.marked_for_death = MpcBooleanField::pub_true();
     }
 }
 

@@ -4,8 +4,11 @@ use ark_ff::BigInteger;
 use ark_ff::PrimeField;
 use ark_ff::UniformRand;
 use ark_marlin::IndexProverKey;
+use ark_std::One;
 use mpc_algebra::commitment::CommitmentScheme;
+use mpc_algebra::BooleanWire;
 use mpc_algebra::FromLocal;
+use mpc_algebra::MpcBooleanField;
 use mpc_algebra::Reveal;
 use nalgebra::DMatrix;
 use player::Player;
@@ -291,10 +294,10 @@ impl Game {
         let mut events = Vec::new();
 
         for player in &mut self.state.players {
-            if player.marked_for_death && player.is_alive {
+            if player.marked_for_death.reveal().is_one() && player.is_alive {
                 player.kill(self.state.day);
                 events.push(format!("{}が無残な姿で発見されました。", player.name));
-                player.marked_for_death = false;
+                player.marked_for_death = MpcBooleanField::pub_false();
             }
         }
 
