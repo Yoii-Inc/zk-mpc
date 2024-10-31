@@ -1,10 +1,29 @@
+use ark_bls12_377::Fr;
+use ark_crypto_primitives::commitment::pedersen;
+use ark_ff::BigInteger;
+use ark_ff::PrimeField;
+use ark_ff::UniformRand;
+use ark_marlin::IndexProverKey;
+use mpc_algebra::commitment::CommitmentScheme;
+use mpc_algebra::FromLocal;
+use mpc_algebra::Reveal;
+use nalgebra::DMatrix;
+use player::Player;
 use rand::Rng;
+use zk_mpc::circuits::LocalOrMPC;
+use zk_mpc::circuits::RoleAssignmentCircuit;
+use zk_mpc::marlin::prove_and_verify;
+use zk_mpc::marlin::LocalMarlin;
+use zk_mpc::marlin::MFr;
+use zk_mpc::werewolf::types::GroupingParameter;
+use zk_mpc::werewolf::types::Role;
+use zk_mpc::werewolf::utils::calc_shuffle_matrix;
+use zk_mpc::werewolf::utils::generate_individual_shuffle_matrix;
+use zk_mpc::werewolf::utils::load_random_commitment;
+use zk_mpc::werewolf::utils::load_random_value;
 
 pub mod player;
 pub mod role;
-
-use player::Player;
-use zk_mpc::werewolf::types::Role;
 
 pub struct Game {
     pub state: GameState,
@@ -22,6 +41,7 @@ pub struct GameRules {
     pub max_players: usize,
     pub werewolf_ratio: f32,
     pub seer_count: usize,
+    pub grouping_parameter: GroupingParameter,
 }
 
 pub enum GamePhase {
@@ -33,8 +53,7 @@ pub enum GamePhase {
 
 impl Game {
     pub fn new(player_names: Vec<String>, rules: GameRules) -> Self {
-        let roles = role::assign_roles(player_names.len(), &rules);
-        let players = player::create_players(player_names, roles);
+        let players = player::create_players(player_names, None);
 
         Self {
             state: GameState {
@@ -44,6 +63,144 @@ impl Game {
             },
             rules,
         }
+    }
+
+    pub fn role_assignment(&mut self) {
+        let role = role::calc_role(self.state.players.len(), &self.rules);
+
+        for (player, role) in self.state.players.iter_mut().zip(role) {
+            player.role = Some(role);
+        }
+
+        // prove and verify
+        if let Err(e) = self.prove_and_verify() {
+            eprintln!("Failed to prove and verify: {}", e);
+        }
+    }
+
+    fn prove_and_verify(&self) -> Result<(), std::io::Error> {
+        let n = self.state.players.len();
+        let m = self.rules.grouping_parameter.get_num_groups();
+
+        let rng = &mut ark_std::test_rng();
+
+        let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
+        let player_randomness = load_random_value()?;
+        let player_commitment = load_random_commitment()?;
+
+        // calc
+        let shuffle_matrix = vec![
+            generate_individual_shuffle_matrix(
+                self.rules.grouping_parameter.get_num_players(),
+                self.rules.grouping_parameter.get_num_groups(),
+                rng,
+            );
+            2
+        ];
+
+        let mut inputs = vec![];
+
+        for id in 0..n {
+            let (role, role_val, player_ids) =
+                calc_shuffle_matrix(&self.rules.grouping_parameter, &shuffle_matrix, id).unwrap();
+            println!("role is {:?}", role);
+            println!("fellow is {:?}", player_ids);
+            inputs.push(Fr::from(role_val as i32));
+        }
+
+        println!("inputs is {:?}", inputs);
+
+        let randomness = (0..n)
+            .map(|_| <Fr as LocalOrMPC<Fr>>::PedersenRandomness::rand(rng))
+            .collect::<Vec<_>>();
+
+        let commitment = (0..n)
+            .map(|i| {
+                <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
+                    &pedersen_param,
+                    &inputs[i].into_repr().to_bytes_le(),
+                    &randomness[i],
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let local_role_circuit = RoleAssignmentCircuit {
+            num_players: n,
+            max_group_size: self.rules.grouping_parameter.get_max_group_size(),
+            pedersen_param: pedersen_param.clone(),
+            tau_matrix: DMatrix::<Fr>::zeros(n + m, n + m),
+            shuffle_matrices: vec![DMatrix::<Fr>::zeros(n + m, n + m); 2],
+            role_commitment: commitment,
+            randomness,
+            player_randomness: player_randomness.clone(),
+            player_commitment: player_commitment.clone(),
+        };
+
+        let srs = LocalMarlin::universal_setup(1000000, 50000, 100000, rng).unwrap();
+        let (index_pk, index_vk) = LocalMarlin::index(&srs, local_role_circuit).unwrap();
+        let mpc_index_pk = IndexProverKey::from_public(index_pk);
+
+        let mpc_pedersen_param =
+            <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&pedersen_param);
+
+        let mpc_randomness = (0..n)
+            .map(|_| <MFr as LocalOrMPC<MFr>>::PedersenRandomness::rand(rng))
+            .collect::<Vec<_>>();
+
+        let converted_inputs = inputs
+            .iter()
+            .map(|x| <MFr as LocalOrMPC<MFr>>::convert_input(&MFr::from_public(*x)))
+            .collect::<Vec<_>>();
+
+        let role_commitment = (0..n)
+            .map(|i| {
+                <MFr as LocalOrMPC<MFr>>::PedersenComScheme::commit(
+                    &mpc_pedersen_param,
+                    &converted_inputs[i],
+                    &mpc_randomness[i],
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let mpc_role_circuit = RoleAssignmentCircuit {
+            num_players: n,
+            max_group_size: self.rules.grouping_parameter.get_max_group_size(),
+            pedersen_param: mpc_pedersen_param,
+            tau_matrix: self.rules.grouping_parameter.generate_tau_matrix(),
+            shuffle_matrices: shuffle_matrix,
+            randomness: mpc_randomness,
+            role_commitment: role_commitment.clone(),
+            player_randomness: player_randomness
+                .iter()
+                .map(|x| MFr::from_public(*x))
+                .collect::<Vec<_>>(),
+            player_commitment: player_commitment
+                .iter()
+                .map(|x| <MFr as LocalOrMPC<MFr>>::PedersenCommitment::from_public(*x))
+                .collect::<Vec<_>>(),
+        };
+
+        let mut inputs = player_commitment
+            .iter()
+            .flat_map(|c| vec![c.x, c.y])
+            .collect::<Vec<_>>();
+
+        role_commitment.iter().for_each(|x| {
+            inputs.push(x.reveal().x);
+            inputs.push(x.reveal().y);
+        });
+
+        assert!(prove_and_verify(
+            &mpc_index_pk,
+            &index_vk,
+            mpc_role_circuit.clone(),
+            inputs
+        ));
+
+        Ok(())
     }
 
     pub fn next_phase(&mut self) {
@@ -204,12 +361,14 @@ impl GameRules {
         max_players: usize,
         werewolf_ratio: f32,
         seer_count: usize,
+        grouping_parameter: GroupingParameter,
     ) -> Self {
         Self {
             min_players,
             max_players,
             werewolf_ratio,
             seer_count,
+            grouping_parameter,
         }
     }
 }

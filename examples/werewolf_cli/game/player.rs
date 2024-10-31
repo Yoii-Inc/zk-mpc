@@ -1,4 +1,3 @@
-use crate::game::role::Role;
 use serde::{Deserialize, Serialize};
 use zk_mpc::werewolf::types::Role;
 

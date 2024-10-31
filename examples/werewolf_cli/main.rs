@@ -4,7 +4,7 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use structopt::StructOpt;
-use zk_mpc::werewolf::types::Role;
+use zk_mpc::werewolf::types::{GroupingParameter, Role};
 
 pub mod game;
 
@@ -35,8 +35,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_players: 10,
         werewolf_ratio: 0.3,
         seer_count: 1,
+        grouping_parameter: GroupingParameter::new(
+            vec![
+                (Role::Villager, (2, false)),
+                (Role::Werewolf, (1, false)),
+                (Role::FortuneTeller, (1, false)),
+            ]
+            .into_iter()
+            .collect(),
+        ),
     };
+
     let mut game = Game::new(register_players(), game_rule);
+
+    game.role_assignment();
+
+    println!("{:?}", game.state.players);
 
     loop {
         night_phase(&mut game);
@@ -56,27 +70,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn register_players() -> Vec<String> {
-    let mut players = Vec::new();
+    let mut name;
+
     loop {
-        print!("プレイヤー名を入力してください（終了する場合は空欄で Enter）: ");
+        print!("Please enter your player name (Press Enter to finish): ");
         io::stdout().flush().unwrap();
 
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
-        let name = input.trim().to_string();
+        name = input.trim().to_string();
 
         if name.is_empty() {
-            if players.len() >= 4 {
-                break;
-            } else {
-                println!("最低4人のプレイヤーが必要です。");
-                continue;
-            }
+            println!("Player name is empty.");
+            continue;
+        } else {
+            break;
         }
-
-        players.push(name);
     }
-    players
+
+    println!(
+        "Registered player name \"{}\". Waiting for other players to register.",
+        name
+    );
+
+    Net::broadcast(&name)
 }
 
 fn night_phase(game: &mut Game) {
