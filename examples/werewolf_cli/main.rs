@@ -48,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut game = Game::new(register_players(), game_rule);
 
-    game.role_assignment();
+    game.role_assignment(false);
 
     println!("{:?}", game.state.players);
 
