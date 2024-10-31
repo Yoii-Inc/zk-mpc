@@ -107,14 +107,14 @@ fn night_phase(game: &mut Game) {
 
     let mut events = Vec::new();
 
-            match player.role {
+    match player.role {
         Some(Role::Villager) => {
             println!("You are a villager. Please wait until everyone has finished their actions.");
         }
-                Some(Role::Werewolf) => {
+        Some(Role::Werewolf) => {
             println!("You are a werewolf.");
-                }
-                Some(Role::FortuneTeller) => {
+        }
+        Some(Role::FortuneTeller) => {
             println!("You are a fortune Teller. Please wait until other roles actions.");
         }
         None => todo!(),
@@ -123,16 +123,16 @@ fn night_phase(game: &mut Game) {
     let attack_target = get_werewolf_target(game, player);
     events.extend(game.werewolf_attack(attack_target));
 
-                    let seer_target = get_seer_target(game, player);
-                    events.extend(game.seer_divination(seer_target));
+    let seer_target = get_seer_target(game, player);
+    events.extend(game.seer_divination(seer_target));
 
-            for event in events {
-                println!("{}", event);
-            }
-            wait_for_enter();
+    for event in events {
+        println!("{}", event);
+    }
+    wait_for_enter();
     println!("Waiting for all players to finish their actions.");
     wait_for_everyone();
-            clear_screen();
+    clear_screen();
 }
 
 fn wait_for_enter() {
@@ -155,35 +155,35 @@ fn get_werewolf_target(game: &Game, player: &Player) -> MFr {
     let mut target_id = Fr::default();
 
     if player.role.unwrap().is_werewolf() {
-    println!(
-        "{}さん、あなたは人狼です。襲撃する対象を選んでください：",
+        println!(
+            "{}さん、あなたは人狼です。襲撃する対象を選んでください：",
             player.name
-    );
-    game.state
-        .players
-        .iter()
-        .filter(|p| p.is_alive && !p.is_werewolf())
-        .for_each(|p| println!("{}: {}", p.id, p.name));
-
-    loop {
-        print!("対象のIDを入力してください: ");
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-            target_id = Fr::from(input.trim().parse().unwrap_or(0) as i32);
-
-        if game
-            .state
+        );
+        game.state
             .players
             .iter()
+            .filter(|p| p.is_alive && !p.is_werewolf())
+            .for_each(|p| println!("{}: {}", p.id, p.name));
+
+        loop {
+            print!("対象のIDを入力してください: ");
+            io::stdout().flush().unwrap();
+
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            target_id = Fr::from(input.trim().parse().unwrap_or(0) as i32);
+
+            if game
+                .state
+                .players
+                .iter()
                 .any(|p| Fr::from(p.id as i32) == target_id && p.is_alive && !p.is_werewolf())
-        {
+            {
                 break;
-        } else {
-            println!("無効な選択です。もう一度選んでください。");
+            } else {
+                println!("無効な選択です。もう一度選んでください。");
+            }
         }
-    }
     } else {
         target_id = Fr::default();
     }
@@ -195,35 +195,35 @@ fn get_seer_target(game: &Game, player: &Player) -> MFr {
     let mut target_id = Fr::default();
 
     if player.role.unwrap() == Role::FortuneTeller {
-    println!(
-        "{}さん、あなたは占い師です。占う対象を選んでください：",
+        println!(
+            "{}さん、あなたは占い師です。占う対象を選んでください：",
             player.name
-    );
-    game.state
-        .players
-        .iter()
-            .filter(|p| p.is_alive && p.id != player.id)
-        .for_each(|p| println!("{}: {}", p.id, p.name));
-
-    loop {
-        print!("対象のIDを入力してください: ");
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-            target_id = Fr::from(input.trim().parse().unwrap_or(0) as i32);
-
-        if game
-            .state
+        );
+        game.state
             .players
             .iter()
+            .filter(|p| p.is_alive && p.id != player.id)
+            .for_each(|p| println!("{}: {}", p.id, p.name));
+
+        loop {
+            print!("対象のIDを入力してください: ");
+            io::stdout().flush().unwrap();
+
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            target_id = Fr::from(input.trim().parse().unwrap_or(0) as i32);
+
+            if game
+                .state
+                .players
+                .iter()
                 .any(|p| Fr::from(p.id as i32) == target_id && p.is_alive && p.id != player.id)
-        {
+            {
                 break;
-        } else {
-            println!("無効な選択です。もう一度選んでください。");
+            } else {
+                println!("無効な選択です。もう一度選んでください。");
+            }
         }
-    }
     } else {
         target_id = Fr::default();
     }
@@ -259,42 +259,59 @@ fn discussion_phase(game: &Game) {
 
 fn voting_phase(game: &mut Game) {
     println!("\n--- 投票フェーズ ---");
-    let mut votes = Vec::new();
+    let vote;
 
-    for player in &game.state.players {
-        if player.is_alive {
-            println!("{}さん、投票する対象を選んでください：", player.name);
-            game.state
+    let players = game.state.players.clone();
+
+    let player = players.iter().find(|p| p.id == Net::party_id()).unwrap();
+
+    if player.is_alive {
+        println!("{}さん、投票する対象を選んでください：", player.name);
+        game.state
+            .players
+            .iter()
+            .filter(|p| p.is_alive && p.id != player.id)
+            .for_each(|p| println!("{}: {}", p.id, p.name));
+
+        loop {
+            print!("対象のIDを入力してください: ");
+            io::stdout().flush().unwrap();
+
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            let target_id: usize = input.trim().parse().unwrap_or(usize::MAX);
+
+            if game
+                .state
                 .players
                 .iter()
-                .filter(|p| p.is_alive && p.id != player.id)
-                .for_each(|p| println!("{}: {}", p.id, p.name));
-
-            loop {
-                print!("対象のIDを入力してください: ");
-                io::stdout().flush().unwrap();
-
-                let mut input = String::new();
-                io::stdin().read_line(&mut input).unwrap();
-                let target_id: usize = input.trim().parse().unwrap_or(usize::MAX);
-
-                if game
-                    .state
-                    .players
-                    .iter()
-                    .any(|p| p.id == target_id && p.is_alive && p.id != player.id)
-                {
-                    votes.push(target_id);
-                    break;
-                } else {
-                    println!("無効な選択です。もう一度選んでください。");
-                }
+                .any(|p| p.id == target_id && p.is_alive && p.id != player.id)
+            {
+                vote = target_id;
+                break;
+            } else {
+                println!("無効な選択です。もう一度選んでください。");
             }
-        } else {
-            votes.push(usize::MAX); // 死亡したプレイヤーの投票は無効
         }
-        clear_screen();
+    } else {
+        vote = usize::MAX; // 死亡したプレイヤーの投票は無効
     }
+    clear_screen();
+
+    if player.is_alive {
+        println!(
+            "You voted for {}. Please wait for other players to finish voting.",
+            vote
+        );
+    } else {
+        println!("You are dead, so your vote is invalid. Please wait for other players to finish voting.");
+    }
+
+    let votes = Net::broadcast(&vote);
+
+    // TODO: prove and verify
+
+    clear_screen();
 
     let events = game.voting_phase(votes);
     for event in events {
