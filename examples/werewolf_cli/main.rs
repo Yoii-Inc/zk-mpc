@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut game = Game::new(register_players(), game_rule);
 
-    game.role_assignment(false);
+    game.role_assignment(true);
 
     println!("{:?}", game.state.players);
 
@@ -61,13 +61,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         night_phase(&mut game);
+        if game.state.day > 1 {
+            if let Some(winner) = game.check_victory_condition(true) {
+                println!("Game is over! {} wins!", winner);
+                break;
+            }
+        }
         morning_phase(&mut game);
         discussion_phase(&game);
         voting_phase(&mut game);
 
-        if let Some(winner) = game.check_victory_condition() {
-            println!("ゲーム終了！{}の勝利です！", winner);
+        if let Some(winner) = game.check_victory_condition(true) {
+            println!("Game is over! {} wins!", winner);
             break;
+        } else {
+            println!("Despite the execution, a terrifying night is coming.");
         }
 
         game.next_phase();
