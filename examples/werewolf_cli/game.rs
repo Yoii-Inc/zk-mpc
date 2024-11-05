@@ -250,12 +250,12 @@ impl Game {
             self.state.players.iter_mut().find(|p| {
                 Fr::from(p.id as i32) == target_id.reveal() && p.is_alive && !p.is_werewolf()
             })
-            {
-                target.mark_for_death();
+        {
+            target.mark_for_death();
             if am_werewolf {
                 events.push(format!("人狼が{}を襲撃対象に選びました。", target.name));
             }
-            } else {
+        } else {
             if am_werewolf {
                 events.push("無効な襲撃対象が選択されました。".to_string());
             }
@@ -289,16 +289,16 @@ impl Game {
                     "人狼ではない"
                 };
                 if am_fortune_teller {
-                events.push(format!(
-                    "占い師が{}を占いました。結果：{}",
-                    target.name, role_name
-                ));
+                    events.push(format!(
+                        "占い師が{}を占いました。結果：{}",
+                        target.name, role_name
+                    ));
                 }
             } else {
                 if am_fortune_teller {
-                events.push("無効な占い対象が選択されました。".to_string());
+                    events.push("無効な占い対象が選択されました。".to_string());
+                }
             }
-        }
         }
         events
     }
