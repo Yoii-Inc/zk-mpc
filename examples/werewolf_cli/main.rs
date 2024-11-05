@@ -3,11 +3,13 @@ use game::{player::Player, Game, GameRules};
 use mpc_algebra::channel::MpcSerNet;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
+use rand::thread_rng;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use structopt::StructOpt;
 use zk_mpc::marlin::MFr;
 use zk_mpc::werewolf::types::{GroupingParameter, Role};
+use zk_mpc::werewolf::utils::generate_random_commitment;
 
 pub mod game;
 
@@ -54,6 +56,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     game.role_assignment(false);
 
     println!("{:?}", game.state.players);
+
+    generate_random_commitment(&mut thread_rng(), &game.state.pedersen_param);
 
     loop {
         night_phase(&mut game);
@@ -313,7 +317,7 @@ fn voting_phase(game: &mut Game) {
 
     clear_screen();
 
-    let events = game.voting_phase(votes);
+    let events = game.voting_phase(votes, true);
     for event in events {
         println!("{}", event);
     }
