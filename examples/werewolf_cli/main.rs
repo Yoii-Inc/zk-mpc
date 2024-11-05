@@ -98,6 +98,9 @@ fn register_players() -> Vec<String> {
         if name.is_empty() {
             println!("Player name is empty.");
             continue;
+        } else if name.len() >= 20 {
+            println!("Player name must be less than 20 characters.");
+            continue;
         } else {
             break;
         }
@@ -108,7 +111,12 @@ fn register_players() -> Vec<String> {
         name
     );
 
-    Net::broadcast(&name)
+    let mut bytes = vec![0u8; 20];
+    bytes[..name.len()].copy_from_slice(name.as_bytes());
+    Net::broadcast(&bytes)
+        .into_iter()
+        .map(|b| String::from_utf8_lossy(&b[..]).to_string())
+        .collect()
 }
 
 fn night_phase(game: &mut Game) {
