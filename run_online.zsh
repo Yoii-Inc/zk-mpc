@@ -12,11 +12,11 @@ for i in $(seq 0 2)
 do
 if [ $i == 0 ]
 then
-    RUST_BACKTRACE=1  $BIN marlin ./inputs/inputs.json $i ./data/address &
+    RUST_BACKTRACE=1  $BIN marlin ./inputs/inputs.json $i ./data/3 &
     pid=$!
     PROCS[$i]=$pid
 else
-    $BIN marlin ./inputs/inputs.json $i ./data/address > /dev/null &
+    $BIN marlin ./inputs/inputs.json $i ./data/3 > /dev/null &
     pid=$!
     PROCS[$i]=$pid
 fi
