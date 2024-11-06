@@ -245,9 +245,9 @@ impl Game {
         }
 
         if werewolf_count == 0 {
-            Some("村人".to_string())
+            Some("Villagers side".to_string())
         } else if werewolf_count >= villager_count {
-            Some("人狼".to_string())
+            Some("Werewolves side".to_string())
         } else {
             None
         }
@@ -376,11 +376,14 @@ impl Game {
         {
             target.mark_for_death();
             if am_werewolf {
-                events.push(format!("人狼が{}を襲撃対象に選びました。", target.name));
+                events.push(format!(
+                    "The werewolf has chosen {} as their target.",
+                    target.name
+                ));
             }
         } else {
             if am_werewolf {
-                events.push("無効な襲撃対象が選択されました。".to_string());
+                events.push("Invalid target was selected.".to_string());
             }
         }
 
@@ -407,19 +410,19 @@ impl Game {
                 Fr::from(p.id as i32) == target_id.reveal() && p.is_alive && p.id != seer.id
             }) {
                 let role_name = if target.is_werewolf() {
-                    "人狼"
+                    "Werewolf"
                 } else {
-                    "人狼ではない"
+                    "Not Werewolf"
                 };
                 if am_fortune_teller {
                     events.push(format!(
-                        "占い師が{}を占いました。結果：{}",
+                        "The fortune teller divined {}. Result: {}",
                         target.name, role_name
                     ));
                 }
             } else {
                 if am_fortune_teller {
-                    events.push("無効な占い対象が選択されました。".to_string());
+                    events.push("Invalid divination target was selected.".to_string());
                 }
             }
         }
@@ -432,20 +435,20 @@ impl Game {
         for player in &mut self.state.players {
             if player.marked_for_death.reveal().is_one() && player.is_alive {
                 player.kill(self.state.day);
-                events.push(format!("{}が無残な姿で発見されました。", player.name));
+                events.push(format!("{} was found dead.", player.name));
                 player.marked_for_death = MpcBooleanField::pub_false();
             }
         }
 
         if events.is_empty() {
-            events.push("昨夜は誰も襲撃されませんでした。".to_string());
+            events.push("No one was attacked last night.".to_string());
         }
 
         events
     }
 
     pub fn discussion_phase(&self) -> Vec<String> {
-        vec!["討論フェーズが始まりました。".to_string()]
+        vec!["The discussion phase has begun.".to_string()]
     }
 
     pub fn voting_phase(&mut self, votes: Vec<usize>, is_prove: bool) -> Vec<String> {
@@ -456,14 +459,14 @@ impl Game {
             if voter.is_alive {
                 vote_count[target] += 1;
                 events.push(format!(
-                    "{}が{}に投票しました。",
+                    "{} voted for {}.",
                     voter.name, self.state.players[target].name
                 ));
             }
         }
 
         let max_votes = *vote_count.iter().max().unwrap();
-        // 最大票数を持つプレイヤーを見つける。投票が同数の場合は
+        // Find the player with the maximum number of votes.
         let max_voted_indexes = self
             .state
             .players
@@ -481,14 +484,14 @@ impl Game {
         let executed_index = if max_voted_indexes.len() == 1 {
             max_voted_indexes[0]
         } else {
-            // 投票が同数の場合は、ランダムに一人処刑される
+            // If there are multiple players with the same number of votes, one player is executed randomly.
             let random_index = rand::thread_rng().gen_range(0..max_voted_indexes.len());
             max_voted_indexes[random_index]
         };
 
         let player = &mut self.state.players[executed_index];
         player.kill(self.state.day);
-        events.push(format!("{}が処刑されました。", player.name));
+        events.push(format!("{} was executed.", player.name));
 
         if is_prove {
             let votes = votes

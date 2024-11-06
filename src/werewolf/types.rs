@@ -13,9 +13,9 @@ pub enum Role {
 impl Role {
     pub fn description(&self) -> &'static str {
         match self {
-            Role::Villager => "村人：特別な能力はありませんが、議論と投票に参加します。",
-            Role::Werewolf => "人狼：夜に村人を襲撃します。昼は村人のふりをします。",
-            Role::FortuneTeller => "占い師：夜に一人のプレイヤーの役割を知ることができます。",
+            Role::Villager => "Villager: They have no special abilities, but they participate in discussions and voting.",
+            Role::Werewolf => "Werewolf: They attack villagers at night. They pretend to be villagers during the day.",
+            Role::FortuneTeller => "Fortune Teller: They can know whether a player is a werewolf or not at night.",
         }
     }
 

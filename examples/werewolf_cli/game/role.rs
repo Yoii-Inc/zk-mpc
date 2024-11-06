@@ -14,7 +14,7 @@ pub fn assign_roles(player_count: usize, rules: &GameRules) -> Vec<Role> {
     let werewolf_count = (player_count as f32 * rules.werewolf_ratio).round() as usize;
     let seer_count = rules.seer_count;
 
-    // 役割を割り当てる
+    // assign roles
     for role in roles.iter_mut().take(werewolf_count) {
         *role = Role::Werewolf;
     }
@@ -23,7 +23,7 @@ pub fn assign_roles(player_count: usize, rules: &GameRules) -> Vec<Role> {
         *role = Role::FortuneTeller;
     }
 
-    // ランダムに並び替える
+    // Shuffle randomly
     roles.shuffle(&mut rng);
 
     roles
