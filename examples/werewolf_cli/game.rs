@@ -256,24 +256,30 @@ impl Game {
     fn prove_and_verify_victory(&self) {
         // setup
 
-        let player_num = self.state.players.len();
         let num_alive = Fr::from(self.state.players.iter().filter(|p| p.is_alive).count() as i32);
+
+        let alive_indices = self
+            .state
+            .players
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.is_alive)
+            .map(|(i, _)| i)
+            .collect::<Vec<usize>>();
 
         let rng = &mut test_rng();
 
-        let am_werewolf_vec = (0..player_num)
+        let am_werewolf_vec = alive_indices
+            .iter()
             .map(|_| InputWithCommit::default())
             .collect::<Vec<_>>();
 
-        let am_werewolf_val = (0..player_num)
-            .map(|i| self.state.players[i].is_werewolf())
-            .collect::<Vec<_>>();
-
-        let mpc_am_werewolf_vec = (0..player_num)
-            .map(|i| {
+        let mpc_am_werewolf_vec = alive_indices
+            .iter()
+            .map(|&i| {
                 let mut a: InputWithCommit<MFr> = InputWithCommit::default();
                 a.allocation = i;
-                a.input = MFr::from(am_werewolf_val[i]);
+                a.input = MFr::from(self.state.players[i].is_werewolf());
                 a
             })
             .collect::<Vec<_>>();
@@ -304,8 +310,14 @@ impl Game {
 
         let game_state = exists_werewolf.field() * MFr::from(2_u32)
             + (!exists_werewolf).field()
-                * (num_werewolf.is_smaller_than(&num_citizen).field() * MFr::from(3_u32)
-                    + (MFr::one() - (num_werewolf.is_smaller_than(&num_citizen)).field())
+                * ((num_werewolf + MFr::one())
+                    .is_smaller_than(&num_citizen)
+                    .field()
+                    * MFr::from(3_u32)
+                    + (MFr::one()
+                        - ((num_werewolf + MFr::one())
+                            .is_smaller_than(&num_citizen)
+                            .field()))
                         * MFr::from(1_u32));
 
         // prove
