@@ -261,6 +261,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
         !lsb_x
     }
 
+    // TODO: Fix: This function should be returns false  when the two values are equal.
     fn is_smaller_than(&self, other: &Self) -> Self::Output {
         let timer = start_timer!(|| "LessThan");
         // [z]=[other−self<p/2],[x]=[self<p/2],[y]=[other>p/2]
