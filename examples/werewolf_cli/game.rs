@@ -4,9 +4,13 @@ use ark_ff::BigInteger;
 use ark_ff::PrimeField;
 use ark_ff::UniformRand;
 use ark_marlin::IndexProverKey;
+use ark_std::One;
 use mpc_algebra::commitment::CommitmentScheme;
+use mpc_algebra::BooleanWire;
 use mpc_algebra::FromLocal;
+use mpc_algebra::MpcBooleanField;
 use mpc_algebra::Reveal;
+use mpc_net::{MpcMultiNet as Net, MpcNet};
 use nalgebra::DMatrix;
 use player::Player;
 use rand::Rng;
@@ -232,24 +236,27 @@ impl Game {
         }
     }
 
-    pub fn werewolf_attack(&mut self, target_id: usize) -> Vec<String> {
+    pub fn werewolf_attack(&mut self, target_id: MFr) -> Vec<String> {
         let mut events = Vec::new();
 
-        if let Some(_werewolf) = self
+        let am_werewolf = self
             .state
             .players
             .iter()
-            .find(|p| p.is_werewolf() && p.is_alive)
+            .any(|p| p.id == Net::party_id() && p.role == Some(Role::Werewolf) && p.is_alive);
+
+        // calc
+        if let Some(target) =
+            self.state.players.iter_mut().find(|p| {
+                Fr::from(p.id as i32) == target_id.reveal() && p.is_alive && !p.is_werewolf()
+            })
         {
-            if let Some(target) = self
-                .state
-                .players
-                .iter_mut()
-                .find(|p| p.id == target_id && p.is_alive && !p.is_werewolf())
-            {
-                target.mark_for_death();
+            target.mark_for_death();
+            if am_werewolf {
                 events.push(format!("人狼が{}を襲撃対象に選びました。", target.name));
-            } else {
+            }
+        } else {
+            if am_werewolf {
                 events.push("無効な襲撃対象が選択されました。".to_string());
             }
         }
@@ -257,35 +264,42 @@ impl Game {
         events
     }
 
-    pub fn seer_divination(&self, target_id: usize) -> Vec<String> {
+    pub fn seer_divination(&self, target_id: MFr) -> Vec<String> {
         let mut events = Vec::new();
 
+        // get FortuneTeller
+        let am_fortune_teller =
+            self.state.players.iter().any(|p| {
+                p.id == Net::party_id() && p.role == Some(Role::FortuneTeller) && p.is_alive
+            });
+
+        // calc
         if let Some(seer) = self
             .state
             .players
             .iter()
             .find(|p| p.role == Some(Role::FortuneTeller) && p.is_alive)
         {
-            if let Some(target) = self
-                .state
-                .players
-                .iter()
-                .find(|p| p.id == target_id && p.is_alive && p.id != seer.id)
-            {
+            if let Some(target) = self.state.players.iter().find(|p| {
+                Fr::from(p.id as i32) == target_id.reveal() && p.is_alive && p.id != seer.id
+            }) {
                 let role_name = if target.is_werewolf() {
                     "人狼"
                 } else {
                     "人狼ではない"
                 };
-                events.push(format!(
-                    "占い師が{}を占いました。結果：{}",
-                    target.name, role_name
-                ));
+                if am_fortune_teller {
+                    events.push(format!(
+                        "占い師が{}を占いました。結果：{}",
+                        target.name, role_name
+                    ));
+                }
             } else {
-                events.push("無効な占い対象が選択されました。".to_string());
+                if am_fortune_teller {
+                    events.push("無効な占い対象が選択されました。".to_string());
+                }
             }
         }
-
         events
     }
 
@@ -293,10 +307,10 @@ impl Game {
         let mut events = Vec::new();
 
         for player in &mut self.state.players {
-            if player.marked_for_death && player.is_alive {
+            if player.marked_for_death.reveal().is_one() && player.is_alive {
                 player.kill(self.state.day);
                 events.push(format!("{}が無残な姿で発見されました。", player.name));
-                player.marked_for_death = false;
+                player.marked_for_death = MpcBooleanField::pub_false();
             }
         }
 
