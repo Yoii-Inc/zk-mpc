@@ -586,7 +586,8 @@ pub struct AnonymousVotingCircuit<F: PrimeField + LocalOrMPC<F>> {
 impl ConstraintSynthesizer<Fr> for AnonymousVotingCircuit<Fr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<()> {
         // initialize
-        let player_num = self.is_target_id.len();
+        let player_num = self.player_randomness.len();
+        let alive_player_num = self.is_target_id.len();
 
         // check player commitment
         for i in 0..player_num {
@@ -617,7 +618,7 @@ impl ConstraintSynthesizer<Fr> for AnonymousVotingCircuit<Fr> {
         for i in 0..player_num {
             let mut each_num_voted = <FpVar<Fr> as Zero>::zero();
 
-            for j in 0..player_num {
+            for j in 0..alive_player_num {
                 each_num_voted += is_target_id_var[j][i].clone();
             }
 
@@ -665,7 +666,8 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
         cs: ConstraintSystemRef<mm::MpcField<Fr>>,
     ) -> ark_relations::r1cs::Result<()> {
         // initialize
-        let player_num = self.is_target_id.len();
+        let player_num = self.player_randomness.len();
+        let alive_player_num = self.is_target_id.len();
 
         // check player commitment
         for i in 0..player_num {
@@ -701,7 +703,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
                 mm::MpcField<Fr>,
             >>::zero();
 
-            for j in 0..player_num {
+            for j in 0..alive_player_num {
                 each_num_voted += is_target_id_var[j][i].clone();
             }
 

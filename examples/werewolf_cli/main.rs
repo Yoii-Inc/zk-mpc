@@ -3,11 +3,13 @@ use game::{player::Player, Game, GameRules};
 use mpc_algebra::channel::MpcSerNet;
 use mpc_algebra::Reveal;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
+use rand::thread_rng;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use structopt::StructOpt;
 use zk_mpc::marlin::MFr;
 use zk_mpc::werewolf::types::{GroupingParameter, Role};
+use zk_mpc::werewolf::utils::generate_random_commitment;
 
 pub mod game;
 
@@ -54,6 +56,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     game.role_assignment(false);
 
     println!("{:?}", game.state.players);
+
+    generate_random_commitment(&mut thread_rng(), &game.state.pedersen_param);
 
     loop {
         night_phase(&mut game);
@@ -259,44 +263,61 @@ fn discussion_phase(game: &Game) {
 
 fn voting_phase(game: &mut Game) {
     println!("\n--- 投票フェーズ ---");
-    let mut votes = Vec::new();
+    let vote;
 
-    for player in &game.state.players {
-        if player.is_alive {
-            println!("{}さん、投票する対象を選んでください：", player.name);
-            game.state
+    let players = game.state.players.clone();
+
+    let player = players.iter().find(|p| p.id == Net::party_id()).unwrap();
+
+    if player.is_alive {
+        println!("{}さん、投票する対象を選んでください：", player.name);
+        game.state
+            .players
+            .iter()
+            .filter(|p| p.is_alive && p.id != player.id)
+            .for_each(|p| println!("{}: {}", p.id, p.name));
+
+        loop {
+            print!("対象のIDを入力してください: ");
+            io::stdout().flush().unwrap();
+
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            let target_id: usize = input.trim().parse().unwrap_or(usize::MAX);
+
+            if game
+                .state
                 .players
                 .iter()
-                .filter(|p| p.is_alive && p.id != player.id)
-                .for_each(|p| println!("{}: {}", p.id, p.name));
-
-            loop {
-                print!("対象のIDを入力してください: ");
-                io::stdout().flush().unwrap();
-
-                let mut input = String::new();
-                io::stdin().read_line(&mut input).unwrap();
-                let target_id: usize = input.trim().parse().unwrap_or(usize::MAX);
-
-                if game
-                    .state
-                    .players
-                    .iter()
-                    .any(|p| p.id == target_id && p.is_alive && p.id != player.id)
-                {
-                    votes.push(target_id);
-                    break;
-                } else {
-                    println!("無効な選択です。もう一度選んでください。");
-                }
+                .any(|p| p.id == target_id && p.is_alive && p.id != player.id)
+            {
+                vote = target_id;
+                break;
+            } else {
+                println!("無効な選択です。もう一度選んでください。");
             }
-        } else {
-            votes.push(usize::MAX); // 死亡したプレイヤーの投票は無効
         }
-        clear_screen();
+    } else {
+        vote = usize::MAX; // 死亡したプレイヤーの投票は無効
+    }
+    clear_screen();
+
+    if player.is_alive {
+        println!(
+            "You voted for {}. Please wait for other players to finish voting.",
+            vote
+        );
+    } else {
+        println!("You are dead, so your vote is invalid. Please wait for other players to finish voting.");
     }
 
-    let events = game.voting_phase(votes);
+    let votes = Net::broadcast(&vote);
+
+    // TODO: prove and verify
+
+    clear_screen();
+
+    let events = game.voting_phase(votes, true);
     for event in events {
         println!("{}", event);
     }

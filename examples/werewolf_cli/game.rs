@@ -4,6 +4,7 @@ use ark_ff::BigInteger;
 use ark_ff::PrimeField;
 use ark_ff::UniformRand;
 use ark_marlin::IndexProverKey;
+use ark_std::test_rng;
 use ark_std::One;
 use mpc_algebra::commitment::CommitmentScheme;
 use mpc_algebra::BooleanWire;
@@ -14,9 +15,11 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use nalgebra::DMatrix;
 use player::Player;
 use rand::Rng;
+use zk_mpc::circuits::AnonymousVotingCircuit;
 use zk_mpc::circuits::LocalOrMPC;
 use zk_mpc::circuits::RoleAssignmentCircuit;
 use zk_mpc::marlin::prove_and_verify;
+use zk_mpc::marlin::setup_and_index;
 use zk_mpc::marlin::LocalMarlin;
 use zk_mpc::marlin::MFr;
 use zk_mpc::werewolf::types::GroupingParameter;
@@ -38,6 +41,7 @@ pub struct GameState {
     pub players: Vec<Player>,
     pub current_phase: GamePhase,
     pub day: u32,
+    pub pedersen_param: <Fr as LocalOrMPC<Fr>>::PedersenParam,
 }
 
 pub struct GameRules {
@@ -59,11 +63,15 @@ impl Game {
     pub fn new(player_names: Vec<String>, rules: GameRules) -> Self {
         let players = player::create_players(player_names, None);
 
+        let rng = &mut test_rng();
+        let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
         Self {
             state: GameState {
                 players,
                 current_phase: GamePhase::Night,
                 day: 1,
+                pedersen_param,
             },
             rules,
         }
@@ -325,7 +333,7 @@ impl Game {
         vec!["討論フェーズが始まりました。".to_string()]
     }
 
-    pub fn voting_phase(&mut self, votes: Vec<usize>) -> Vec<String> {
+    pub fn voting_phase(&mut self, votes: Vec<usize>, is_prove: bool) -> Vec<String> {
         let mut events = Vec::new();
         let mut vote_count = vec![0; self.state.players.len()];
 
@@ -367,7 +375,116 @@ impl Game {
         player.kill(self.state.day);
         events.push(format!("{}が処刑されました。", player.name));
 
+        if is_prove {
+            let votes = votes
+                .iter()
+                .enumerate()
+                .filter_map(|(i, &x)| {
+                    if self.state.players[i].is_alive {
+                        Some(x)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let mpc_vote_data = self.convert_votes_to_mpc_data(votes);
+            let most_voted_id = Fr::from(executed_index as i32);
+
+            self.prove_and_verify_voting(&mpc_vote_data, &most_voted_id)
+                .unwrap();
+        }
+
         events
+    }
+
+    /// Convert a vector of vote data to MPC data.
+    /// This function is experimental and not MPC-secure.
+    fn convert_votes_to_mpc_data(&self, votes: Vec<usize>) -> Vec<Vec<MFr>> {
+        let n = votes.len();
+
+        let mut mpc_votes = vec![vec![MFr::default(); self.state.players.len()]; n];
+
+        votes.iter().enumerate().for_each(|(voter, &target)| {
+            mpc_votes[voter][target] = MFr::from_public(Fr::from(1));
+        });
+
+        mpc_votes
+    }
+
+    fn prove_and_verify_voting(
+        &self,
+        votes_data: &Vec<Vec<MFr>>,
+        most_voted_id: &Fr,
+    ) -> Result<(), std::io::Error> {
+        let alive_players_num = votes_data.len();
+        let player_num = self.state.players.len();
+
+        // setup
+        let rng = &mut test_rng();
+
+        let pedersen_param = self.state.pedersen_param.clone();
+
+        let player_randomness = load_random_value()?;
+        let player_commitment = load_random_commitment()?;
+
+        for i in 0..player_num {
+            let c = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
+                &pedersen_param,
+                &<Fr as LocalOrMPC<Fr>>::convert_input(&player_randomness[i]),
+                &<Fr as LocalOrMPC<Fr>>::PedersenRandomness::default(),
+            )
+            .unwrap();
+            assert_eq!(c, player_commitment[i]);
+        }
+
+        // prove
+        let local_voting_circuit = AnonymousVotingCircuit {
+            is_target_id: vec![vec![Fr::default(); player_num]; alive_players_num],
+            is_most_voted_id: Fr::default(),
+            pedersen_param: pedersen_param.clone(),
+            player_randomness: player_randomness.clone(),
+            player_commitment: player_commitment.clone(),
+        };
+
+        let (mpc_index_pk, index_vk) = setup_and_index(local_voting_circuit);
+
+        let mpc_pedersen_param =
+            <MFr as LocalOrMPC<MFr>>::PedersenParam::from_local(&pedersen_param);
+
+        let is_target_id_mpc = votes_data;
+
+        let mpc_voting_circuit = AnonymousVotingCircuit {
+            is_target_id: is_target_id_mpc.clone(),
+            is_most_voted_id: MFr::king_share(most_voted_id.clone(), rng),
+            pedersen_param: mpc_pedersen_param,
+            player_randomness: player_randomness
+                .iter()
+                .map(|x| MFr::from_public(*x))
+                .collect::<Vec<_>>(),
+            player_commitment: player_commitment
+                .iter()
+                .map(|x| <MFr as LocalOrMPC<MFr>>::PedersenCommitment::from_public(*x))
+                .collect::<Vec<_>>(),
+        };
+
+        let mut inputs = player_commitment
+            .iter()
+            .flat_map(|c| vec![c.x, c.y])
+            .collect::<Vec<_>>();
+
+        inputs.push(*most_voted_id);
+
+        assert!(prove_and_verify(
+            &mpc_index_pk,
+            &index_vk,
+            mpc_voting_circuit.clone(),
+            inputs
+        ));
+
+        println!("Voting is verified!");
+
+        Ok(())
     }
 }
 
