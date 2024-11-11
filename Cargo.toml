@@ -76,3 +76,7 @@ path = "examples/online.rs"
 [[example]]
 name = "bin-werewolf"
 path = "examples/bin_werewolf.rs"
+
+[[example]]
+name = "werewolf-cli"
+path = "examples/werewolf_cli/main.rs"

@@ -1,13 +1,27 @@
 use ark_ff::PrimeField;
 use nalgebra;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Debug, PartialEq, Eq, Hash, Ord, PartialOrd, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Role {
     FortuneTeller,
     Werewolf,
     Villager,
+}
+
+impl Role {
+    pub fn description(&self) -> &'static str {
+        match self {
+            Role::Villager => "村人：特別な能力はありませんが、議論と投票に参加します。",
+            Role::Werewolf => "人狼：夜に村人を襲撃します。昼は村人のふりをします。",
+            Role::FortuneTeller => "占い師：夜に一人のプレイヤーの役割を知ることができます。",
+        }
+    }
+
+    pub fn is_werewolf(&self) -> bool {
+        matches!(self, Role::Werewolf)
+    }
 }
 
 #[derive(Debug, Deserialize)]
