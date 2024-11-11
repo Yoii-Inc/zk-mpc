@@ -248,6 +248,20 @@ The command is written in Default zsh file, that player allocated `fortune telle
 ./run_werewolf.zsh night
 ```
 
+## Example - Werewolf CLI
+
+When playing with n players, in the i-th (0-indexed) terminal, enter the following command:
+
+```
+cargo run --example werewolf-cli --release i ./data/n
+```
+
+For example, for a 4-players game, in the first terminal, you would enter:
+
+```
+cargo run --example werewolf-cli --release 0 ./data/4
+```
+
 ## Technical Details
 
 ### SHE (Somewhat Homomorphic Encryption) protocol
