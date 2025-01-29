@@ -11,6 +11,16 @@ lazy_static = "1.4.0"
 log = "0.4.20"
 rayon = "1.8.0"
 
+colored = "2.0.4"
+futures = "0.3.29"
+async-trait = "0.1.74"
+tokio = { version = "1.34.0", features = ["net", "time", "fs", "io-util", "macros", "rt-multi-thread"] }
+auto_impl = "1.1.0"
+parking_lot = "0.12.1"
+tokio-util = { version = "0.7.10", features = ["codec"] }
+async_smux = "0.3.0"
+serde = { version = "1.0.193", features = ["derive"] }
+
 [dev-dependencies]
 env_logger = "0.10.0"
 structopt = "0.3.26"
