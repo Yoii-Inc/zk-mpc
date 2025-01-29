@@ -1,5 +1,35 @@
+use async_trait::async_trait;
+use auto_impl::auto_impl;
+use futures::stream::FuturesOrdered;
+use futures::TryStreamExt;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use tokio_util::bytes::Bytes;
+
 pub mod multi;
-pub use multi::MpcMultiNet;
+pub mod utils;
+pub use multi::LocalTestNet;
+
+#[derive(Clone, Debug)]
+pub enum MPCNetError {
+    Generic(String),
+    Protocol { err: String, party: u32 },
+    NotConnected,
+    BadInput { err: &'static str },
+}
+
+impl<T: ToString> From<T> for MPCNetError {
+    fn from(e: T) -> Self {
+        MPCNetError::Generic(e.to_string())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, Copy)]
+pub enum MultiplexedStreamID {
+    Zero = 0,
+    One = 1,
+    Two = 2,
+}
 
 #[derive(Default, Debug, Clone)]
 pub struct Stats {
@@ -10,48 +40,251 @@ pub struct Stats {
     pub from_king: usize,
 }
 
-pub trait MpcNet {
+#[async_trait]
+#[auto_impl(&, &mut, Arc)]
+pub trait MpcNet: Send + Sync {
     /// Am I the first party?
     #[inline]
-    fn am_king() -> bool {
-        Self::party_id() == 0
+    fn is_leader(&self) -> bool {
+        self.party_id() == 0
     }
     /// How many parties are there?
-    fn n_parties() -> usize;
+    fn n_parties(&self) -> usize;
     /// What is my party number (0 to n-1)?
-    fn party_id() -> usize;
-    /// Initialize the network layer from a file.
-    /// The file should contain one HOST:PORT setting per line, corresponding to the addresses of
-    /// the parties in increasing order.
-    ///
-    /// Parties are zero-indexed.
-    fn init_from_file(path: &str, party_id: usize);
+    fn party_id(&self) -> u32;
     /// Is the network layer initalized?
-    fn is_init() -> bool;
-    /// Uninitialize the network layer, closing all connections.
-    fn deinit();
-    /// Set statistics to zero.
-    fn reset_stats();
-    /// Get statistics.
-    fn stats() -> Stats;
-    /// All parties send bytes to each other.
-    fn broadcast_bytes(bytes: &[u8]) -> Vec<Vec<u8>>;
-    /// All parties send bytes to the king.
-    fn send_bytes_to_king(bytes: &[u8]) -> Option<Vec<Vec<u8>>>;
-    /// All parties recv bytes from the king.
-    /// Provide bytes iff you're the king!
-    fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8>;
+    fn is_init(&self) -> bool;
 
-    /// Everyone sends bytes to the king, who recieves those bytes, runs a computation on them, and
-    /// redistributes the resulting bytes.
-    ///
-    /// The king's computation is given by a function, `f`
-    /// proceeds.
-    #[inline]
-    fn king_compute(bytes: &[u8], f: impl Fn(Vec<Vec<u8>>) -> Vec<Vec<u8>>) -> Vec<u8> {
-        let king_response = Self::send_bytes_to_king(bytes).map(f);
-        Self::recv_bytes_from_king(king_response)
+    /// All parties send bytes to each other.
+    async fn broadcast_bytes(
+        &self,
+        bytes: &Bytes,
+        sid: MultiplexedStreamID,
+    ) -> Result<Vec<Bytes>, MPCNetError>;
+
+    /// Get upload/download in bytes
+    fn get_comm(&self) -> (usize, usize);
+
+    fn add_comm(&self, up: usize, down: usize);
+
+    async fn recv_from(&self, id: u32, sid: MultiplexedStreamID) -> Result<Bytes, MPCNetError>;
+    async fn send_to(
+        &self,
+        id: u32,
+        bytes: Bytes,
+        sid: MultiplexedStreamID,
+    ) -> Result<(), MPCNetError>;
+
+    /// All parties send bytes to the leader. The leader receives all the bytes
+    async fn worker_send_or_leader_receive(
+        &self,
+        bytes: &[u8],
+        sid: MultiplexedStreamID,
+    ) -> Result<Option<Vec<Bytes>>, MPCNetError> {
+        let bytes_out = Bytes::copy_from_slice(bytes);
+        let own_id = self.party_id();
+        let timer = start_timer!(
+            format!("Comm: from {} to leader, {}B", own_id, bytes_out.len()),
+            self.is_leader()
+        );
+
+        let r = if self.is_leader() {
+            let mut r = FuturesOrdered::new();
+
+            for id in 0..self.n_parties() as u32 {
+                let bytes_out: Bytes = bytes_out.clone();
+                r.push_back(Box::pin(async move {
+                    let bytes_in = if id == own_id {
+                        bytes_out
+                    } else {
+                        self.recv_from(id, sid).await?
+                    };
+
+                    Ok::<_, MPCNetError>((id, bytes_in))
+                }));
+            }
+
+            let mut ret: HashMap<u32, Bytes> = r.try_collect().await?;
+            debug_assert_eq!(ret.get(&0).unwrap().clone(), bytes_out);
+            // ret.entry(0).or_insert_with(|| bytes_out.clone()); //Why do we need this?
+
+            let mut sorted_ret = Vec::new();
+            for x in 0..self.n_parties() {
+                sorted_ret.push(ret.remove(&(x as u32)).unwrap());
+            }
+
+            Ok(Some(sorted_ret))
+        } else {
+            self.send_to(0, bytes_out, sid).await?;
+            Ok(None)
+        };
+        end_timer!(timer);
+        r
     }
 
-    fn uninit();
+    /// All parties send bytes to someone. The someone receives all the bytes
+    async fn dynamic_worker_send_or_leader_receive(
+        &self,
+        bytes: &[u8],
+        receiver: u32,
+        sid: MultiplexedStreamID,
+    ) -> Result<Option<Vec<Bytes>>, MPCNetError> {
+        let bytes_out = Bytes::copy_from_slice(bytes);
+        let own_id = self.party_id();
+        let timer = start_timer!(
+            format!(
+                "Comm: from {} to {}, {}B",
+                own_id,
+                receiver,
+                bytes_out.len()
+            ),
+            self.is_leader()
+        );
+
+        let r = if receiver == self.party_id() {
+            let mut r = FuturesOrdered::new();
+
+            for id in 0..self.n_parties() as u32 {
+                let bytes_out: Bytes = bytes_out.clone();
+                r.push_back(Box::pin(async move {
+                    let bytes_in = if id == own_id {
+                        bytes_out
+                    } else {
+                        self.recv_from(id, sid).await?
+                    };
+
+                    Ok::<_, MPCNetError>((id, bytes_in))
+                }));
+            }
+
+            let mut ret: HashMap<u32, Bytes> = r.try_collect().await?;
+            debug_assert_eq!(ret.get(&own_id).unwrap().clone(), bytes_out);
+            // ret.entry(0).or_insert_with(|| bytes_out.clone()); //Why do we need this?
+
+            let mut sorted_ret = Vec::new();
+            for x in 0..self.n_parties() {
+                sorted_ret.push(ret.remove(&(x as u32)).unwrap());
+            }
+
+            Ok(Some(sorted_ret))
+        } else {
+            self.send_to(receiver, bytes_out, sid).await?;
+            Ok(None)
+        };
+        end_timer!(timer);
+        r
+    }
+
+    /// All parties recv bytes from the leader.
+    /// Provide bytes iff you're the leader!
+    async fn worker_receive_or_leader_send(
+        &self,
+        bytes_out: Option<Vec<Bytes>>,
+        sid: MultiplexedStreamID,
+    ) -> Result<Bytes, MPCNetError> {
+        let own_id = self.party_id();
+
+        if let Some(bytes_out) = bytes_out {
+            let timer = start_timer!(
+                format!("Comm: from leader to all, {}B", bytes_out.len()),
+                self.is_leader()
+            );
+
+            if !self.is_leader() {
+                return Err(MPCNetError::BadInput {
+                    err: "recv_from_leader called with bytes_out when not leader",
+                });
+            }
+
+            let m = bytes_out[0].len();
+
+            for id in (0..self.n_parties()).filter(|p| *p != own_id as usize) {
+                if bytes_out[id].len() != m {
+                    return Err(MPCNetError::Protocol {
+                        err: format!("The leader sent wrong number of bytes to Peer {}", id),
+                        party: id as u32,
+                    });
+                }
+
+                self.send_to(id as u32, bytes_out[id].clone(), sid).await?;
+            }
+
+            end_timer!(timer);
+
+            Ok(bytes_out[own_id as usize].clone())
+        } else {
+            if self.is_leader() {
+                return Err(MPCNetError::BadInput {
+                    err: "recv_from_leader called with no bytes_out when leader",
+                });
+            }
+
+            self.recv_from(0, sid).await
+        }
+    }
+
+    /// All parties recv bytes from someone.
+    /// Provide bytes iff you're the someone!
+    async fn dynamic_worker_receive_or_leader_send(
+        &self,
+        bytes_out: Option<Vec<Bytes>>,
+        sender: u32,
+        sid: MultiplexedStreamID,
+    ) -> Result<Bytes, MPCNetError> {
+        let own_id = self.party_id();
+
+        if let Some(bytes_out) = bytes_out {
+            let timer = start_timer!(
+                format!("Comm: from {} to all, {}B", own_id, bytes_out.len()),
+                self.is_leader()
+            );
+
+            if !own_id == sender {
+                return Err(MPCNetError::BadInput {
+                    err: "recv_from_leader called with bytes_out when not leader",
+                });
+            }
+
+            let m = bytes_out[0].len();
+
+            for id in (0..self.n_parties()).filter(|p| *p != own_id as usize) {
+                if bytes_out[id].len() != m {
+                    return Err(MPCNetError::Protocol {
+                        err: format!("The leader sent wrong number of bytes to Peer {}", id),
+                        party: id as u32,
+                    });
+                }
+
+                self.send_to(id as u32, bytes_out[id].clone(), sid).await?;
+            }
+
+            end_timer!(timer);
+
+            Ok(bytes_out[own_id as usize].clone())
+        } else {
+            if own_id == sender {
+                return Err(MPCNetError::BadInput {
+                    err: "recv_from_leader called with no bytes_out when leader",
+                });
+            }
+
+            self.recv_from(sender, sid).await
+        }
+    }
+
+    /// Everyone sends bytes to the leader, who receives those bytes, runs a computation on them, and
+    /// redistributes the resulting bytes.
+    ///
+    /// The leader's computation is given by a function, `f`
+    /// proceeds.
+    async fn leader_compute(
+        &self,
+        bytes: &[u8],
+        sid: MultiplexedStreamID,
+        f: impl Fn(Vec<Bytes>) -> Vec<Bytes> + Send,
+    ) -> Result<Bytes, MPCNetError> {
+        let leader_response = self.worker_send_or_leader_receive(bytes, sid).await?.map(f);
+        self.worker_receive_or_leader_send(leader_response, sid)
+            .await
+    }
 }
