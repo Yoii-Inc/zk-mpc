@@ -1,6 +1,10 @@
 #![macro_use]
 use ark_std::{collections::BTreeMap, marker::PhantomData, rc::Rc};
+use futures::future;
+use mpc_net::MultiplexedStreamID;
 use rand::Rng;
+
+use crate::channel::MpcSerNet;
 
 /// A type should implement [Reveal] if it represents the MPC abstraction of some base type.
 ///
@@ -16,11 +20,11 @@ pub trait Reveal: Sized {
     type Base;
 
     /// Reveal shared data, yielding plain data.
-    fn reveal(self) -> Self::Base;
+    async fn reveal(self, net: &impl MpcSerNet, sid: MultiplexedStreamID) -> Self::Base;
     /// Construct a share of the sum of the `b` over all machines in the protocol.
     fn from_add_shared(b: Self::Base) -> Self;
     /// Lift public data (same in all machines) into shared data.
-    fn from_public(b: Self::Base) -> Self;
+    fn from_public(b: Self::Base, net: &impl MpcSerNet) -> Self;
     /// If this share type has some underlying value of the base type, grabs it.
     ///
     /// The semantics of this are highly dependent on the sharing system.
@@ -45,7 +49,7 @@ pub trait Reveal: Sized {
 impl Reveal for usize {
     type Base = usize;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self, _net: &impl MpcSerNet, _sid: MultiplexedStreamID) -> Self::Base {
         self
     }
 
@@ -53,7 +57,7 @@ impl Reveal for usize {
         b
     }
 
-    fn from_public(b: Self::Base) -> Self {
+    fn from_public(b: Self::Base, _net: &impl MpcSerNet) -> Self {
         b
     }
 
@@ -69,7 +73,7 @@ impl Reveal for usize {
 impl<T: Reveal> Reveal for PhantomData<T> {
     type Base = PhantomData<T::Base>;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self, _net: &impl MpcSerNet, _sid: MultiplexedStreamID) -> Self::Base {
         PhantomData::default()
     }
 
@@ -77,7 +81,7 @@ impl<T: Reveal> Reveal for PhantomData<T> {
         PhantomData::default()
     }
 
-    fn from_public(_b: Self::Base) -> Self {
+    fn from_public(_b: Self::Base, _net: &impl MpcSerNet) -> Self {
         PhantomData::default()
     }
     fn unwrap_as_public(self) -> Self::Base {
@@ -98,13 +102,16 @@ impl<T: Reveal> Reveal for PhantomData<T> {
 
 impl<T: Reveal> Reveal for Vec<T> {
     type Base = Vec<T::Base>;
-    fn reveal(self) -> Self::Base {
-        self.into_iter().map(|x| x.reveal()).collect()
+    async fn reveal(self, net: &impl MpcSerNet, sid: MultiplexedStreamID) -> Self::Base {
+        future::join_all(self.into_iter().map(|x| x.reveal(net, sid)))
+            .await
+            .into_iter()
+            .collect()
     }
-    fn from_public(other: Self::Base) -> Self {
+    fn from_public(other: Self::Base, net: &impl MpcSerNet) -> Self {
         other
             .into_iter()
-            .map(|x| <T as Reveal>::from_public(x))
+            .map(|x| <T as Reveal>::from_public(x, net))
             .collect()
     }
     fn from_add_shared(other: Self::Base) -> Self {
@@ -136,11 +143,18 @@ where
     K::Base: Ord,
 {
     type Base = BTreeMap<K::Base, V::Base>;
-    fn reveal(self) -> Self::Base {
-        self.into_iter().map(|x| x.reveal()).collect()
+    async fn reveal(self, net: &impl MpcSerNet, sid: MultiplexedStreamID) -> Self::Base {
+        // self.into_iter().map(|x| x.reveal()).collect()
+        future::join_all(self.into_iter().map(|x| x.reveal(net, sid)))
+            .await
+            .into_iter()
+            .collect()
     }
-    fn from_public(other: Self::Base) -> Self {
-        other.into_iter().map(|x| Reveal::from_public(x)).collect()
+    fn from_public(other: Self::Base, net: &impl MpcSerNet) -> Self {
+        other
+            .into_iter()
+            .map(|x| Reveal::from_public(x, net))
+            .collect()
     }
     fn from_add_shared(other: Self::Base) -> Self {
         other
@@ -167,11 +181,14 @@ where
 
 impl<T: Reveal> Reveal for Option<T> {
     type Base = Option<T::Base>;
-    fn reveal(self) -> Self::Base {
-        self.map(|x| x.reveal())
+    async fn reveal(self, net: &impl MpcSerNet, sid: MultiplexedStreamID) -> Self::Base {
+        match self {
+            Some(x) => Some(x.reveal(net, sid).await),
+            None => None,
+        }
     }
-    fn from_public(other: Self::Base) -> Self {
-        other.map(|x| <T as Reveal>::from_public(x))
+    fn from_public(other: Self::Base, net: &impl MpcSerNet) -> Self {
+        other.map(|x| <T as Reveal>::from_public(x, net))
     }
     fn from_add_shared(other: Self::Base) -> Self {
         other.map(|x| <T as Reveal>::from_add_shared(x))
@@ -192,11 +209,11 @@ where
     T::Base: Clone,
 {
     type Base = Rc<T::Base>;
-    fn reveal(self) -> Self::Base {
-        Rc::new((*self).clone().reveal())
+    async fn reveal(self, net: &impl MpcSerNet, sid: MultiplexedStreamID) -> Self::Base {
+        Rc::new((*self).clone().reveal(net, sid).await)
     }
-    fn from_public(other: Self::Base) -> Self {
-        Rc::new(Reveal::from_public((*other).clone()))
+    fn from_public(other: Self::Base, net: &impl MpcSerNet) -> Self {
+        Rc::new(Reveal::from_public((*other).clone(), net))
     }
     fn from_add_shared(other: Self::Base) -> Self {
         Rc::new(Reveal::from_add_shared((*other).clone()))
@@ -214,13 +231,13 @@ where
 
 impl<A: Reveal, B: Reveal> Reveal for (A, B) {
     type Base = (A::Base, B::Base);
-    fn reveal(self) -> Self::Base {
-        (self.0.reveal(), self.1.reveal())
+    async fn reveal(self, net: &impl MpcSerNet, sid: MultiplexedStreamID) -> Self::Base {
+        (self.0.reveal(net, sid).await, self.1.reveal(net, sid).await)
     }
-    fn from_public(other: Self::Base) -> Self {
+    fn from_public(other: Self::Base, net: &impl MpcSerNet) -> Self {
         (
-            <A as Reveal>::from_public(other.0),
-            <B as Reveal>::from_public(other.1),
+            <A as Reveal>::from_public(other.0, net),
+            <B as Reveal>::from_public(other.1, net),
         )
     }
     fn from_add_shared(other: Self::Base) -> Self {
@@ -246,17 +263,17 @@ impl<A: Reveal, B: Reveal> Reveal for (A, B) {
 #[macro_export]
 macro_rules! struct_reveal_impl {
     ($s:ty, $con:tt ; $( ($x_ty:ty, $x:tt) ),*) => {
-        fn reveal(self) -> Self::Base {
+        async fn reveal(self, net: &impl $crate::channel::MpcSerNet, sid: mpc_net::MultiplexedStreamID) -> Self::Base {
             $con {
                 $(
-                    $x: self.$x.reveal(),
+                    $x: self.$x.reveal(net, sid).await,
                 )*
             }
         }
-        fn from_public(other: Self::Base) -> Self {
+        fn from_public(other: Self::Base, net: &impl $crate::channel::MpcSerNet,) -> Self {
             $con {
                 $(
-                    $x: <$x_ty as Reveal>::from_public(other.$x),
+                    $x: <$x_ty as Reveal>::from_public(other.$x, net),
                 )*
             }
         }
@@ -280,17 +297,17 @@ macro_rules! struct_reveal_impl {
 #[macro_export]
 macro_rules! struct_reveal_simp_impl {
     ($con:path ; $( $x:tt ),*) => {
-        fn reveal(self) -> Self::Base {
+        async fn reveal(self, net: &impl $crate::channel::MpcSerNet, sid: mpc_net::MultiplexedStreamID) -> Self::Base {
             $con {
                 $(
-                    $x: self.$x.reveal(),
+                    $x: self.$x.reveal(net, sid).await,
                 )*
             }
         }
-        fn from_public(other: Self::Base) -> Self {
+        fn from_public(other: Self::Base,net: &impl $crate::channel::MpcSerNet,) -> Self {
             $con {
                 $(
-                    $x: Reveal::from_public(other.$x),
+                    $x: Reveal::from_public(other.$x, net),
                 )*
             }
         }
