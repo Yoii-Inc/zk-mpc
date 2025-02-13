@@ -20,10 +20,10 @@ use ark_std::{end_timer, start_timer};
 impl<F: PrimeField, S: FieldShare<F>> Reveal for ProverMsg<MpcField<F, S>> {
     type Base = ProverMsg<F>;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         match self {
             ProverMsg::EmptyMessage => ProverMsg::EmptyMessage,
-            ProverMsg::FieldElements(d) => ProverMsg::FieldElements(d.reveal()),
+            ProverMsg::FieldElements(d) => ProverMsg::FieldElements(d.reveal().await),
         }
     }
 

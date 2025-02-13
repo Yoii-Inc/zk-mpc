@@ -397,8 +397,8 @@ impl<P: Parameters, S: APShare<P>> Default for MpcGroupProjective<P, S> {
 
 impl<P: Parameters, S: APShare<P>> MpcWire for MpcGroupProjective<P, S> {
     #[inline]
-    async fn publicize(&mut self) {
-        self.val.publicize().await;
+    fn publicize(&mut self) {
+        self.val.publicize();
     }
     #[inline]
     fn is_shared(&self) -> bool {
@@ -688,8 +688,8 @@ impl<P: Parameters, S: APShare<P>> Default for MpcGroupAffine<P, S> {
 
 impl<P: Parameters, S: APShare<P>> MpcWire for MpcGroupAffine<P, S> {
     #[inline]
-    async fn publicize(&mut self) {
-        self.val.publicize().await;
+    fn publicize(&mut self) {
+        self.val.publicize();
     }
     #[inline]
     fn is_shared(&self) -> bool {

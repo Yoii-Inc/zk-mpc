@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 pub trait MpcWire: Clone {
-    async fn publicize(&mut self) {}
+    fn publicize(&mut self) {}
     fn is_shared(&self) -> bool {
         false
     }
@@ -23,7 +23,7 @@ macro_rules! struct_mpc_wire_impl {
     //
     // Use inside an impl block with the right bounds
     ($s:ty; $( ($x_ty:ty, $x:tt) ),*) => {
-        async fn publicize(&mut self) {
+         fn publicize(&mut self) {
             $(
                 self.$x.publicize();
             )*
@@ -45,7 +45,7 @@ macro_rules! struct_mpc_wire_simp_impl {
     //
     // Use inside an impl block with the right bounds
     ($s:ty; $( $x:tt ),*) => {
-        async fn publicize(&mut self) {
+         fn publicize(&mut self) {
             $(
                 self.$x.publicize();
             )*
@@ -74,7 +74,7 @@ impl<A: MpcWire, B: MpcWire, C: MpcWire, D: MpcWire> MpcWire for (A, B, C, D) {
 }
 
 impl<T: MpcWire> MpcWire for Vec<T> {
-    async fn publicize(&mut self) {
+    fn publicize(&mut self) {
         for x in self {
             x.publicize();
         }
@@ -90,7 +90,7 @@ impl<T: MpcWire> MpcWire for Vec<T> {
 }
 
 impl<T: MpcWire> MpcWire for Option<T> {
-    async fn publicize(&mut self) {
+    fn publicize(&mut self) {
         for x in self {
             x.publicize();
         }

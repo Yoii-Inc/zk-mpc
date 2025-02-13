@@ -329,8 +329,8 @@ macro_rules! impl_pairing_mpc_wrapper {
 
         impl<E: $bound1, PS: $bound2<E>> MpcWire for $wrap<E, PS> {
             #[inline]
-            async fn publicize(&mut self) {
-                self.val.publicize().await;
+            fn publicize(&mut self) {
+                self.val.publicize();
             }
             #[inline]
             fn is_shared(&self) -> bool {

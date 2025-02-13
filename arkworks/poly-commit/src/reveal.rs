@@ -32,8 +32,8 @@ impl<E: PrimeField, S: FieldShare<E>> Reveal
 impl<E: PairingEngine, S: PairingShare<E>> Reveal for kzg10::Commitment<MpcPairingEngine<E, S>> {
     type Base = kzg10::Commitment<E>;
 
-    fn reveal(self) -> Self::Base {
-        kzg10::Commitment(self.0.reveal())
+    async fn reveal(self) -> Self::Base {
+        kzg10::Commitment(self.0.reveal().await)
     }
 
     fn from_add_shared(b: Self::Base) -> Self {
@@ -110,10 +110,10 @@ where
     C::Base: PCCommitment,
 {
     type Base = LabeledCommitment<C::Base>;
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         LabeledCommitment::new(
             self.label().clone(),
-            self.commitment.clone().reveal(),
+            self.commitment.clone().reveal().await,
             self.degree_bound(),
         )
     }
@@ -139,10 +139,10 @@ impl<F: PrimeField, S: FieldShare<F>> Reveal
     for LabeledPolynomial<MpcField<F, S>, DensePolynomial<MpcField<F, S>>>
 {
     type Base = LabeledPolynomial<F, DensePolynomial<F>>;
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         LabeledPolynomial::new(
             self.label().clone(),
-            self.polynomial().clone().reveal(),
+            self.polynomial().clone().reveal().await,
             self.degree_bound(),
             self.hiding_bound(),
         )

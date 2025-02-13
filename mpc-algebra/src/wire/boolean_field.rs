@@ -259,7 +259,7 @@ impl<F: Field, S: FieldShare<F>> MpcWire for MpcBooleanField<F, S> {
         self.field().is_shared()
     }
 
-    async fn publicize(&mut self) {
+    fn publicize(&mut self) {
         self.field().publicize();
     }
 

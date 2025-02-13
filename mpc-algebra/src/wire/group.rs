@@ -374,11 +374,12 @@ impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::F
 }
 
 impl<T: Group, S: GroupShare<T>> MpcWire for MpcGroup<T, S> {
-    async fn publicize(&mut self) {
+    fn publicize(&mut self) {
         match self {
             MpcGroup::Public(_) => {}
             MpcGroup::Shared(s) => {
-                *self = MpcGroup::Public(s.reveal().await);
+                let rt = Runtime::new().unwrap();
+                *self = MpcGroup::Public(rt.block_on(s.reveal()));
             }
         }
         debug_assert!({

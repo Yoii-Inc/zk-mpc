@@ -811,11 +811,12 @@ impl<F: PrimeField, S: FieldShare<F>> From<MpcField<F, S>> for BigUint {
 }
 
 impl<F: Field, S: FieldShare<F>> MpcWire for MpcField<F, S> {
-    async fn publicize(&mut self) {
+    fn publicize(&mut self) {
         match self {
             MpcField::Public(_) => {}
             MpcField::Shared(s) => {
-                *self = MpcField::Public(s.open().await);
+                let rt = Runtime::new().unwrap();
+                *self = MpcField::Public(rt.block_on(s.open()));
             }
         }
         debug_assert!({
