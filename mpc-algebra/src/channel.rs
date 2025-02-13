@@ -12,13 +12,15 @@ pub trait MpcSerNet: MpcNet {
     async fn broadcast<T: CanonicalSerialize + CanonicalDeserialize + Send + Sync>(
         &self,
         out: &T,
-        sid: MultiplexedStreamID,
     ) -> Vec<T> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
         let bytes_out = Bytes::from(bytes_out);
 
-        let bytes_in = self.broadcast_bytes(&bytes_out, sid).await.unwrap();
+        let bytes_in = self
+            .broadcast_bytes(&bytes_out, MultiplexedStreamID::Zero)
+            .await
+            .unwrap();
         bytes_in
             .into_iter()
             .map(|b| T::deserialize(&b[..]).unwrap())
