@@ -1155,3 +1155,39 @@ mod poly_impl {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::{AdditiveFieldShare, Reveal};
+    use ark_bls12_377::Fr;
+    use ark_ff::{PrimeField, UniformRand};
+    use mpc_net::{LocalTestNet, MpcMultiNet as Net, MpcNet};
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    use super::MpcField;
+
+    type MFr = MpcField<Fr, AdditiveFieldShare<Fr>>;
+
+    #[tokio::test]
+    async fn test_add() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |conn, _| async move {
+                let rng = &mut StdRng::from_entropy();
+
+                for i in 0..100 {
+                    let a = MFr::rand(rng);
+                    let b = MFr::rand(rng);
+
+                    let revealed_a = a.reveal().await;
+                    let revealed_b = b.reveal().await;
+
+                    assert_eq!(revealed_a + revealed_b, (a + b).reveal().await);
+                }
+            })
+            .await;
+    }
+}

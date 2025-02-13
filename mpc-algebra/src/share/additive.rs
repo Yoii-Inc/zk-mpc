@@ -583,3 +583,32 @@ impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
     type G1 = AdditiveG1Share<E>;
     type G2 = AdditiveG2Share<E>;
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::{AdditiveFieldShare, Reveal};
+    use ark_bls12_377::Fr;
+    use ark_ff::{PrimeField, UniformRand};
+    use mpc_net::{LocalTestNet, MpcMultiNet as Net, MpcNet};
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    #[tokio::test]
+    async fn test_reveal() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |_conn, _| async move {
+                let _rng = &mut StdRng::from_entropy();
+
+                let a = AdditiveFieldShare::<Fr>::from_add_shared(Fr::from(Net.party_id()));
+                let revealed_a = a.reveal().await;
+
+                let sum = Fr::from((0..N_PARTIES).sum::<usize>() as u32);
+
+                assert_eq!(sum, revealed_a);
+            })
+            .await;
+    }
+}
