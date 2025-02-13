@@ -19,6 +19,7 @@ use futures::stream::{FuturesOrdered, FuturesUnordered};
 use futures::TryStreamExt;
 use futures::{SinkExt, StreamExt};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::task_local;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::{TcpListener, TcpStream},
@@ -339,7 +340,7 @@ impl LocalTestNet {
     >(
         self,
         user_data: U,
-        f: impl Fn(MPCNetConnection<TcpStream>, U) -> F + Send + Sync + Clone + 'static,
+        f: impl Fn(Arc<MPCNetConnection<TcpStream>>, U) -> F + Send + Sync + Clone + 'static,
     ) -> Vec<K> {
         let mut futures = FuturesOrdered::new();
         let mut sorted_nodes = self.nodes.into_iter().collect::<Vec<_>>();
@@ -347,9 +348,11 @@ impl LocalTestNet {
         for (_, connections) in sorted_nodes {
             let next_f = f.clone();
             let next_user_data = user_data.clone();
+            let connections_arc = Arc::new(connections);
+            let conn_for_scope = connections_arc.clone();
             futures.push_back(Box::pin(async move {
-                let task = async move { next_f(connections, next_user_data).await };
-                let handle = tokio::task::spawn(task);
+                let task = async move { next_f(connections_arc.clone(), next_user_data).await };
+                let handle = tokio::task::spawn(NET.scope(conn_for_scope, task));
                 handle.await.unwrap()
             }));
         }
@@ -511,11 +514,56 @@ async fn recv_stream<T: AsyncRead + AsyncWrite + Unpin>(
     }
 }
 
+task_local! {
+    static NET: Arc<MPCNetConnection<TcpStream>>;
+}
+
+pub struct MpcMultiNet;
+
+#[async_trait]
+impl MpcNet for MpcMultiNet {
+    fn n_parties(&self) -> usize {
+        unimplemented!()
+    }
+
+    fn party_id(&self) -> u32 {
+        NET.get().party_id()
+    }
+    fn is_init(&self) -> bool {
+        NET.get().is_init()
+    }
+    async fn broadcast_bytes(
+        &self,
+        bytes: &Bytes,
+        sid: MultiplexedStreamID,
+    ) -> Result<Vec<Bytes>, MPCNetError> {
+        NET.get().broadcast_bytes(bytes, sid).await
+    }
+    fn get_comm(&self) -> (usize, usize) {
+        NET.get().get_comm()
+    }
+    fn add_comm(&self, up: usize, down: usize) {
+        NET.get().add_comm(up, down)
+    }
+    async fn recv_from(&self, id: u32, sid: MultiplexedStreamID) -> Result<Bytes, MPCNetError> {
+        NET.get().recv_from(id, sid).await
+    }
+    async fn send_to(
+        &self,
+        id: u32,
+        bytes: Bytes,
+        sid: MultiplexedStreamID,
+    ) -> Result<(), MPCNetError> {
+        NET.get().send_to(id, bytes, sid).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rayon::vec;
     use tokio_util::bytes::Bytes;
 
+    use crate::multi::MpcMultiNet as Net;
     use crate::multi::{recv_stream, send_stream};
     use crate::{LocalTestNet, MpcNet, MultiplexedStreamID};
     use std::collections::HashMap;
@@ -581,7 +629,15 @@ mod tests {
                     .await
                     .unwrap();
 
-                println!("{my_id}: {:?}", results);
+                let results2 = Net
+                    .broadcast_bytes(&my_bytes, MultiplexedStreamID::Zero)
+                    .await
+                    .unwrap();
+
+                println!("party {my_id} results: {:?}", results);
+
+                assert_eq!(my_id, Net.party_id());
+                assert_eq!(results, results2);
 
                 let mut received_bytes = results
                     .iter()
