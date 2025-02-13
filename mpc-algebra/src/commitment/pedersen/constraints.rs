@@ -23,6 +23,8 @@ use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use mpc_trait::MpcWire;
 
+use tokio::runtime::Runtime;
+
 // use ark_r1cs_std::prelude::*;
 use crate::groups::GroupOpsBounds;
 
@@ -163,7 +165,8 @@ where
 
         let bits_r = if r.is_shared() {
             // shared
-            r.bit_decomposition()
+            let rt = Runtime::new().unwrap();
+            rt.block_on(r.bit_decomposition())
                 .iter()
                 .map(|b| b.field().modulus_conversion())
                 .collect::<Vec<_>>()
@@ -204,8 +207,9 @@ where
     ) -> Result<Self, SynthesisError> {
         let x = f().map(|x| x.borrow().0).unwrap_or(C::ScalarField::zero());
 
-        let bits_x = x
-            .bit_decomposition()
+        let rt = Runtime::new().unwrap();
+        let bits_x = rt
+            .block_on(x.bit_decomposition())
             .iter()
             .map(|b| b.field().modulus_conversion())
             .collect::<Vec<_>>();

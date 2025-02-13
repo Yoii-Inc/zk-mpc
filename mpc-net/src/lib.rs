@@ -9,6 +9,7 @@ use tokio_util::bytes::Bytes;
 pub mod multi;
 pub mod utils;
 pub use multi::LocalTestNet;
+pub use multi::MpcMultiNet;
 
 #[derive(Clone, Debug)]
 pub enum MPCNetError {

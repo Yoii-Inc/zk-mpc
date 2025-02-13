@@ -7,6 +7,7 @@ use ark_serialize::{
 };
 use ark_std::end_timer;
 use ark_std::start_timer;
+use futures::future::join_all;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::hash::Hash;
@@ -36,16 +37,16 @@ pub trait GroupShare<G: Group>:
 {
     type FieldShare: FieldShare<G::ScalarField>;
 
-    fn open(&self) -> G {
-        <Self as Reveal>::reveal(*self)
+    async fn open(&self) -> G {
+        <Self as Reveal>::reveal(*self).await
     }
 
     fn map_homo<G2: Group, S2: GroupShare<G2>, Fun: Fn(G) -> G2>(self, f: Fun) -> S2 {
         S2::from_add_shared(f(self.unwrap_as_public()))
     }
 
-    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
-        selfs.into_iter().map(|s| s.open()).collect()
+    async fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
+        join_all(selfs.into_iter().map(|s| async move { s.open().await })).await
     }
 
     fn add(&mut self, other: &Self) -> &mut Self;
@@ -68,7 +69,7 @@ pub trait GroupShare<G: Group>:
 
     fn shift(&mut self, other: &G) -> &mut Self;
 
-    fn scale<S: BeaverSource<Self, Self::FieldShare, Self>>(
+    async fn scale<S: BeaverSource<Self, Self::FieldShare, Self>>(
         self,
         other: Self::FieldShare,
         source: &mut S,
@@ -82,11 +83,11 @@ pub trait GroupShare<G: Group>:
         //         so
         let mut sx = {
             let mut t = s;
-            t.add(&x).open()
+            t.add(&x).open().await
         };
         let oy = {
             let mut t = o;
-            t.add(&y).open()
+            t.add(&y).open().await
         };
         let mut out = z.clone();
         out.sub(&Self::scale_pub_group(sx.clone(), &y));
@@ -95,11 +96,11 @@ pub trait GroupShare<G: Group>:
         out.shift(&sx);
         #[cfg(debug_assertions)]
         {
-            let a = s.reveal();
-            let b = o.reveal();
+            let a = s.reveal().await;
+            let b = o.reveal().await;
             let mut acp = a.clone();
             acp *= b;
-            let r = out.reveal();
+            let r = out.reveal().await;
             if acp != r {
                 println!("Bad multiplication!.\n{}\n*\n{}\n=\n{}", a, b, r);
                 panic!("Bad multiplication");

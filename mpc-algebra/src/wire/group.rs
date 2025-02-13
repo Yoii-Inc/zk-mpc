@@ -16,6 +16,7 @@ use ark_serialize::{Flags, SerializationError};
 use derivative::Derivative;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use mpc_trait::MpcWire;
+use tokio::runtime::Runtime;
 
 use crate::share::group::GroupShare;
 use crate::{BeaverSource, Reveal};
@@ -42,7 +43,7 @@ impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::FieldShare, S>
     fn triple(&mut self) -> (S, S::FieldShare, S) {
         (
             S::from_add_shared(T::zero()),
-            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
+            <S::FieldShare as Reveal>::from_add_shared(if Net.is_leader() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
@@ -53,12 +54,12 @@ impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::FieldShare, S>
     #[inline]
     fn inv_pair(&mut self) -> (S::FieldShare, S::FieldShare) {
         (
-            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
+            <S::FieldShare as Reveal>::from_add_shared(if Net.is_leader() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
             }),
-            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
+            <S::FieldShare as Reveal>::from_add_shared(if Net.is_leader() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
@@ -83,9 +84,9 @@ impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
 impl<G: Group, S: GroupShare<G>> Reveal for MpcGroup<G, S> {
     type Base = G;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         let result = match self {
-            Self::Shared(s) => s.reveal(),
+            Self::Shared(s) => s.reveal().await,
             Self::Public(s) => s,
         };
         super::macros::check_eq(result);
@@ -363,7 +364,8 @@ impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::F
                     x.scale_pub_scalar(y);
                 }
                 MpcField::Shared(y) => {
-                    let t = x.scale(*y, &mut DummyGroupTripleSource::default());
+                    let rt = Runtime::new().unwrap();
+                    let t = rt.block_on(x.scale(*y, &mut DummyGroupTripleSource::default()));
                     *x = t;
                 }
             },
@@ -372,11 +374,11 @@ impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::F
 }
 
 impl<T: Group, S: GroupShare<T>> MpcWire for MpcGroup<T, S> {
-    fn publicize(&mut self) {
+    async fn publicize(&mut self) {
         match self {
             MpcGroup::Public(_) => {}
             MpcGroup::Shared(s) => {
-                *self = MpcGroup::Public(s.reveal());
+                *self = MpcGroup::Public(s.reveal().await);
             }
         }
         debug_assert!({

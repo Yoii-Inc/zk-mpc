@@ -1,6 +1,7 @@
 use ark_std::{end_timer, start_timer};
 use core::panic;
 use derivative::Derivative;
+use futures::future::join_all;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
 use rand::Rng;
@@ -10,6 +11,7 @@ use std::iter::{Product, Sum};
 use std::marker::PhantomData;
 use std::ops::*;
 use std::str::FromStr;
+use tokio::runtime::Runtime;
 use zeroize::Zeroize;
 
 use log::debug;
@@ -22,7 +24,6 @@ use ark_serialize::{
 };
 
 use crate::boolean_field::{BooleanWire, MpcBooleanField};
-// use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
 use crate::{
     mpc_primitives, BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, LessThan,
@@ -47,25 +48,25 @@ pub struct DummyFieldTripleSource<F, S> {
 impl<T: Field, S: FieldShare<T>> BeaverSource<S, S, S> for DummyFieldTripleSource<T, S> {
     fn triple(&mut self) -> (S, S, S) {
         (
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
         )
     }
     fn inv_pair(&mut self) -> (S, S) {
         (
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
         )
     }
 }
 
 impl<F: Field, S: FieldShare<F>> MpcField<F, S> {
-    pub fn inv(self) -> Option<Self> {
+    pub async fn inv(self) -> Option<Self> {
         match self {
             Self::Public(x) => x.inverse().map(MpcField::Public),
             Self::Shared(x) => Some(MpcField::Shared(
-                x.inv(&mut DummyFieldTripleSource::default()),
+                x.inv(&mut DummyFieldTripleSource::default()).await,
             )),
         }
     }
@@ -100,9 +101,9 @@ impl<F: Field, S: FieldShare<F>> MpcField<F, S> {
 impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
     type Base = T;
     #[inline]
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         let result = match self {
-            Self::Shared(s) => s.reveal(),
+            Self::Shared(s) => s.reveal().await,
             Self::Public(s) => s,
         };
         super::macros::check_eq(result);
@@ -228,16 +229,16 @@ impl<F: Field, S: FieldShare<F>> PubUniformRand for MpcField<F, S> {
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F, S> {
     type Output = MpcBooleanField<F, S>;
     // check if shared value a is in the interval [0, modulus/2)
-    fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output {
+    async fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output {
         // define double self as x
         let x = *self * Self::from_public(F::from(2u8));
 
         // generate pair of random bits & composed random number
         let rng = &mut ark_std::test_rng();
-        let (vec_r, r) = Self::Output::rand_number_bitwise(rng);
+        let (vec_r, r) = Self::Output::rand_number_bitwise(rng).await;
 
         // calculate [c]_p = [x]_p + [r]_p and reveal it. Get least significant bits of c
-        let c = (r + x).reveal();
+        let c = (r + x).reveal().await;
         let mut vec_c = c
             .into_repr()
             .to_bits_le()
@@ -262,19 +263,22 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
     }
 
     // TODO: Fix: This function should be returns false  when the two values are equal.
-    fn is_smaller_than(&self, other: &Self) -> Self::Output {
+    async fn is_smaller_than(&self, other: &Self) -> Self::Output {
         let timer = start_timer!(|| "LessThan");
         // [z]=[other−self<p/2],[x]=[self<p/2],[y]=[other>p/2]
         // ([z]∧[x])∨([z]∧[y])∨(¬[z]∧[x]∧[y])=[z(x+y)+(1−2*z)xy].
         let z = (*other - self)
             .is_smaller_or_equal_than_mod_minus_one_div_two()
+            .await
             .field();
         let x = self
             .is_smaller_or_equal_than_mod_minus_one_div_two()
+            .await
             .field();
         let y = Self::one()
             - other
                 .is_smaller_or_equal_than_mod_minus_one_div_two()
+                .await
                 .field();
         end_timer!(timer);
         (z * (x + y) + (Self::one() - Self::from_public(F::from(2u8)) * z) * x * y).into()
@@ -285,19 +289,23 @@ impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcBooleanField<F, S>
     type Output = MpcBooleanField<F, S>;
     // TODO: Implement kary_nand
 
-    fn kary_and(&self) -> Self::Output {
+    async fn kary_and(&self) -> Self::Output {
         debug_assert!({
             // each element is 0 or 1
-            self.iter()
-                .all(|x| x.field().reveal().is_zero() || x.field().reveal().is_one())
+            join_all(self.iter().map(|x| async move {
+                x.field().reveal().await.is_zero() || x.field().reveal().await.is_one()
+            }))
+            .await
+            .into_iter()
+            .all(|x| x)
         });
         self.iter()
             .fold(Self::Output::pub_true(), |acc, &x| acc & x)
     }
 
-    fn kary_or(&self) -> Self::Output {
+    async fn kary_or(&self) -> Self::Output {
         let not_self = self.iter().map(|&x| !x).collect::<Vec<_>>();
-        !not_self.kary_and()
+        !not_self.kary_and().await
     }
 }
 
@@ -453,7 +461,8 @@ impl<'a, F: Field, S: FieldShare<F>> MulAssign<&'a MpcField<F, S>> for MpcField<
 
                     let mut source = DummyFieldTripleSource::<F, S>::default();
 
-                    let t = a.beaver_mul(*b, &mut source);
+                    let rt = Runtime::new().unwrap();
+                    let t = rt.block_on(a.beaver_mul(*b, &mut source));
                     *self = MpcField::Shared(t);
                 }
             },
@@ -503,7 +512,8 @@ impl<'a, F: Field, S: FieldShare<F>> DivAssign<&'a MpcField<F, S>> for MpcField<
                 MpcField::Shared(b) => {
                     // TODO implement correctly by using beaver triples
                     let src = &mut DummyFieldTripleSource::default();
-                    *a = a.beaver_div(*b, src);
+                    let rt = Runtime::new().unwrap();
+                    rt.block_on(a.beaver_div(*b, src));
                 }
             },
         }
@@ -585,7 +595,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
     ///
     /// # Returns
     /// A MPC boolean field element.
-    fn is_zero_shared(&self) -> Self::Output {
+    async fn is_zero_shared(&self) -> Self::Output {
         let res = match self {
             MpcField::Public(_) => {
                 panic!("public is not expected here");
@@ -594,9 +604,9 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                 let timer = start_timer!(|| "EqualityZero");
                 let rng = &mut ark_std::test_rng();
 
-                let (vec_r, r) = Self::Output::rand_number_bitwise(rng);
+                let (vec_r, r) = Self::Output::rand_number_bitwise(rng).await;
 
-                let c = (r + self).reveal();
+                let c = (r + self).reveal().await;
 
                 let bits: Vec<Option<bool>> = {
                     let field_char = BitIteratorBE::new(F::characteristic());
@@ -626,7 +636,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                     .collect::<Vec<_>>();
 
                 end_timer!(timer);
-                c_prime.kary_and()
+                c_prime.kary_and().await
             }
         };
         res
@@ -643,7 +653,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
     ///
     /// # Returns
     /// A vector of bits of the Mpc field element(Little-Endian).
-    fn bit_decomposition(&self) -> Vec<Self::BooleanField> {
+    async fn bit_decomposition(&self) -> Vec<Self::BooleanField> {
         match self.is_shared() {
             true => {
                 let timer = start_timer!(|| "Bit Decomposition");
@@ -652,11 +662,11 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
                 let l = F::Params::MODULUS_BITS as usize;
 
                 // 1
-                let (vec_r, r) = Self::BooleanField::rand_number_bitwise(rng);
+                let (vec_r, r) = Self::BooleanField::rand_number_bitwise(rng).await;
 
                 // 2
                 let c = -r + self;
-                let revealed_c = c.reveal();
+                let revealed_c = c.reveal().await;
                 if revealed_c.is_zero() {
                     return vec_r;
                 }
@@ -720,6 +730,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
                 // This can be faster.
                 Self::king_share(self.unwrap_as_public(), &mut ark_std::test_rng())
                     .bit_decomposition()
+                    .await
             }
         }
     }
@@ -800,11 +811,11 @@ impl<F: PrimeField, S: FieldShare<F>> From<MpcField<F, S>> for BigUint {
 }
 
 impl<F: Field, S: FieldShare<F>> MpcWire for MpcField<F, S> {
-    fn publicize(&mut self) {
+    async fn publicize(&mut self) {
         match self {
             MpcField::Public(_) => {}
             MpcField::Shared(s) => {
-                *self = MpcField::Public(s.open());
+                *self = MpcField::Public(s.open().await);
             }
         }
         debug_assert!({
@@ -863,7 +874,8 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn inverse(&self) -> Option<Self> {
-        self.inv()
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(self.inv())
     }
 
     fn inverse_in_place(&mut self) -> Option<&mut Self> {
@@ -900,7 +912,12 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
-            let nshares = S::batch_mul(sshares, oshares, &mut DummyFieldTripleSource::default());
+            let rt = Runtime::new().unwrap();
+            let nshares = rt.block_on(S::batch_mul(
+                sshares,
+                oshares,
+                &mut DummyFieldTripleSource::default(),
+            ));
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
@@ -937,7 +954,13 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
-            let nshares = S::batch_div(sshares, oshares, &mut DummyFieldTripleSource::default());
+
+            let rt = Runtime::new().unwrap();
+            let nshares = rt.block_on(S::batch_div(
+                sshares,
+                oshares,
+                &mut DummyFieldTripleSource::default(),
+            ));
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
@@ -1110,9 +1133,9 @@ mod poly_impl {
     impl<F: PrimeField, S: FieldShare<F>> Reveal for Evaluations<MpcField<F, S>> {
         type Base = Evaluations<F>;
 
-        fn reveal(self) -> Self::Base {
+        async fn reveal(self) -> Self::Base {
             Evaluations::from_vec_and_domain(
-                self.evals.reveal(),
+                self.evals.reveal().await,
                 GeneralEvaluationDomain::new(self.domain.size()).unwrap(),
             )
         }

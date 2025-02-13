@@ -23,6 +23,8 @@ use crate::{
     Reveal,
 };
 
+use tokio::runtime::Runtime;
+
 /// Represents a variable in the constraint system whose
 /// value can be an arbitrary field element.
 #[derive(Debug, Clone, PartialEq)]
@@ -442,7 +444,8 @@ impl<F: PrimeField + SquareRootField + EqualityZero> MpcAllocatedFp<F> {
         let diff = zero.value.get()? - self.value.get()?;
 
         if diff.is_shared() {
-            let is_zero_value = diff.is_zero_shared();
+            let rt = Runtime::new().unwrap();
+            let is_zero_value = rt.block_on(diff.is_zero_shared());
 
             let is_not_zero =
                 MpcBoolean::new_witness(self.cs.clone(), || Ok((!is_zero_value).field()))?;
@@ -510,7 +513,8 @@ impl<F: PrimeField + SquareRootField + BitDecomposition> MpcToBitsGadget<F> for 
             //     .skip_while(|(_, c)| !c)
             //     .map(|(b, _)| Some(b))
             //     .collect();
-            let bits = value.bit_decomposition();
+            let rt = Runtime::new().unwrap();
+            let bits = rt.block_on(value.bit_decomposition());
             assert_eq!(bits.len(), F::Params::MODULUS_BITS as usize);
             bits.iter().map(|b| Some(*b)).collect()
         } else {
@@ -734,8 +738,15 @@ where
 
     fn is_zero(&self) -> bool {
         match self {
-            Self::Constant(c) => c.reveal().is_zero(),
-            Self::Var(v) => v.value.expect("value is None").reveal().is_zero(),
+            Self::Constant(c) => {
+                let rt = Runtime::new().unwrap();
+                rt.block_on(c.reveal()).is_zero()
+            }
+            Self::Var(v) => {
+                let rt = Runtime::new().unwrap();
+                rt.block_on(v.value.expect("value is None").reveal())
+                    .is_zero()
+            }
         }
     }
 }

@@ -9,6 +9,8 @@ use ark_std::{PubUniformRand, UniformRand};
 use derivative::Derivative;
 use mpc_trait::MpcWire;
 
+use tokio::runtime::Runtime;
+
 use crate::crh::{pedersen, pedersen::Window, CRH};
 use crate::wire::boolean_field::BooleanWire;
 use crate::{BitDecomposition, CommitmentScheme, FieldShare, MpcField, Reveal};
@@ -102,9 +104,10 @@ where
     ) -> Result<Self::Output, Error> {
         let commit_time = start_timer!(|| "PedersenCOMM::Commit");
 
-        let input_bits = input
-            .0
-            .bit_decomposition()
+        let rt = Runtime::new().unwrap();
+
+        let input_bits = rt
+            .block_on(input.0.bit_decomposition())
             .iter()
             .map(|x| x.field())
             .collect::<Vec<_>>();
@@ -151,9 +154,10 @@ where
             .iter()
             .map(|x| x.into_affine())
             .collect::<Vec<_>>();
-        let bits = randomness
-            .0
-            .bit_decomposition()
+
+        let rt = Runtime::new().unwrap();
+        let bits = rt
+            .block_on(randomness.0.bit_decomposition())
             .iter()
             .map(|x| x.field())
             .collect::<Vec<_>>();
@@ -191,10 +195,10 @@ where
 {
     type Base = ark_crypto_primitives::commitment::pedersen::Parameters<<C as Reveal>::Base>;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         Self::Base {
-            randomness_generator: self.randomness_generator.reveal(),
-            generators: self.generators.reveal(),
+            randomness_generator: self.randomness_generator.reveal().await,
+            generators: self.generators.reveal().await,
         }
     }
 
@@ -215,8 +219,10 @@ where
 {
     type Base = ark_crypto_primitives::commitment::pedersen::Randomness<<C as Reveal>::Base>;
 
-    fn reveal(self) -> Self::Base {
-        Self::Base { 0: self.0.reveal() }
+    async fn reveal(self) -> Self::Base {
+        Self::Base {
+            0: self.0.reveal().await,
+        }
     }
 
     fn from_add_shared(_b: Self::Base) -> Self {

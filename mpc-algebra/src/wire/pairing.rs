@@ -329,8 +329,8 @@ macro_rules! impl_pairing_mpc_wrapper {
 
         impl<E: $bound1, PS: $bound2<E>> MpcWire for $wrap<E, PS> {
             #[inline]
-            fn publicize(&mut self) {
-                self.val.publicize();
+            async fn publicize(&mut self) {
+                self.val.publicize().await;
             }
             #[inline]
             fn is_shared(&self) -> bool {
@@ -347,8 +347,8 @@ macro_rules! impl_ext_field_wrapper {
         impl<F: Field, S: ExtFieldShare<F>> Reveal for $wrap<F, S> {
             type Base = F;
             #[inline]
-            fn reveal(self) -> F {
-                self.val.reveal()
+            async fn reveal(self) -> F {
+                self.val.reveal().await
             }
             #[inline]
             fn from_public(_t: F) -> Self {
@@ -539,8 +539,8 @@ macro_rules! impl_pairing_curve_wrapper {
         impl<E: $bound1, PS: $bound2<E>> Reveal for $wrap<E, PS> {
             type Base = E::$base;
             #[inline]
-            fn reveal(self) -> Self::Base {
-                self.val.reveal()
+            async fn reveal(self) -> Self::Base {
+                self.val.reveal().await
             }
             #[inline]
             fn from_public(t: Self::Base) -> Self {
@@ -626,7 +626,7 @@ macro_rules! impl_aff_proj {
         impl<E: PairingEngine, PS: PairingShare<E>> Reveal for $w_prep<E, PS> {
             type Base = E::$prep;
             #[inline]
-            fn reveal(self) -> E::$prep {
+            async fn reveal(self) -> E::$prep {
                 self.val
             }
             #[inline]

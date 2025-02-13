@@ -78,8 +78,8 @@ impl<F: Field> AdditiveFieldShare<F> {
 impl<F: Field> Reveal for AdditiveFieldShare<F> {
     type Base = F;
 
-    fn reveal(self) -> Self::Base {
-        Net::broadcast(&self.val).into_iter().sum()
+    async fn reveal(self) -> Self::Base {
+        Net.broadcast(&self.val).await.into_iter().sum()
     }
 
     fn from_add_shared(b: Self::Base) -> Self {
@@ -88,7 +88,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
 
     fn from_public(f: Self::Base) -> Self {
         Self {
-            val: if Net::am_king() { f } else { F::zero() },
+            val: if Net.is_leader() { f } else { F::zero() },
         }
     }
 
@@ -96,34 +96,36 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
         self.val
     }
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-        let mut r: Vec<F> = (0..(Net::n_parties() - 1)).map(|_| F::rand(rng)).collect();
-        let sum_r: F = r.iter().sum();
-        r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
-            Some(r)
-        } else {
-            None
-        }))
+        // let mut r: Vec<F> = (0..(Net::n_parties() - 1)).map(|_| F::rand(rng)).collect();
+        // let sum_r: F = r.iter().sum();
+        // r.push(f - sum_r);
+        // Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
+        //     Some(r)
+        // } else {
+        //     None
+        // }))
+        todo!()
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-        let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
-            .map(|_| (0..f.len()).map(|_| F::rand(rng)).collect())
-            .collect();
-        let final_shares: Vec<Self::Base> = (0..rs[0].len())
-            .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
-            .collect();
-        rs.push(final_shares);
-        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
-            .into_iter()
-            .map(Self::from_add_shared)
-            .collect()
+        // let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
+        //     .map(|_| (0..f.len()).map(|_| F::rand(rng)).collect())
+        //     .collect();
+        // let final_shares: Vec<Self::Base> = (0..rs[0].len())
+        //     .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
+        //     .collect();
+        // rs.push(final_shares);
+        // Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
+        //     .into_iter()
+        //     .map(Self::from_add_shared)
+        //     .collect()
+        todo!()
     }
 }
 
 impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
-    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
+    async fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
-        let all_vals = Net::broadcast(&self_vec);
+        let all_vals = Net.broadcast(&self_vec).await;
         (0..self_vec.len())
             .map(|i| all_vals.iter().map(|v| &v[i]).sum())
             .collect()
@@ -144,7 +146,7 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
     }
 
     fn shift(&mut self, other: &F) -> &mut Self {
-        if Net::am_king() {
+        if Net.is_leader() {
             self.val += other;
         }
         self
@@ -164,12 +166,13 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
     where
         F: ark_ff::PrimeField,
     {
-        // TODO: bad implementation, so it's just for testing
-        let revealed_val = self.reveal();
-        let bits = revealed_val.into_repr().to_bits_le();
-        let converted_val = F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap();
+        // // TODO: bad implementation, so it's just for testing
+        // let revealed_val = self.reveal();
+        // let bits = revealed_val.into_repr().to_bits_le();
+        // let converted_val = F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap();
 
-        S2::king_share(converted_val, &mut ark_std::test_rng())
+        // S2::king_share(converted_val, &mut ark_std::test_rng())
+        todo!()
     }
 }
 
@@ -196,8 +199,8 @@ macro_rules! impl_field_basics {
             }
         }
         impl<T: $bound> CanonicalSerialize for $share<T> {
-            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
-                todo!()
+            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+                self.val.serialize(writer)
             }
 
             fn serialized_size(&self) -> usize {
@@ -218,8 +221,8 @@ macro_rules! impl_field_basics {
             }
         }
         impl<T: $bound> CanonicalDeserialize for $share<T> {
-            fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
-                todo!()
+            fn deserialize<R: Read>(reader: R) -> Result<Self, SerializationError> {
+                T::deserialize(reader).map(Self::from_add_shared)
             }
         }
         impl<T: $bound> CanonicalDeserializeWithFlags for $share<T> {
@@ -257,12 +260,12 @@ impl_field_basics!(MulFieldShare, Field);
 impl<F: Field> Reveal for MulFieldShare<F> {
     type Base = F;
 
-    fn reveal(self) -> F {
-        Net::broadcast(&self.val).into_iter().product()
+    async fn reveal(self) -> F {
+        Net.broadcast(&self.val).await.into_iter().product()
     }
-    fn from_public(f: F) -> Self {
+    fn from_public(b: Self::Base) -> Self {
         Self {
-            val: if Net::am_king() { f } else { F::one() },
+            val: if Net.is_leader() { b } else { F::one() },
         }
     }
     fn from_add_shared(f: F) -> Self {
@@ -277,9 +280,9 @@ impl<F: Field> FieldShare<F> for MulFieldShare<F> {
     fn map_homo<FF: Field, SS: FieldShare<FF>, Fun: Fn(F) -> FF>(self, _f: Fun) -> SS {
         unimplemented!()
     }
-    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
+    async fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
-        let all_vals = Net::broadcast(&self_vec);
+        let all_vals = Net.broadcast(&self_vec).await;
         (0..self_vec.len())
             .map(|i| all_vals.iter().map(|v| &v[i]).product())
             .collect()
@@ -290,7 +293,7 @@ impl<F: Field> FieldShare<F> for MulFieldShare<F> {
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
-        if Net::am_king() {
+        if Net.is_leader() {
             self.val *= other;
         }
         self
@@ -300,13 +303,17 @@ impl<F: Field> FieldShare<F> for MulFieldShare<F> {
         unimplemented!("add for MulFieldShare")
     }
 
-    fn beaver_mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut S) -> Self {
+    async fn beaver_mul<S: BeaverSource<Self, Self, Self>>(
+        self,
+        other: Self,
+        _source: &mut S,
+    ) -> Self {
         Self {
             val: self.val * other.val,
         }
     }
 
-    fn batch_mul<S: BeaverSource<Self, Self, Self>>(
+    async fn batch_mul<S: BeaverSource<Self, Self, Self>>(
         mut xs: Vec<Self>,
         ys: Vec<Self>,
         _source: &mut S,
@@ -317,13 +324,20 @@ impl<F: Field> FieldShare<F> for MulFieldShare<F> {
         xs
     }
 
-    fn inv<S: BeaverSource<Self, Self, Self>>(mut self, _source: &mut S) -> Self {
+    async fn inv<S: BeaverSource<Self, Self, Self>>(mut self, _source: &mut S) -> Self {
         self.val = self.val.inverse().unwrap();
         self
     }
 
-    fn batch_inv<S: BeaverSource<Self, Self, Self>>(xs: Vec<Self>, source: &mut S) -> Vec<Self> {
-        xs.into_iter().map(|x| x.inv(source)).collect()
+    async fn batch_inv<S: BeaverSource<Self, Self, Self>>(
+        xs: Vec<Self>,
+        source: &mut S,
+    ) -> Vec<Self> {
+        let mut res = Vec::with_capacity(xs.len());
+        for i in 0..xs.len() {
+            res.push(xs[i].inv(source).await);
+        }
+        res
     }
 }
 
@@ -354,8 +368,8 @@ pub struct AdditiveGroupShare<T, M> {
 impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
     type Base = G;
 
-    fn reveal(self) -> Self::Base {
-        Net::broadcast(&self.val).into_iter().sum()
+    async fn reveal(self) -> Self::Base {
+        Net.broadcast(&self.val).await.into_iter().sum()
     }
 
     fn from_add_shared(b: G) -> Self {
@@ -367,7 +381,7 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
 
     fn from_public(b: G) -> Self {
         Self {
-            val: if Net::am_king() { b } else { G::zero() },
+            val: if Net.is_leader() { b } else { G::zero() },
             _phants: PhantomData,
         }
     }
@@ -376,27 +390,29 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
         self.val
     }
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-        let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
-        let sum_r: G = r.iter().sum();
-        r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
-            Some(r)
-        } else {
-            None
-        }))
+        // let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
+        // let sum_r: G = r.iter().sum();
+        // r.push(f - sum_r);
+        // Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
+        //     Some(r)
+        // } else {
+        //     None
+        // }))
+        todo!()
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-        let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
-            .map(|_| (0..f.len()).map(|_| Self::Base::rand(rng)).collect())
-            .collect();
-        let final_shares: Vec<Self::Base> = (0..rs[0].len())
-            .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
-            .collect();
-        rs.push(final_shares);
-        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
-            .into_iter()
-            .map(Self::from_add_shared)
-            .collect()
+        // let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
+        //     .map(|_| (0..f.len()).map(|_| Self::Base::rand(rng)).collect())
+        //     .collect();
+        // let final_shares: Vec<Self::Base> = (0..rs[0].len())
+        //     .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
+        //     .collect();
+        // rs.push(final_shares);
+        // Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
+        //     .into_iter()
+        //     .map(Self::from_add_shared)
+        //     .collect()
+        todo!()
     }
 }
 
@@ -488,7 +504,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {
-        if Net::am_king() {
+        if Net.is_leader() {
             self.val += other;
         }
         self
@@ -529,7 +545,7 @@ macro_rules! groups_share {
                 mut a: Self::ProjectiveShare,
                 o: &E::$affine,
             ) -> Self::ProjectiveShare {
-                if Net::am_king() {
+                if Net.is_leader() {
                     a.val.add_assign_mixed(&o);
                 }
                 a

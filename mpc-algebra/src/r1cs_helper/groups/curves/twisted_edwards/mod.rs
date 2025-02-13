@@ -18,6 +18,7 @@ use crate::{
     AdditiveAffProjShare, FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget,
     Reveal,
 };
+use tokio::runtime::Runtime;
 
 use crate::MpcGroupProjectiveVariant;
 
@@ -32,8 +33,8 @@ use core::{borrow::Borrow, marker::PhantomData};
 use crate::wire::MpcGroupAffine as MpcTEAffine;
 use crate::wire::MpcGroupProjective as MpcTEProjective;
 
-// use crate::honest_but_curious::*;
-use crate::malicious_majority::*;
+use crate::honest_but_curious::*;
+// use crate::malicious_majority::*;
 
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -315,7 +316,8 @@ where
                 let ge: MpcTEAffine<P, AffProjShare<P>> = ge.into();
 
                 // TODO: Remove reveal operation.
-                let revealed_ge = ge.reveal();
+                let rt = Runtime::new().unwrap();
+                let revealed_ge = rt.block_on(ge.reveal());
                 (Ok(revealed_ge.x), Ok(revealed_ge.y))
             }
             _ => (
@@ -466,10 +468,11 @@ where
         let xytzrsuv = rsuv_variant + proj_variant;
 
         // step4: reveal
-        let revealed_xr = xytzrsuv.reveal();
+        let rt = Runtime::new().unwrap();
+        let revealed_xr = rt.block_on(xytzrsuv.reveal());
 
         // step5: allocate share
-        let share = if Net::am_king() {
+        let share = if Net.is_leader() {
             MpcTEProjective::from_public(revealed_xr) - rsuv
         } else {
             -rsuv
