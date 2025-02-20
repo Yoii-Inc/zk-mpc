@@ -5,7 +5,7 @@ use ark_poly::univariate::DensePolynomial;
 use mpc_algebra::*;
 use mpc_trait::{struct_mpc_wire_simp_impl, MpcWire};
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{kzg10, marlin_pc, BatchLCProof, LabeledCommitment, LabeledPolynomial, PCCommitment};
 use marlin_pc::*;
@@ -171,7 +171,7 @@ impl<E: Field> MpcWire for LabeledPolynomial<E, DensePolynomial<E>> {
     fn publicize(&mut self) {
         let mut p = (*self.polynomial).clone();
         p.publicize();
-        self.polynomial = Rc::new(p);
+        self.polynomial = Arc::new(p);
     }
     fn is_shared(&self) -> bool {
         self.polynomial.is_shared()

@@ -45,6 +45,12 @@ pub trait BitDecomposition {
     type BooleanField: BooleanWire<Base = Self>;
 
     async fn bit_decomposition(&self) -> Vec<Self::BooleanField>;
+
+    fn sync_bit_decomposition(&self) -> Vec<Self::BooleanField> {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.bit_decomposition())
+        })
+    }
 }
 
 pub trait BitAdd {
@@ -56,8 +62,14 @@ pub trait BitAdd {
 }
 
 pub trait ModulusConversion<F: PrimeField>: PrimeField {
-    fn modulus_conversion(&mut self) -> F {
+    async fn modulus_conversion(&mut self) -> F {
         let bits = self.into_repr().to_bits_le();
         F::from_repr(BigInteger::from_bits_le(&bits)).unwrap()
+    }
+
+    fn sync_modulus_conversion(&mut self) -> F {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.modulus_conversion())
+        })
     }
 }

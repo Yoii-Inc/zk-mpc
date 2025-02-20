@@ -1,7 +1,7 @@
 pub mod circuit;
 pub mod input_circuit;
-pub mod werewolf;
-pub use werewolf::*;
+// pub mod werewolf;
+// pub use werewolf::*;
 
 pub mod equality_zero;
 

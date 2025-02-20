@@ -183,7 +183,7 @@ pub trait FieldShare<F: Field>:
         todo!("Implement generic poly div")
     }
 
-    fn modulus_conversion<F2: PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
+    async fn modulus_conversion<F2: PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
     where
         F: PrimeField,
     {

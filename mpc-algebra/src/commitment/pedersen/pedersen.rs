@@ -10,6 +10,7 @@ use derivative::Derivative;
 use mpc_trait::MpcWire;
 
 use tokio::runtime::Runtime;
+use tokio::task::block_in_place;
 
 use crate::crh::{pedersen, pedersen::Window, CRH};
 use crate::wire::boolean_field::BooleanWire;
@@ -104,13 +105,19 @@ where
     ) -> Result<Self::Output, Error> {
         let commit_time = start_timer!(|| "PedersenCOMM::Commit");
 
-        let rt = Runtime::new().unwrap();
+        // let rt = Runtime::new().unwrap();
 
-        let input_bits = rt
-            .block_on(input.0.bit_decomposition())
-            .iter()
-            .map(|x| x.field())
-            .collect::<Vec<_>>();
+        // let input_bits = rt
+        //     .block_on(input.0.bit_decomposition())
+        //     .iter()
+        //     .map(|x| x.field())
+        //     .collect::<Vec<_>>();
+
+        let input_bits = block_in_place(|| {
+            let decomposed =
+                tokio::runtime::Handle::current().block_on(input.0.bit_decomposition());
+            decomposed.iter().map(|x| x.field()).collect::<Vec<_>>()
+        });
 
         // If the input is too long, return an error.
         if input_bits.len() / 8 > W::WINDOW_SIZE * W::NUM_WINDOWS {
@@ -155,12 +162,18 @@ where
             .map(|x| x.into_affine())
             .collect::<Vec<_>>();
 
-        let rt = Runtime::new().unwrap();
-        let bits = rt
-            .block_on(randomness.0.bit_decomposition())
-            .iter()
-            .map(|x| x.field())
-            .collect::<Vec<_>>();
+        // let rt = Runtime::new().unwrap();
+        // let bits = rt
+        //     .block_on(randomness.0.bit_decomposition())
+        //     .iter()
+        //     .map(|x| x.field())
+        //     .collect::<Vec<_>>();
+
+        let bits = block_in_place(|| {
+            let decomposed =
+                tokio::runtime::Handle::current().block_on(randomness.0.bit_decomposition());
+            decomposed.iter().map(|x| x.field()).collect::<Vec<_>>()
+        });
 
         result += cfg_chunks!(bits, W::WINDOW_SIZE)
             .map(|bits| {

@@ -17,6 +17,7 @@ use derivative::Derivative;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use mpc_trait::MpcWire;
 use tokio::runtime::Runtime;
+use tokio::task::block_in_place;
 
 use crate::share::group::GroupShare;
 use crate::{BeaverSource, Reveal};
@@ -364,8 +365,10 @@ impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::F
                     x.scale_pub_scalar(y);
                 }
                 MpcField::Shared(y) => {
-                    let rt = Runtime::new().unwrap();
-                    let t = rt.block_on(x.scale(*y, &mut DummyGroupTripleSource::default()));
+                    let t = block_in_place(|| {
+                        tokio::runtime::Handle::current()
+                            .block_on(x.scale(*y, &mut DummyGroupTripleSource::default()))
+                    });
                     *x = t;
                 }
             },
@@ -378,8 +381,9 @@ impl<T: Group, S: GroupShare<T>> MpcWire for MpcGroup<T, S> {
         match self {
             MpcGroup::Public(_) => {}
             MpcGroup::Shared(s) => {
-                let rt = Runtime::new().unwrap();
-                *self = MpcGroup::Public(rt.block_on(s.reveal()));
+                // let rt = Runtime::new().unwrap();
+                let res = block_in_place(|| tokio::runtime::Handle::current().block_on(s.reveal()));
+                *self = MpcGroup::Public(res);
             }
         }
         debug_assert!({

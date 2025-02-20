@@ -2,9 +2,9 @@
 
 mod algebra;
 mod circuits;
-mod groth16;
+// mod groth16;
 mod input;
-mod marlin;
+// mod marlin;
 mod preprocessing;
 mod serialize;
 mod she;

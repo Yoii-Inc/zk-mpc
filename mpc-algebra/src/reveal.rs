@@ -21,6 +21,10 @@ pub trait Reveal: Sized {
 
     /// Reveal shared data, yielding plain data.
     async fn reveal(self) -> Self::Base;
+
+    fn sync_reveal(self) -> Self::Base {
+        unimplemented!("No sync reveal for {}", std::any::type_name::<Self>())
+    }
     /// Construct a share of the sum of the `b` over all machines in the protocol.
     fn from_add_shared(b: Self::Base) -> Self;
     /// Lift public data (same in all machines) into shared data.

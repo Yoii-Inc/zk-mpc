@@ -162,17 +162,23 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
             .map(|(q, r)| (Self::d_poly_unshare(q), Self::d_poly_unshare(r)))
     }
 
-    fn modulus_conversion<F2: ark_ff::PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
+    async fn modulus_conversion<F2: ark_ff::PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
     where
         F: ark_ff::PrimeField,
     {
         // // TODO: bad implementation, so it's just for testing
-        // let revealed_val = self.reveal();
-        // let bits = revealed_val.into_repr().to_bits_le();
-        // let converted_val = F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap();
+        let revealed_val = self.reveal().await;
+        let bits = revealed_val.into_repr().to_bits_le();
+        let converted_val = F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap();
 
+        // TODO: implement king_share
         // S2::king_share(converted_val, &mut ark_std::test_rng())
-        todo!()
+        S2::from_add_shared(if Net.is_leader() {
+            converted_val
+        } else {
+            F2::zero()
+        })
+        // todo!()
     }
 }
 

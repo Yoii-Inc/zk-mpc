@@ -12,6 +12,7 @@ use std::marker::PhantomData;
 use std::ops::*;
 use std::str::FromStr;
 use tokio::runtime::Runtime;
+use tokio::task::block_in_place;
 use zeroize::Zeroize;
 
 use log::debug;
@@ -108,6 +109,10 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
         };
         super::macros::check_eq(result);
         result
+    }
+    #[inline]
+    fn sync_reveal(self) -> Self::Base {
+        block_in_place(|| tokio::runtime::Handle::current().block_on(self.reveal()))
     }
     #[inline]
     fn from_public(b: Self::Base) -> Self {
@@ -461,8 +466,9 @@ impl<'a, F: Field, S: FieldShare<F>> MulAssign<&'a MpcField<F, S>> for MpcField<
 
                     let mut source = DummyFieldTripleSource::<F, S>::default();
 
-                    let rt = Runtime::new().unwrap();
-                    let t = rt.block_on(a.beaver_mul(*b, &mut source));
+                    let t = block_in_place(|| {
+                        tokio::runtime::Handle::current().block_on(a.beaver_mul(*b, &mut source))
+                    });
                     *self = MpcField::Shared(t);
                 }
             },
@@ -512,8 +518,9 @@ impl<'a, F: Field, S: FieldShare<F>> DivAssign<&'a MpcField<F, S>> for MpcField<
                 MpcField::Shared(b) => {
                     // TODO implement correctly by using beaver triples
                     let src = &mut DummyFieldTripleSource::default();
-                    let rt = Runtime::new().unwrap();
-                    rt.block_on(a.beaver_div(*b, src));
+                    block_in_place(|| {
+                        tokio::runtime::Handle::current().block_on(a.beaver_div(*b, src))
+                    });
                 }
             },
         }
@@ -728,9 +735,10 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
             }
             false => {
                 // This can be faster.
-                Self::king_share(self.unwrap_as_public(), &mut ark_std::test_rng())
-                    .bit_decomposition()
-                    .await
+                // Self::king_share(self.unwrap_as_public(), &mut ark_std::test_rng())
+                //     .bit_decomposition()
+                //     .await
+                todo!()
             }
         }
     }
@@ -815,8 +823,9 @@ impl<F: Field, S: FieldShare<F>> MpcWire for MpcField<F, S> {
         match self {
             MpcField::Public(_) => {}
             MpcField::Shared(s) => {
-                let rt = Runtime::new().unwrap();
-                *self = MpcField::Public(rt.block_on(s.open()));
+                // let rt = Runtime::new().unwrap();
+                let s = block_in_place(|| tokio::runtime::Handle::current().block_on(s.open()));
+                *self = MpcField::Public(s);
             }
         }
         debug_assert!({
@@ -875,8 +884,7 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn inverse(&self) -> Option<Self> {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(self.inv())
+        block_in_place(|| tokio::runtime::Handle::current().block_on(self.inv()))
     }
 
     fn inverse_in_place(&mut self) -> Option<&mut Self> {
@@ -913,12 +921,13 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
-            let rt = Runtime::new().unwrap();
-            let nshares = rt.block_on(S::batch_mul(
-                sshares,
-                oshares,
-                &mut DummyFieldTripleSource::default(),
-            ));
+            let nshares = block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(S::batch_mul(
+                    sshares,
+                    oshares,
+                    &mut DummyFieldTripleSource::default(),
+                ))
+            });
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
@@ -956,12 +965,13 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
                 })
                 .collect();
 
-            let rt = Runtime::new().unwrap();
-            let nshares = rt.block_on(S::batch_div(
-                sshares,
-                oshares,
-                &mut DummyFieldTripleSource::default(),
-            ));
+            let nshares = block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(S::batch_div(
+                    sshares,
+                    oshares,
+                    &mut DummyFieldTripleSource::default(),
+                ))
+            });
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
@@ -1105,13 +1115,13 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> SquareRootField for MpcF
 impl<F1: PrimeField, S1: FieldShare<F1>, F2: PrimeField, S2: FieldShare<F2>>
     mpc_primitives::ModulusConversion<MpcField<F2, S2>> for MpcField<F1, S1>
 {
-    fn modulus_conversion(&mut self) -> MpcField<F2, S2> {
+    async fn modulus_conversion(&mut self) -> MpcField<F2, S2> {
         match self {
             MpcField::Public(x) => {
                 let bits = x.into_repr().to_bits_le();
                 MpcField::Public(F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap())
             }
-            MpcField::Shared(x) => MpcField::Shared(x.modulus_conversion()),
+            MpcField::Shared(x) => MpcField::Shared(x.modulus_conversion::<F2, S2>().await),
         }
     }
 }

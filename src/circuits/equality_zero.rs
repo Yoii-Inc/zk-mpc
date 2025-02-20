@@ -6,8 +6,11 @@ use ark_r1cs_std::{
     fields::{fp::FpVar, FieldVar},
 };
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
-use mpc_algebra::{malicious_majority::MpcField, MpcBoolean, MpcEqGadget, MpcFpVar};
+use mpc_algebra::{MpcBoolean, MpcEqGadget, MpcFpVar};
+// use mpc_algebra::malicious_majority::MpcField;
+use mpc_algebra::honest_but_curious::MpcField;
 use mpc_algebra::{BooleanWire, EqualityZero};
+use tokio::{runtime::Runtime, task};
 
 type Fr = ark_bls12_377::Fr;
 type MFr = MpcField<Fr>;
@@ -45,8 +48,19 @@ impl ConstraintSynthesizer<MFr> for NotEqualityZeroCircuit<MFr> {
     fn generate_constraints(self, cs: ConstraintSystemRef<MFr>) -> Result<(), SynthesisError> {
         let a_var = MpcFpVar::new_witness(cs.clone(), || Ok(self.a))?;
 
-        let is_zero_var =
-            MpcBoolean::new_input(cs.clone(), || Ok(self.a.is_zero_shared().field()))?;
+        // let rt = Runtime::new().unwrap();
+
+        // let is_zero_var = MpcBoolean::new_input(cs.clone(), || {
+        //     Ok(rt.block_on(self.a.is_zero_shared()).field())
+        // })?;
+
+        let is_zero_var = MpcBoolean::new_input(cs.clone(), || {
+            task::block_in_place(|| {
+                Ok(tokio::runtime::Handle::current()
+                    .block_on(self.a.is_zero_shared())
+                    .field())
+            })
+        })?;
 
         a_var.is_zero()?.enforce_equal(&is_zero_var)?;
 

@@ -7,7 +7,8 @@ use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
-use mpc_algebra::malicious_majority::MpcField;
+// use mpc_algebra::malicious_majority::MpcField;
+use mpc_algebra::honest_but_curious::MpcField;
 use mpc_algebra::{MpcBoolean, MpcEqGadget, MpcFpVar};
 
 type Fr = ark_bls12_377::Fr;

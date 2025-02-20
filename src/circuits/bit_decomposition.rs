@@ -1,7 +1,8 @@
 use ark_ff::PrimeField;
 use ark_r1cs_std::{alloc::AllocVar, fields::fp::FpVar, ToBitsGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
-use mpc_algebra::{malicious_majority::MpcField, MpcFpVar, MpcToBitsGadget};
+// use mpc_algebra::{malicious_majority::MpcField, MpcFpVar, MpcToBitsGadget};
+use mpc_algebra::{honest_but_curious::MpcField, MpcFpVar, MpcToBitsGadget};
 
 type Fr = ark_bls12_377::Fr;
 type MFr = MpcField<Fr>;

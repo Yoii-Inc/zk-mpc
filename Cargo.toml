@@ -49,6 +49,11 @@ mpc-trait = { path = "mpc-trait", version = "0.1.0" }
 itertools = "0.13.0"
 nalgebra = "0.33.0"
 
+tokio = { version = "1.34.0", features = ["net", "time", "fs", "io-util", "macros", "rt-multi-thread"] }
+futures = "0.3.29"
+env_logger = "0.11.3"
+log = { version = "0.4" }
+
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }
 
