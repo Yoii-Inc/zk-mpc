@@ -52,7 +52,10 @@ pub trait MpcSerNet: MpcNet {
         unimplemented!()
     }
 
-    fn atomic_broadcast<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Vec<T> {
+    async fn atomic_broadcast<T: CanonicalDeserialize + CanonicalSerialize + Send + Sync>(
+        &self,
+        out: &T,
+    ) -> Vec<T> {
         // let mut bytes_out = Vec::new();
         // out.serialize(&mut bytes_out).unwrap();
         // let ser_len = bytes_out.len();
@@ -77,7 +80,7 @@ pub trait MpcSerNet: MpcNet {
         //     .into_iter()
         //     .map(|d| T::deserialize(&d[..ser_len]).unwrap())
         //     .collect()
-        unimplemented!()
+        self.broadcast(out).await
     }
 
     // fn king_compute<T: CanonicalDeserialize + CanonicalSerialize>(
@@ -93,11 +96,12 @@ pub trait MpcSerNet: MpcNet {
     >(
         &self,
         out: &T,
-        sid: MultiplexedStreamID,
     ) -> Result<Option<Vec<T>>, MPCNetError> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
-        let bytes_in = self.worker_send_or_leader_receive(&bytes_out, sid).await?;
+        let bytes_in = self
+            .worker_send_or_leader_receive(&bytes_out, MultiplexedStreamID::Zero)
+            .await?;
         if let Some(bytes_in) = bytes_in {
             // This is leader
             debug_assert!(self.is_leader());
@@ -125,7 +129,6 @@ pub trait MpcSerNet: MpcNet {
     >(
         &self,
         out: Option<Vec<T>>,
-        sid: MultiplexedStreamID,
     ) -> Result<T, MPCNetError> {
         let bytes = out.map(|outs| {
             outs.iter()
@@ -137,7 +140,9 @@ pub trait MpcSerNet: MpcNet {
                 .collect()
         });
 
-        let bytes_in = self.worker_receive_or_leader_send(bytes, sid).await?;
+        let bytes_in = self
+            .worker_receive_or_leader_send(bytes, MultiplexedStreamID::Zero)
+            .await?;
         Ok(T::deserialize(&bytes_in[..])?)
     }
 
@@ -146,18 +151,17 @@ pub trait MpcSerNet: MpcNet {
     >(
         &self,
         out: &T,
-        sid: MultiplexedStreamID,
         f: impl Fn(Vec<T>) -> Vec<T> + Send,
         for_what: &str,
     ) -> Result<T, MPCNetError> {
-        let leader_response = self.worker_send_or_leader_receive_element(out, sid).await?;
+        let leader_response = self.worker_send_or_leader_receive_element(out).await?;
         let timer = start_timer!(
             format!("Leader: Compute element ({})", for_what),
             self.is_leader()
         );
         let leader_response = leader_response.map(f);
         end_timer!(timer);
-        self.worker_receive_or_leader_send_element(leader_response, sid)
+        self.worker_receive_or_leader_send_element(leader_response)
             .await
     }
 }

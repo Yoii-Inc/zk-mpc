@@ -36,7 +36,13 @@ pub trait Reveal: Sized {
         unimplemented!("No unwrap as public for {}", std::any::type_name::<Self>())
     }
     /// Have the king share their `b` value, and send shares to all parties.
-    fn king_share<R: Rng>(_b: Self::Base, _rng: &mut R) -> Self {
+    fn king_share<R: Rng>(b: Self::Base, rng: &mut R) -> Self {
+        // unimplemented!("No king share for {}", std::any::type_name::<Self>())
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(Self::async_king_share(b, rng))
+        })
+    }
+    async fn async_king_share<R: Rng>(_b: Self::Base, _rng: &mut R) -> Self {
         unimplemented!("No king share for {}", std::any::type_name::<Self>())
     }
     /// Have the king share their `b` values, and send shares to all parties.

@@ -548,7 +548,7 @@ impl MpcMultiNet {
 #[async_trait]
 impl MpcNet for MpcMultiNet {
     fn n_parties(&self) -> usize {
-        unimplemented!()
+        NET.get().n_parties()
     }
 
     fn party_id(&self) -> u32 {

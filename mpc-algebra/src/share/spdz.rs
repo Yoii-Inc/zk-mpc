@@ -127,7 +127,7 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
         // _Pragmatic MPC_ 6.6.2
         let x: F = vals.iter().sum();
         let dx_t: F = mac_share::<F>() * x - self.mac.val;
-        let all_dx_ts: Vec<F> = Net::atomic_broadcast(&dx_t);
+        let all_dx_ts: Vec<F> = Net.atomic_broadcast(&dx_t).await;
         let sum: F = all_dx_ts.iter().sum();
         assert!(sum.is_zero());
         x
@@ -144,15 +144,15 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
             mac: Reveal::from_add_shared(f * mac::<F>()),
         }
     }
-    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+    async fn async_king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
         let mut r: Vec<F> = (0..(Net.n_parties() - 1)).map(|_| F::rand(rng)).collect();
         let sum_r: F = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net.is_leader() {
-            Some(r)
-        } else {
-            None
-        }))
+        Self::from_add_shared(
+            Net.worker_receive_or_leader_send_element(if Net.is_leader() { Some(r) } else { None })
+                .await
+                .unwrap(),
+        )
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
         let mut rs: Vec<Vec<Self::Base>> = (0..(Net.n_parties() - 1))
@@ -187,7 +187,7 @@ impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
             .zip(vals.iter())
             .map(|(mac, val)| mac_share::<F>() * val - mac)
             .collect();
-        let all_dx_ts: Vec<Vec<F>> = Net::atomic_broadcast(&dx_ts);
+        let all_dx_ts: Vec<Vec<F>> = Net.atomic_broadcast(&dx_ts).await;
         for i in 0..n {
             let sum: F = all_dx_ts.iter().map(|dx_ts| &dx_ts[i]).sum();
             assert!(sum.is_zero());
@@ -292,7 +292,7 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
             t *= mac_share::<G::ScalarField>();
             t - self.mac.val
         };
-        let all_dx_ts: Vec<G> = Net::atomic_broadcast(&dx_t);
+        let all_dx_ts: Vec<G> = Net.atomic_broadcast(&dx_t).await;
         let sum: G = all_dx_ts.iter().sum();
         assert!(sum.is_zero());
         x
@@ -426,7 +426,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
             .zip(vals.iter())
             .map(|(mac, val)| val.mul(&mac_share::<G::ScalarField>()) - mac)
             .collect();
-        let all_dx_ts: Vec<Vec<G>> = Net::atomic_broadcast(&dx_ts);
+        let all_dx_ts: Vec<Vec<G>> = Net.atomic_broadcast(&dx_ts).await;
         for i in 0..n {
             let sum: G = all_dx_ts.iter().map(|dx_ts| &dx_ts[i]).sum();
             assert!(sum.is_zero());
@@ -508,7 +508,7 @@ impl<F: Field, S: PrimeField> Reveal for SpdzMulFieldShare<F, S> {
         // _Pragmatic MPC_ 6.6.2
         let x: F = vals.iter().product();
         let dx_t: F = x.pow(&mac_share::<S>().into_repr()) / self.mac.val;
-        let all_dx_ts: Vec<F> = Net::atomic_broadcast(&dx_t);
+        let all_dx_ts: Vec<F> = Net.atomic_broadcast(&dx_t).await;
         let prod: F = all_dx_ts.iter().product();
         assert!(prod.is_one());
         x

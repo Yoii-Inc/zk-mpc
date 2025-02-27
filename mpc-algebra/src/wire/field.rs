@@ -133,6 +133,9 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
         Self::Shared(S::king_share(f, rng))
     }
+    async fn async_king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        Self::Shared(S::async_king_share(f, rng).await)
+    }
     #[inline]
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
         S::king_share_batch(f, rng)
@@ -735,10 +738,8 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
             }
             false => {
                 // This can be faster.
-                // Self::king_share(self.unwrap_as_public(), &mut ark_std::test_rng())
-                //     .bit_decomposition()
-                //     .await
-                todo!()
+                let bits = self.sync_reveal().into_repr().to_bits_le();
+                bits.iter().map(|&b| Self::BooleanField::from(b)).collect()
             }
         }
     }
@@ -1197,6 +1198,27 @@ mod tests {
                     let revealed_b = b.reveal().await;
 
                     assert_eq!(revealed_a + revealed_b, (a + b).reveal().await);
+                }
+            })
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_king_share() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |_conn, _| async move {
+                let rng = &mut StdRng::from_entropy();
+                let common_rng = &mut ark_std::test_rng();
+
+                for _ in 0..100 {
+                    let a = Fr::rand(common_rng);
+
+                    let b = MFr::async_king_share(a, rng).await;
+
+                    assert_eq!(a, b.reveal().await);
                 }
             })
             .await;

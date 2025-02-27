@@ -95,16 +95,15 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
     fn unwrap_as_public(self) -> Self::Base {
         self.val
     }
-    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-        // let mut r: Vec<F> = (0..(Net::n_parties() - 1)).map(|_| F::rand(rng)).collect();
-        // let sum_r: F = r.iter().sum();
-        // r.push(f - sum_r);
-        // Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
-        //     Some(r)
-        // } else {
-        //     None
-        // }))
-        todo!()
+    async fn async_king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        let mut r: Vec<F> = (0..(Net.n_parties() - 1)).map(|_| F::rand(rng)).collect();
+        let sum_r: F = r.iter().sum();
+        r.push(f - sum_r);
+        Self::from_add_shared(
+            Net.worker_receive_or_leader_send_element(if Net.is_leader() { Some(r) } else { None })
+                .await
+                .unwrap(),
+        )
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
         // let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
@@ -395,16 +394,15 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
     fn unwrap_as_public(self) -> Self::Base {
         self.val
     }
-    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-        // let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
-        // let sum_r: G = r.iter().sum();
-        // r.push(f - sum_r);
-        // Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
-        //     Some(r)
-        // } else {
-        //     None
-        // }))
-        todo!()
+    async fn async_king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        let mut r: Vec<G> = (0..(Net.n_parties() - 1)).map(|_| G::rand(rng)).collect();
+        let sum_r: G = r.iter().sum();
+        r.push(f - sum_r);
+        Self::from_add_shared(
+            Net.worker_receive_or_leader_send_element(if Net.is_leader() { Some(r) } else { None })
+                .await
+                .unwrap(),
+        )
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
         // let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
