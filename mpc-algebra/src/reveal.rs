@@ -23,7 +23,7 @@ pub trait Reveal: Sized {
     async fn reveal(self) -> Self::Base;
 
     fn sync_reveal(self) -> Self::Base {
-        unimplemented!("No sync reveal for {}", std::any::type_name::<Self>())
+        tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(self.reveal()))
     }
     /// Construct a share of the sum of the `b` over all machines in the protocol.
     fn from_add_shared(b: Self::Base) -> Self;

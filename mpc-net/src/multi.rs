@@ -150,6 +150,13 @@ impl MPCNetConnection<TcpStream> {
         this
     }
 
+    pub async fn listen(&mut self) -> Result<(), MPCNetError> {
+        let listen_addr = self.peers.get(&self.id).unwrap().listen_addr;
+        trace!("Listening on {listen_addr}");
+        self.listener = Some(TcpListener::bind(listen_addr).await.unwrap());
+        Ok(())
+    }
+
     pub async fn connect_to_all(&mut self) -> Result<(), MPCNetError> {
         let n_minus_1 = self.n_parties() - 1;
         let my_id = self.id;
@@ -519,6 +526,24 @@ task_local! {
 }
 
 pub struct MpcMultiNet;
+
+impl MpcMultiNet {
+    pub async fn simulate<F: Future<Output = K> + Send, K: Send + Sync + 'static>(
+        connections: MPCNetConnection<TcpStream>,
+        f: impl Fn(Arc<MPCNetConnection<TcpStream>>) -> F + Send + Sync + Clone + 'static,
+    ) -> Vec<K> {
+        let mut futures = FuturesOrdered::new();
+        let next_f = f.clone();
+        let connections_arc = Arc::new(connections);
+        let conn_for_scope = connections_arc.clone();
+        futures.push_back(Box::pin(async move {
+            let task = async move { next_f(connections_arc.clone()).await };
+            let handle = tokio::task::spawn(NET.scope(conn_for_scope, task));
+            handle.await.unwrap()
+        }));
+        futures.collect().await
+    }
+}
 
 #[async_trait]
 impl MpcNet for MpcMultiNet {

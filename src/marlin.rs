@@ -17,8 +17,7 @@ use blake2::Blake2s;
 use itertools::Itertools;
 use mpc_algebra::honest_but_curious::*;
 // use mpc_algebra::malicious_majority::*
-use mpc_algebra::AdditiveFieldShare;
-use mpc_algebra::{BooleanWire, LessThan, MpcBooleanField, SpdzFieldShare, UniformBitRand};
+use mpc_algebra::{BooleanWire, LessThan, UniformBitRand};
 use mpc_algebra::{CommitmentScheme, FromLocal, Reveal};
 
 use ark_std::{One, Zero};
@@ -305,8 +304,7 @@ pub async fn test_enforce_smaller_eq_than(n_iters: usize) {
     let rng = &mut test_rng();
 
     for _ in 0..n_iters {
-        let (local_a_bit_rand, _) =
-            MpcBooleanField::<Fr, AdditiveFieldShare<Fr>>::rand_number_bitwise(rng).await;
+        let (local_a_bit_rand, _) = MpcBooleanField::<Fr>::rand_number_bitwise(rng).await;
         // let local_a_bit_rand = local_a_bit_rand.iter().map(|x| x.reveal()).collect_vec();
 
         let local_a_bit_rand = join_all(
@@ -325,10 +323,7 @@ pub async fn test_enforce_smaller_eq_than(n_iters: usize) {
         };
         let (mpc_index_pk, index_vk) = setup_and_index(local_circuit);
         // generate random shared bits
-        let (a_bit_rand, a_rand) =
-            // MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise(rng).await;
-            MpcBooleanField::<Fr,AdditiveFieldShare<Fr>>::rand_number_bitwise(rng)
-                .await;
+        let (a_bit_rand, a_rand) = MpcBooleanField::<Fr>::rand_number_bitwise(rng).await;
         let a_bit_rand = a_bit_rand.into_iter().map(|x| x.field()).collect_vec();
         let mpc_circuit = SmallerEqThanCircuit { a: a_bit_rand, b };
         let inputs = vec![];
@@ -343,11 +338,9 @@ pub async fn test_enforce_smaller_eq_than(n_iters: usize) {
 pub async fn test_smaller_than(n_iters: usize) {
     let rng = &mut test_rng();
     let (_, local_a_rand) =
-        MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise_less_than_half_modulus(rng)
-            .await;
+        MpcBooleanField::<Fr>::rand_number_bitwise_less_than_half_modulus(rng).await;
     let (_, local_b_rand) =
-        MpcBooleanField::<Fr, SpdzFieldShare<Fr>>::rand_number_bitwise_less_than_half_modulus(rng)
-            .await;
+        MpcBooleanField::<Fr>::rand_number_bitwise_less_than_half_modulus(rng).await;
     let local_res = local_a_rand.is_smaller_than(&local_b_rand).await;
 
     let local_circuit = SmallerThanCircuit {
@@ -360,15 +353,9 @@ pub async fn test_smaller_than(n_iters: usize) {
     let (mpc_index_pk, index_vk) = setup_and_index(local_circuit);
     for _ in 0..n_iters {
         let (_, a_rand) =
-            MpcBooleanField::<Fr, AdditiveFieldShare<Fr>>::rand_number_bitwise_less_than_half_modulus(
-                rng,
-            )
-            .await;
+            MpcBooleanField::<Fr>::rand_number_bitwise_less_than_half_modulus(rng).await;
         let (_, b_rand) =
-            MpcBooleanField::<Fr, AdditiveFieldShare<Fr>>::rand_number_bitwise_less_than_half_modulus(
-                rng,
-            )
-            .await;
+            MpcBooleanField::<Fr>::rand_number_bitwise_less_than_half_modulus(rng).await;
         let res = a_rand.is_smaller_than(&b_rand).await;
         let mpc_circuit = SmallerThanCircuit {
             a: a_rand,

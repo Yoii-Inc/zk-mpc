@@ -21,7 +21,7 @@ pub mod honest_but_curious {
     use super::{
         share::additive::*,
         share::msm::NaiveMsm,
-        wire::{edwards2, field, group, pairing, uint8},
+        wire::{boolean_field, edwards2, field, group, pairing, uint8},
     };
     pub type MpcField<F> = field::MpcField<F, AdditiveFieldShare<F>>;
     pub type MpcGroup<G> = group::MpcGroup<G, AdditiveGroupShare<G, NaiveMsm<G>>>;
@@ -41,12 +41,14 @@ pub mod honest_but_curious {
     pub type AffProjShare<P> = edwards2::AdditiveAffProjShare<P>;
 
     pub type MpcEdwardsVar = edwards2::AdditiveMpcEdwardsVar;
+
+    pub type MpcBooleanField<F> = boolean_field::MpcBooleanField<F, AdditiveFieldShare<F>>;
 }
 pub mod malicious_majority {
     use super::{
         share::msm::NaiveMsm,
         share::spdz::*,
-        wire::{edwards2, field, group, pairing, uint8},
+        wire::{boolean_field, edwards2, field, group, pairing, uint8},
     };
     pub type MpcField<F> = field::MpcField<F, SpdzFieldShare<F>>;
     pub type MpcGroup<G> = group::MpcGroup<G, SpdzGroupShare<G, NaiveMsm<G>>>;
@@ -66,4 +68,6 @@ pub mod malicious_majority {
     pub type AffProjShare<P> = edwards2::SpdzAffProjShare<P>;
 
     pub type MpcEdwardsVar = edwards2::SpdzMpcEdwardsVar;
+
+    pub type MpcBooleanField<F> = boolean_field::MpcBooleanField<F, SpdzFieldShare<F>>;
 }
