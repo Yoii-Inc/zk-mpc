@@ -23,8 +23,6 @@ use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use mpc_trait::MpcWire;
 
-use futures::future::join_all;
-use tokio::runtime::Runtime;
 use tokio::task::block_in_place;
 
 // use ark_r1cs_std::prelude::*;
@@ -167,20 +165,6 @@ where
 
         let bits_r = if r.is_shared() {
             // shared
-            // let rt = Runtime::new().unwrap();
-            // rt.block_on(r.bit_decomposition())
-            //     .iter()
-            //     .map(|b| b.field().modulus_conversion())
-            //     .collect::<Vec<_>>()
-            // let bits = block_in_place(|| {
-            //     let decomposed = tokio::runtime::Handle::current().block_on(r.bit_decomposition());
-            //     decomposed
-            //         .iter()
-            //         .map(|x| {
-            //             tokio::runtime::Handle::current().block_on(x.field().modulus_conversion())
-            //         })
-            //         .collect::<Vec<_>>()
-            // });
             let bits = r
                 .sync_bit_decomposition()
                 .iter()
@@ -223,13 +207,6 @@ where
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let x = f().map(|x| x.borrow().0).unwrap_or(C::ScalarField::zero());
-
-        // let rt = Runtime::new().unwrap();
-        // let bits_x = rt
-        //     .block_on(x.bit_decomposition())
-        //     .iter()
-        //     .map(|b| b.field().modulus_conversion())
-        //     .collect::<Vec<_>>();
 
         let bits_x = block_in_place(|| {
             let decomposed = tokio::runtime::Handle::current().block_on(x.bit_decomposition());

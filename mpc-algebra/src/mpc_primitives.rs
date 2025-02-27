@@ -39,6 +39,12 @@ pub trait LogicalOperations {
 pub trait EqualityZero {
     type Output: BooleanWire<Base = Self>;
     async fn is_zero_shared(&self) -> Self::Output;
+
+    fn sync_is_zero_shared(&self) -> Self::Output {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.is_zero_shared())
+        })
+    }
 }
 
 pub trait BitDecomposition {

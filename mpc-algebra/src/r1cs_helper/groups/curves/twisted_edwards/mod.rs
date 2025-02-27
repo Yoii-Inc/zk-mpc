@@ -18,8 +18,6 @@ use crate::{
     AdditiveAffProjShare, FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget,
     Reveal,
 };
-use tokio::runtime::Runtime;
-use tokio::task::block_in_place;
 
 use crate::MpcGroupProjectiveVariant;
 
@@ -317,10 +315,7 @@ where
                 let ge: MpcTEAffine<P, AffProjShare<P>> = ge.into();
 
                 // TODO: Remove reveal operation.
-                // let rt = Runtime::new().unwrap();
-                // let revealed_ge = rt.block_on(ge.reveal());
-                let revealed_ge =
-                    block_in_place(|| tokio::runtime::Handle::current().block_on(ge.reveal()));
+                let revealed_ge = ge.sync_reveal();
                 (Ok(revealed_ge.x), Ok(revealed_ge.y))
             }
             _ => (
@@ -471,10 +466,7 @@ where
         let xytzrsuv = rsuv_variant + proj_variant;
 
         // step4: reveal
-        // let rt = Runtime::new().unwrap();
-        // let revealed_xr = rt.block_on(xytzrsuv.reveal());
-        let revealed_xr =
-            block_in_place(|| tokio::runtime::Handle::current().block_on(xytzrsuv.reveal()));
+        let revealed_xr = xytzrsuv.sync_reveal();
 
         // step5: allocate share
         let share = if Net.is_leader() {
