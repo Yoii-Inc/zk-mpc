@@ -450,6 +450,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // this test can't be run in github actions.
     fn test_write_srs() {
         let timer = start_timer!(|| "universal_setup");
         let rng = &mut rand::thread_rng();
@@ -461,6 +462,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // this test can't be run in github actions.
     fn test_read_srs() {
         let timer = start_timer!(|| "read_srs_from_file");
         let mut file = std::fs::File::open("outputs/srs.bin").unwrap();
