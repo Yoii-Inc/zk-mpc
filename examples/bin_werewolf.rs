@@ -1017,52 +1017,58 @@ fn get_elgamal_param_pubkey() -> (
     (elgamal_param, deserialized_pk)
 }
 
-#[test]
-#[ignore]
-fn test_encryption_decryption() -> Result<(), std::io::Error> {
-    // loading public key
-    let file_path = format!("./werewolf_game/fortune_teller_key.json");
-    let mut file = File::open(file_path).unwrap();
-    let mut output_string = String::new();
-    file.read_to_string(&mut output_string)
-        .expect("Failed to read file");
+#[cfg(test)]
+mod tests {
 
-    let pub_key: ElGamalPubKey = serde_json::from_str(&output_string).unwrap();
+    use mpc_algebra::channel::MpcSerNet;
+    use mpc_net::LocalTestNet;
 
-    let remove_prefix_string = if let Some(stripped) = pub_key.public_key.strip_prefix("0x") {
-        stripped.to_string()
-    } else {
-        pub_key.public_key.clone()
-    };
+    use super::*;
 
-    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+    #[ignore]
+    fn test_encryption_decryption() -> Result<(), std::io::Error> {
+        // loading public key
+        let file_path = format!("./werewolf_game/fortune_teller_key.json");
+        let mut file = File::open(file_path).unwrap();
+        let mut output_string = String::new();
+        file.read_to_string(&mut output_string)
+            .expect("Failed to read file");
 
-    let deserialized_pk = <ark_ec::twisted_edwards_extended::GroupAffine<
-        ark_ed_on_bls12_377::EdwardsParameters,
-    > as CanonicalDeserialize>::deserialize(reader)
-    .unwrap();
+        let pub_key: ElGamalPubKey = serde_json::from_str(&output_string).unwrap();
 
-    // loading secret key
-    // let file_path = format!("./werewolf/{}/secret_key.json", opt.target.unwrap());
-    let file_path = format!("./werewolf_game/{}/secret_key.json", 0);
+        let remove_prefix_string = if let Some(stripped) = pub_key.public_key.strip_prefix("0x") {
+            stripped.to_string()
+        } else {
+            pub_key.public_key.clone()
+        };
 
-    let mut file = File::open(file_path).unwrap();
-    let mut output_string = String::new();
-    file.read_to_string(&mut output_string)
-        .expect("Failed to read file");
+        let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
-    let sec_key: ElGamalSecKey = serde_json::from_str(&output_string).unwrap();
+        let deserialized_pk = <ark_ec::twisted_edwards_extended::GroupAffine<
+            ark_ed_on_bls12_377::EdwardsParameters,
+        > as CanonicalDeserialize>::deserialize(reader)
+        .unwrap();
 
-    let remove_prefix_string = if let Some(stripped) = sec_key.secret_key.strip_prefix("0x") {
-        stripped.to_string()
-    } else {
-        sec_key.secret_key.clone()
-    };
+        // loading secret key
+        // let file_path = format!("./werewolf/{}/secret_key.json", opt.target.unwrap());
+        let file_path = format!("./werewolf_game/{}/secret_key.json", 0);
 
-    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+        let mut file = File::open(file_path).unwrap();
+        let mut output_string = String::new();
+        file.read_to_string(&mut output_string)
+            .expect("Failed to read file");
 
-    let deserialized_sk =
-        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
+        let sec_key: ElGamalSecKey = serde_json::from_str(&output_string).unwrap();
+
+        let remove_prefix_string = if let Some(stripped) = sec_key.secret_key.strip_prefix("0x") {
+            stripped.to_string()
+        } else {
+            sec_key.secret_key.clone()
+        };
+
+        let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+
+        let deserialized_sk = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
             <<ark_ec::twisted_edwards_extended::GroupProjective<
                 ark_ed_on_bls12_377::EdwardsParameters,
             > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
@@ -1071,53 +1077,106 @@ fn test_encryption_decryption() -> Result<(), std::io::Error> {
             .unwrap(),
         );
 
-    // loading elgamal param
-    let file_path = format!("./werewolf_game/elgamal_param.json");
-    let mut file = File::open(file_path).unwrap();
-    let mut output_string = String::new();
-    file.read_to_string(&mut output_string)
-        .expect("Failed to read file");
+        // loading elgamal param
+        let file_path = format!("./werewolf_game/elgamal_param.json");
+        let mut file = File::open(file_path).unwrap();
+        let mut output_string = String::new();
+        file.read_to_string(&mut output_string)
+            .expect("Failed to read file");
 
-    let data: ElGamalParam = serde_json::from_str(&output_string).unwrap();
+        let data: ElGamalParam = serde_json::from_str(&output_string).unwrap();
 
-    let remove_prefix_string = if let Some(stripped) = data.elgamal_param.strip_prefix("0x") {
-        stripped.to_string()
-    } else {
-        pub_key.public_key.clone()
-    };
+        let remove_prefix_string = if let Some(stripped) = data.elgamal_param.strip_prefix("0x") {
+            stripped.to_string()
+        } else {
+            pub_key.public_key.clone()
+        };
 
-    let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
+        let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
-    let deserialized_elgamal_param = <ark_ec::twisted_edwards_extended::GroupAffine<
-        ark_ed_on_bls12_377::EdwardsParameters,
-    > as CanonicalDeserialize>::deserialize(reader)
-    .unwrap();
+        let deserialized_elgamal_param = <ark_ec::twisted_edwards_extended::GroupAffine<
+            ark_ed_on_bls12_377::EdwardsParameters,
+        > as CanonicalDeserialize>::deserialize(reader)
+        .unwrap();
 
-    let elgamal_param =
-        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParam::new(deserialized_elgamal_param);
+        let elgamal_param =
+            <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParam::new(deserialized_elgamal_param);
 
-    let rng = &mut test_rng();
+        let rng = &mut test_rng();
 
-    let a = GroupAffine::<ark_ed_on_bls12_377::EdwardsParameters>::rand(rng);
+        let a = GroupAffine::<ark_ed_on_bls12_377::EdwardsParameters>::rand(rng);
 
-    let randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
+        let randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
 
-    let encrypted_a = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::encrypt(
-        &elgamal_param,
-        &deserialized_pk,
-        &a,
-        &randomness,
-    )
-    .unwrap();
+        let encrypted_a = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::encrypt(
+            &elgamal_param,
+            &deserialized_pk,
+            &a,
+            &randomness,
+        )
+        .unwrap();
 
-    let decrypted_a = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::decrypt(
-        &elgamal_param,
-        &deserialized_sk,
-        &encrypted_a,
-    )
-    .unwrap();
+        let decrypted_a = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::decrypt(
+            &elgamal_param,
+            &deserialized_sk,
+            &encrypted_a,
+        )
+        .unwrap();
 
-    assert_eq!(a, decrypted_a);
+        assert_eq!(a, decrypted_a);
 
-    Ok(())
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn check_commitment() {
+        const N_PARTIES: usize = 3;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |conn, _| async move {
+                let rng = &mut test_rng();
+
+                let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+
+                let player_randomness = load_random_value().await.unwrap();
+                let player_commitment = load_random_commitment().unwrap();
+
+                let calculated_commitment = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
+                    &pedersen_param,
+                    &player_randomness[conn.party_id() as usize]
+                        .into_repr()
+                        .to_bytes_le(),
+                    &<Fr as LocalOrMPC<Fr>>::PedersenRandomness::default(),
+                )
+                .unwrap();
+
+                let res = Net.broadcast(&calculated_commitment).await;
+
+                println!("{:?}, {:?}", player_commitment.len(), res.len());
+
+                assert_eq!(player_commitment[0..N_PARTIES].to_vec(), res);
+            })
+            .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_voting() {
+        const N_PARTIES: usize = 3;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |conn, _| async move {
+                let opt = Opt {
+                    mode: "voting".to_string(),
+                    num_players: Some(3),
+                    target: Some(1),
+                    id: Some(conn.party_id() as usize),
+                    input: Some(PathBuf::from("./data/3")),
+                };
+                voting(&opt).await.unwrap()
+            })
+            .await;
+    }
 }

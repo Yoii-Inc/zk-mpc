@@ -1,26 +1,28 @@
 use std::path::PathBuf;
 
 use ark_crypto_primitives::{CommitmentScheme, CRH};
-use ark_ff::PubUniformRand;
 use ark_ff::{BigInteger, BigInteger256, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
 use ark_poly::reveal;
 use ark_std::PubUniformRand;
 use ark_std::{end_timer, start_timer};
 use log::debug;
-use mpc_algebra::pedersen::Randomness;
 use mpc_algebra::boolean_field::MpcBooleanField;
+use mpc_algebra::honest_but_curious::MpcEdwardsProjective;
+use mpc_algebra::pedersen::Randomness;
 use mpc_algebra::{
     edwards2, share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, BooleanWire,
-    CommitmentScheme as MpcCommitmentScheme, EqualityZero, LessThan,
-    LogicalOperations,
-    MpcEdwardsProjective, MpcField, Reveal, UniformBitRand,
+    CommitmentScheme as MpcCommitmentScheme, EqualityZero, LessThan, LogicalOperations,
+    /* MpcEdwardsProjective,*/ MpcField, Reveal, UniformBitRand,
 };
+use mpc_net::multi::MPCNetConnection;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
-use rand::thread_rng;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use structopt::StructOpt;
 
+use futures::future::join_all;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
 struct Opt {
@@ -37,7 +39,7 @@ type S = AdditiveFieldShare<F>;
 type MF = MpcField<F, S>;
 type MBF = MpcBooleanField<F, S>;
 
-fn test_add() {
+async fn test_add() {
     // init communication protocol
 
     // calculate
@@ -45,34 +47,34 @@ fn test_add() {
     let pub_b = MF::from_public(F::from(2u64));
 
     let c = pub_a + pub_b;
-    assert_eq!(c.reveal(), F::from(3u64));
+    assert_eq!(c.reveal().await, F::from(3u64));
 }
 
-fn test_sub() {
+async fn test_sub() {
     let pub_a = MF::from_public(F::from(1u64));
     let pub_b = MF::from_public(F::from(2u64));
 
     let c = pub_a - pub_b;
-    assert_eq!(c.reveal(), -F::from(1u64));
+    assert_eq!(c.reveal().await, -F::from(1u64));
 }
 
-fn test_mul() {
+async fn test_mul() {
     let pub_a = MF::from_public(F::from(1u64));
     let pub_b = MF::from_public(F::from(2u64));
 
     let c = pub_a * pub_b;
-    assert_eq!(c.reveal(), F::from(2u64));
+    assert_eq!(c.reveal().await, F::from(2u64));
 }
 
-fn test_div() {
+async fn test_div() {
     let pub_a = MF::from_public(F::from(2u64));
     let pub_b = MF::from_public(F::from(1u64));
 
     let c = pub_a / pub_b;
-    assert_eq!(c.reveal(), F::from(2u64));
+    assert_eq!(c.reveal().await, F::from(2u64));
 }
 
-fn test_sum() {
+async fn test_sum() {
     let a = [
         MF::from_public(F::from(1u64)),
         MF::from_public(F::from(2u64)),
@@ -81,15 +83,15 @@ fn test_sum() {
 
     let result = a.iter().sum::<MF>();
 
-    assert_eq!(result.reveal(), F::from(6u64));
+    assert_eq!(result.reveal().await, F::from(6u64));
 }
 
-fn test_bit_rand() {
-    let mut rng = thread_rng();
+async fn test_bit_rand() {
+    let rng = &mut StdRng::from_entropy();
     let mut counter = [0, 0, 0];
 
     for _ in 0..1000 {
-        let a = MBF::bit_rand(&mut rng).reveal();
+        let a = MBF::bit_rand(rng).await.reveal().await;
 
         if a.is_zero() {
             counter[0] += 1;
@@ -104,14 +106,14 @@ fn test_bit_rand() {
     println!("{:?}", counter);
 }
 
-fn test_rand_number_bitwise() {
-    let mut rng = thread_rng();
+async fn test_rand_number_bitwise() {
+    let rng = &mut StdRng::from_entropy();
 
     for _ in 0..10 {
-        let (a, b) = MBF::rand_number_bitwise(&mut rng);
+        let (a, b) = MBF::rand_number_bitwise(rng).await;
 
-        let revealed_a = a.iter().map(|x| x.reveal()).collect::<Vec<_>>();
-        let revealed_b = b.reveal();
+        let revealed_a = a.iter().map(|x| x.sync_reveal()).collect::<Vec<_>>();
+        let revealed_b = b.reveal().await;
 
         // bits representation is given in little-endian
 
@@ -129,35 +131,38 @@ fn test_rand_number_bitwise() {
     }
 }
 
-fn test_bitwise_lt() {
+async fn test_bitwise_lt() {
     let modulus_size =
         <ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params::MODULUS_BITS;
 
-    let rng = &mut thread_rng();
+    let rng = &mut StdRng::from_entropy();
 
     for _ in 0..10 {
-        let a = (0..modulus_size)
-            .map(|_| MBF::bit_rand(rng))
-            .collect::<Vec<_>>();
-        let b = (0..modulus_size)
-            .map(|_| MBF::bit_rand(rng))
-            .collect::<Vec<_>>();
+        let mut a = Vec::with_capacity(modulus_size as usize);
+        let mut b = Vec::with_capacity(modulus_size as usize);
 
-        let a_bigint =
-            BigInteger256::from_bits_le(&a.iter().map(|x| x.reveal().is_one()).collect::<Vec<_>>());
+        for _ in 0..modulus_size {
+            a.push(MBF::bit_rand(rng).await);
+            b.push(MBF::bit_rand(rng).await);
+        }
 
-        let b_bigint =
-            BigInteger256::from_bits_le(&b.iter().map(|x| x.reveal().is_one()).collect::<Vec<_>>());
+        let a_bigint = BigInteger256::from_bits_le(
+            &join_all(a.iter().map(|x| async move { x.reveal().await.is_one() })).await,
+        );
+
+        let b_bigint = BigInteger256::from_bits_le(
+            &join_all(b.iter().map(|x| async move { x.reveal().await.is_one() })).await,
+        );
 
         let res_1 = a_bigint < b_bigint;
         let res_2 = a.is_smaller_than_le(&b);
 
-        assert_eq!(res_1, res_2.reveal().is_one());
+        assert_eq!(res_1, res_2.reveal().await.is_one());
     }
 }
 
-fn test_interval_test_half_modulus() {
-    let rng = &mut thread_rng();
+async fn test_interval_test_half_modulus() {
+    let rng = &mut StdRng::from_entropy();
     let half_modulus =
         <<ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS_MINUS_ONE_DIV_TWO;
 
@@ -166,10 +171,12 @@ fn test_interval_test_half_modulus() {
     // TODO: Test boundary conditions
     for _ in 0..n {
         let shared = MF::rand(rng);
-        let res = shared.is_smaller_or_equal_than_mod_minus_one_div_two();
+        let res = shared
+            .is_smaller_or_equal_than_mod_minus_one_div_two()
+            .await;
         assert_eq!(
-            res.reveal(),
-            if shared.reveal().into_repr() < half_modulus {
+            res.reveal().await,
+            if shared.reveal().await.into_repr() < half_modulus {
                 F::one()
             } else {
                 F::zero()
@@ -179,8 +186,8 @@ fn test_interval_test_half_modulus() {
     end_timer!(timer);
 }
 
-fn test_less_than() {
-    let rng = &mut thread_rng();
+async fn test_less_than() {
+    let rng = &mut StdRng::from_entropy();
 
     let n = 10;
     let timer = start_timer!(|| format!("less_than test x {}", n));
@@ -188,108 +195,119 @@ fn test_less_than() {
         let a = MF::rand(rng);
         let b = MF::rand(rng);
 
-        let res = a.is_smaller_than(&b);
-        if res.reveal().is_one() != (a.reveal() < b.reveal()) {
-            println!("a: {:?}, b: {:?}", a.reveal(), b.reveal());
-            println!("res: {:?}", res.reveal());
-            assert_eq!(res.reveal().is_one(), a.reveal() < b.reveal());
+        let res = a.is_smaller_than(&b).await;
+        if res.reveal().await.is_one() != (a.reveal().await < b.reveal().await) {
+            println!("a: {:?}, b: {:?}", a.reveal().await, b.reveal().await);
+            println!("res: {:?}", res.reveal().await);
+            assert_eq!(
+                res.reveal().await.is_one(),
+                a.reveal().await < b.reveal().await
+            );
         }
     }
     end_timer!(timer);
 }
 
-fn test_and() {
-    let mut rng = ark_std::test_rng();
+async fn test_and() {
+    let rng = &mut StdRng::from_entropy();
 
     let a00 = vec![MBF::pub_false(), MBF::pub_true()];
     let a10 = vec![MBF::pub_true(), MBF::pub_false()];
     let a11 = vec![MBF::pub_true(), MBF::pub_true()];
 
-    assert_eq!(a00.kary_and().reveal(), F::zero());
-    assert_eq!(a10.kary_and().reveal(), F::zero());
-    assert_eq!(a11.kary_and().reveal(), F::one());
+    assert_eq!(a00.kary_and().await.reveal().await, F::zero());
+    assert_eq!(a10.kary_and().await.reveal().await, F::zero());
+    assert_eq!(a11.kary_and().await.reveal().await, F::one());
 
     let mut counter = [0, 0];
 
     for _ in 0..100 {
-        let a = (0..3).map(|_| MBF::bit_rand(&mut rng)).collect::<Vec<_>>();
+        let mut a = Vec::with_capacity(3);
 
-        let res = a.kary_and();
+        for _ in 0..3 {
+            a.push(MBF::bit_rand(rng).await);
+        }
 
-        println!("unbounded and is {:?}", res.reveal());
-        if res.reveal().is_zero() {
+        let res = a.kary_and().await;
+
+        println!("unbounded and is {:?}", res.reveal().await);
+        if res.reveal().await.is_zero() {
             counter[0] += 1;
-        } else if res.reveal().is_one() {
+        } else if res.reveal().await.is_one() {
             counter[1] += 1;
         }
     }
     println!("AND counter is {:?}", counter);
 }
 
-fn test_or() {
-    let mut rng = thread_rng();
+async fn test_or() {
+    let rng = &mut StdRng::from_entropy();
 
     let a00 = vec![MBF::pub_false(), MBF::pub_false()];
     let a10 = vec![MBF::pub_true(), MBF::pub_false()];
     let a11 = vec![MBF::pub_true(), MBF::pub_true()];
 
-    assert_eq!(a00.kary_or().reveal(), F::zero());
-    assert_eq!(a10.kary_or().reveal(), F::one());
-    assert_eq!(a11.kary_or().reveal(), F::one());
+    assert_eq!(a00.kary_or().await.reveal().await, F::zero());
+    assert_eq!(a10.kary_or().await.reveal().await, F::one());
+    assert_eq!(a11.kary_or().await.reveal().await, F::one());
 
     let mut counter = [0, 0];
 
     for _ in 0..100 {
-        let a = (0..3).map(|_| MBF::bit_rand(&mut rng)).collect::<Vec<_>>();
+        let mut a = Vec::with_capacity(3);
 
-        let res = a.kary_or();
+        for _ in 0..3 {
+            a.push(MBF::bit_rand(rng).await);
+        }
+
+        let res = a.kary_or().await;
 
         // println!("unbounded or is {:?}", res.reveal());
-        if res.reveal().is_zero() {
+        if res.reveal().await.is_zero() {
             counter[0] += 1;
-        } else if res.reveal().is_one() {
+        } else if res.reveal().await.is_one() {
             counter[1] += 1;
         }
     }
     println!("OR counter is {:?}", counter);
 }
 
-fn test_xor() {
+async fn test_xor() {
     let mut rng = ark_std::test_rng();
     let mut counter = [0, 0];
 
     for _ in 0..100 {
-        let a = MBF::bit_rand(&mut rng);
-        let b = MBF::bit_rand(&mut rng);
+        let a = MBF::bit_rand(&mut rng).await;
+        let b = MBF::bit_rand(&mut rng).await;
 
         let res = a ^ b;
 
-        println!("unbounded and is {:?}", res.reveal());
+        println!("unbounded and is {:?}", res.reveal().await);
         assert_eq!(
-            res.reveal().is_one(),
-            a.reveal().is_one() ^ b.reveal().is_one()
+            res.reveal().await.is_one(),
+            a.reveal().await.is_one() ^ b.reveal().await.is_one()
         );
-        if res.reveal().is_zero() {
+        if res.reveal().await.is_zero() {
             counter[0] += 1;
-        } else if res.reveal().is_one() {
+        } else if res.reveal().await.is_one() {
             counter[1] += 1;
         }
     }
     println!("AND counter is {:?}", counter);
 }
 
-fn test_equality_zero() {
+async fn test_equality_zero() {
     let mut rng = ark_std::test_rng();
 
     // a is zero
     let a = MF::from_add_shared(F::zero());
-    let res = a.is_zero_shared();
-    assert!(res.reveal().is_one());
+    let res = a.is_zero_shared().await;
+    assert!(res.reveal().await.is_one());
 
     // a is not zero
     let a = MF::from_add_shared(F::one());
-    let res = a.is_zero_shared();
-    assert!(res.reveal().is_zero());
+    let res = a.is_zero_shared().await;
+    assert!(res.reveal().await.is_zero());
 
     let n = 10;
     let timer = start_timer!(|| format!("is_zero_shared test x {}", n));
@@ -297,15 +315,15 @@ fn test_equality_zero() {
     for _ in 0..n {
         let a = MF::rand(&mut rng);
 
-        let res = a.is_zero_shared();
+        let res = a.is_zero_shared().await;
 
-        assert_eq!(a.reveal().is_zero(), res.reveal().is_one());
-        assert_eq!(!a.reveal().is_zero(), res.reveal().is_zero());
+        assert_eq!(a.reveal().await.is_zero(), res.reveal().await.is_one());
+        assert_eq!(!a.reveal().await.is_zero(), res.reveal().await.is_zero());
     }
     end_timer!(timer);
 }
 
-fn test_carries() {
+async fn test_carries() {
     // a = 0101 = 5, b = 1100= 12
     let mut a = vec![MBF::from_add_shared(F::zero()); 4];
     let mut b = vec![MBF::from_add_shared(F::zero()); 4];
@@ -320,7 +338,10 @@ fn test_carries() {
     let c = a.carries(&b);
 
     // expected carries: 1100
-    assert_eq!(c.reveal(), vec![F::zero(), F::zero(), F::one(), F::one()]);
+    assert_eq!(
+        c.reveal().await,
+        vec![F::zero(), F::zero(), F::one(), F::one()]
+    );
 
     // a = 010011 = 19, b = 101010= 42
     let mut a = vec![MBF::from_add_shared(F::from(0u64)); 6];
@@ -336,7 +357,7 @@ fn test_carries() {
 
     // expected carries: 000010
     assert_eq!(
-        c.reveal(),
+        c.reveal().await,
         vec![
             F::zero(),
             F::one(),
@@ -348,37 +369,39 @@ fn test_carries() {
     );
 }
 
-fn test_bit_add() {
-    let rng = &mut thread_rng();
+async fn test_bit_add() {
+    let rng = &mut StdRng::from_entropy();
 
-    let (rand_a, a) = MBF::rand_number_bitwise(rng);
-    let (rand_b, b) = MBF::rand_number_bitwise(rng);
+    let (rand_a, a) = MBF::rand_number_bitwise(rng).await;
+    let (rand_b, b) = MBF::rand_number_bitwise(rng).await;
 
     let c_vec = rand_a.bit_add(&rand_b);
 
     let c = c_vec
         .reveal()
+        .await
         .iter()
         .rev()
         .fold(F::zero(), |acc, x| acc * F::from(2u64) + x);
 
-    assert_eq!(c, (a + b).reveal());
+    assert_eq!(c, (a + b).reveal().await);
 }
 
-fn test_bit_decomposition() {
-    let rng = &mut thread_rng();
+async fn test_bit_decomposition() {
+    let rng = &mut StdRng::from_entropy();
 
     let random = MF::rand(rng);
 
-    let bit = random.bit_decomposition();
+    let bit = random.bit_decomposition().await;
 
     let res = bit
         .reveal()
+        .await
         .iter()
         .rev()
         .fold(F::zero(), |acc, x| acc * F::from(2u64) + x);
 
-    assert_eq!(res, random.reveal());
+    assert_eq!(res, random.reveal().await);
 }
 
 pub const PERDERSON_WINDOW_SIZE: usize = 256;
@@ -400,112 +423,111 @@ type LocalPed = ark_crypto_primitives::commitment::pedersen::Commitment<
     ark_ed_on_bls12_377::EdwardsProjective,
     Window,
 >;
-type MpcPed = mpc_algebra::commitment::pedersen::Commitment<edwards2::MpcEdwardsProjective, Window>;
+type MpcPed = mpc_algebra::commitment::pedersen::Commitment<MpcEdwardsProjective, Window>;
 
-fn test_pedersen_commitment() {
+async fn test_pedersen_commitment() {
     let rng = &mut ark_std::test_rng();
 
-    let x = F::rand(rng);
+    let x = ark_ed_on_bls12_377::Fr::rand(rng);
+    let mpc_x = MpcField::<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>::from_public(x);
+
     let x_bytes = x.into_repr().to_bytes_le();
-    let x_bits = x.into_repr().to_bits_le();
 
     // mpc calculation
     let mpc_parameters = MpcPed::setup(rng).unwrap();
 
-    let scalar_x_bytes = if Net::am_king() {
-        x_bits
-        .iter()
-        .map(|b| {
-            MpcField::<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>::from_add_shared(ark_ed_on_bls12_377::Fr::from(*b))
-        })
-        .collect::<Vec<_>>()
-    } else {
-        x_bits
-        .iter()
-        .map(|b| {
-            MpcField::<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>::from_add_shared(ark_ed_on_bls12_377::Fr::zero())
-        })
-        .collect::<Vec<_>>()
-    };
-
     let randomness = Randomness::<MpcEdwardsProjective>::rand(rng);
 
-    let result_mpc = MpcPed::commit(&mpc_parameters, &scalar_x_bytes, &randomness).unwrap();
+    let result_mpc = MpcPed::commit(
+        &mpc_parameters,
+        &<MpcPed as MpcCommitmentScheme>::Input::new(mpc_x),
+        &randomness,
+    )
+    .unwrap();
 
     // local calculation
     let local_parameters = ark_crypto_primitives::commitment::pedersen::Parameters {
-        randomness_generator: mpc_parameters.randomness_generator.clone().reveal(),
-        generators: mpc_parameters.generators.reveal(),
+        randomness_generator: mpc_parameters.randomness_generator.clone().reveal().await,
+        generators: mpc_parameters.generators.reveal().await,
     };
 
     let local_randomness =
-        ark_crypto_primitives::commitment::pedersen::Randomness(randomness.0.reveal());
+        ark_crypto_primitives::commitment::pedersen::Randomness(randomness.0.reveal().await);
 
-    let result_local = LocalPed::commit(&local_parameters, &x_bytes, &local_randomness).unwrap();
+    let result_local =
+        <LocalPed as CommitmentScheme>::commit(&local_parameters, &x_bytes, &local_randomness)
+            .unwrap();
 
-    assert_eq!(result_local, result_mpc.reveal());
+    assert_eq!(result_local, result_mpc.reveal().await);
 }
 
-fn test_share() {
+async fn test_share() {
     let rng = &mut ark_std::test_rng();
 
     for i in 0..100 {
         let init = F::pub_rand(rng);
         let share = MF::king_share(init, rng);
-        let revealed = share.reveal();
+        let revealed = share.reveal().await;
 
         assert_eq!(revealed, init);
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::builder().format_timestamp(None).init();
     debug!("Start");
     let opt = Opt::from_args();
     println!("{:?}", opt);
-    Net::init_from_file(opt.input.to_str().unwrap(), opt.id);
 
-    println!("Test started");
-    test_add();
-    println!("Test add passed");
-    test_sub();
-    println!("Test sub passed");
-    test_mul();
-    println!("Test mul passed");
-    test_div();
-    println!("Test div passed");
-    test_sum();
-    println!("Test sum passed");
+    let mut net = MPCNetConnection::init_from_path(&opt.input, opt.id as u32);
+    net.listen().await.unwrap();
+    net.connect_to_all().await.unwrap();
 
-    test_bit_rand();
-    println!("Test bit_rand passed");
-    test_less_than();
-    println!("Test less_than passed");
-    test_interval_test_half_modulus();
-    println!("Test interval_test_half_modulus passed");
-    test_rand_number_bitwise();
-    println!("Test rand_number_bitwise passed");
-    test_bitwise_lt();
-    println!("Test bitwise_lt passed");
-    test_and();
-    println!("Test and passed");
-    test_or();
-    println!("Test or passed");
-    test_xor();
-    println!("Test xor passed");
-    test_equality_zero();
-    println!("Test equality_zero passed");
+    Net::simulate(net, (), |_, _| async {
+        println!("Test started");
+        test_add().await;
+        println!("Test add passed");
+        test_sub().await;
+        println!("Test sub passed");
+        test_mul().await;
+        println!("Test mul passed");
+        test_div().await;
+        println!("Test div passed");
+        test_sum().await;
+        println!("Test sum passed");
 
-    test_carries();
-    println!("Test carries passed");
-    test_bit_add();
-    println!("Test bit_add passed");
-    test_bit_decomposition();
-    println!("Test bit_decomposition passed");
+        test_bit_rand().await;
+        println!("Test bit_rand passed");
+        test_less_than().await;
+        println!("Test less_than passed");
+        test_interval_test_half_modulus().await;
+        println!("Test interval_test_half_modulus passed");
+        test_rand_number_bitwise().await;
+        println!("Test rand_number_bitwise passed");
+        test_bitwise_lt().await;
+        println!("Test bitwise_lt passed");
+        test_and().await;
+        println!("Test and passed");
+        test_or().await;
+        println!("Test or passed");
+        test_xor().await;
+        println!("Test xor passed");
+        test_equality_zero().await;
+        println!("Test equality_zero passed");
 
-    test_pedersen_commitment();
-    println!("Test pedersen commitment passed");
+        test_carries().await;
+        println!("Test carries passed");
+        test_bit_add().await;
+        println!("Test bit_add passed");
+        test_bit_decomposition().await;
+        println!("Test bit_decomposition passed");
 
-    test_share();
-    println!("Test share passed");
+        test_pedersen_commitment().await;
+        println!("Test pedersen commitment passed");
+
+        test_share().await;
+        println!("Tes_t share passed");
+    })
+    .await;
 }
