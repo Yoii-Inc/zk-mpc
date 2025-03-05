@@ -400,7 +400,6 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore] // this test is too consuming memory to run in github actions.
     async fn test_add() {
         const N_PARTIES: usize = 4;
         let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
@@ -436,7 +435,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore] // this test is too consuming memory to run in github actions.
     async fn test_2() {
         // env_logger::builder()
         //     .format_timestamp(None)
