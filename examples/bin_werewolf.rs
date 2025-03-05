@@ -22,6 +22,7 @@ use mpc_algebra::EqualityZero;
 use mpc_algebra::FromLocal;
 use mpc_algebra::LessThan;
 use mpc_algebra::Reveal;
+use mpc_net::multi::MPCNetConnection;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use rand::thread_rng;
 use rand::Rng;
@@ -54,7 +55,7 @@ use zk_mpc::werewolf::{
 
 use nalgebra as na;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Clone)]
 struct Opt {
     /// Run mode
     mode: String,
@@ -85,56 +86,77 @@ impl VoteArg {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = Opt::from_args();
 
     println!("opt is {:?}", opt);
 
     // init mode is executed by one process. other modes are executed by all players.
-    match opt.mode.as_str() {
-        "init" => {
-            println!("Init mode");
-            // initialize werewolf game
-            initialize_game(&opt)?;
+    if opt.mode.as_str() == "init" {
+        println!("Init mode");
+        // initialize werewolf game
+        initialize_game(&opt)?;
 
-            // preprocessing MPC
-            preprocessing_mpc(&opt)?;
-        }
-        "preprocessing" => {
-            println!("Preprocessing mode");
-            // preprocessing calculation of werewolf game
+        // preprocessing MPC
+        preprocessing_mpc(&opt)?;
+    } else {
+        let mut net =
+            MPCNetConnection::init_from_path(&opt.clone().input.unwrap(), opt.id.unwrap() as u32);
+        net.listen().await.unwrap();
+        net.connect_to_all().await.unwrap();
 
-            preprocessing_werewolf(&opt)?;
-        }
-        "role_assignment" => {
-            println!("Role assignment mode");
-            // role assignment
+        Net::simulate(net, opt.clone(), |_, opt| async move {
+            match opt.mode.as_str() {
+                "preprocessing" => {
+                    println!("Preprocessing mode");
+                    // preprocessing calculation of werewolf game
 
-            role_assignment(&opt)?;
-        }
-        "night" => {
-            println!("Night mode");
-            // run the night phase
-            night_werewolf(&opt)?;
-        }
-        "vote" => {
-            println!("Vote mode");
-            // run the vote phase
-            voting(&opt)?;
-        }
-        "judgment" => {
-            println!("Judgment mode");
-            // run the judgement phase
-            winning_judgment(&opt)?;
-        }
+                    preprocessing_werewolf(&opt).await.unwrap();
+                }
+                "role_assignment" => {
+                    println!("Role assignment mode");
+                    // role assignment
 
-        _ => {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Error: Invalid mode. Only init or night are supported",
-            ))?;
-        }
-    };
+                    role_assignment(&opt).await.unwrap();
+                }
+                "night" => {
+                    println!("Night mode");
+                    // run the night phase
+                    night_werewolf(&opt).await.unwrap();
+                }
+                "vote" => {
+                    let mut net = MPCNetConnection::init_from_path(
+                        &opt.clone().input.unwrap(),
+                        opt.id.unwrap() as u32,
+                    );
+                    net.listen().await.unwrap();
+                    net.connect_to_all().await.unwrap();
+
+                    Net::simulate(net, opt, |_, opt| async move {
+                        println!("Vote mode");
+                        // run the vote phase
+                        voting(&opt).await.unwrap();
+                    })
+                    .await;
+                }
+                "judgment" => {
+                    println!("Judgment mode");
+                    // run the judgement phase
+                    winning_judgment(&opt).await.unwrap();
+                }
+
+                _ => {
+                    // Err(std::io::Error::new(
+                    //     std::io::ErrorKind::InvalidInput,
+                    //     "Error: Invalid mode. Only init or night are supported",
+                    // ));
+                    panic!();
+                }
+            };
+        })
+        .await;
+    }
 
     Ok(())
 }
@@ -180,7 +202,7 @@ fn preprocessing_mpc(opt: &Opt) -> Result<(), std::io::Error> {
     // let opt = Opt::from_args();
 
     // preprocessing
-    let mut rng = rand::thread_rng();
+    let mut rng = test_rng();
     // // initialize phase
     let zkpopk_parameters = preprocessing::zkpopk::Parameters::new(
         1,
@@ -227,18 +249,13 @@ fn preprocessing_mpc(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
+async fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     // net init
-    Net::init_from_file(
-        opt.input.clone().unwrap().to_str().unwrap(),
-        opt.id.unwrap(),
-    );
-
     // TODO: changable
     let num_players = 3;
 
     let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(&mut test_rng()).unwrap();
-    generate_random_commitment(&mut thread_rng(), &pedersen_param);
+    generate_random_commitment(&mut test_rng(), &pedersen_param).await;
 
     // dummmy input
     let mut pub_key_or_dummy_x = vec![Fr::from(0); num_players];
@@ -281,7 +298,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     // prove
     let mpc_proof = MpcMarlin::prove(&mpc_index_pk, key_publicize_circuit, rng).unwrap();
 
-    let proof = mpc_proof.reveal();
+    let proof = mpc_proof.reveal().await;
 
     // let pk = GroupAffine::<MpcEdwardsParameters> {
     //     x: mpc_input.pub_key.x.reveal(),
@@ -314,7 +331,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     assert!(is_valid);
 
     // save to file
-    if Net::party_id() == 0 {
+    if Net.party_id() == 0 {
         let datas = vec![("public_key".to_string(), pk)];
 
         write_to_file(datas, "./werewolf_game/fortune_teller_key.json").unwrap();
@@ -323,7 +340,7 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
 
         write_to_file(
             secret_data,
-            format!("./werewolf_game/{}/secret_key.json", Net::party_id()).as_str(),
+            format!("./werewolf_game/{}/secret_key.json", Net.party_id()).as_str(),
         )
         .unwrap();
 
@@ -335,13 +352,8 @@ fn preprocessing_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
+async fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
     // init
-    Net::init_from_file(
-        opt.input.clone().unwrap().to_str().unwrap(),
-        opt.id.unwrap(),
-    );
-
     let grouping_parameter = GroupingParameter::new(
         vec![
             (Role::Villager, (1, false)),
@@ -359,7 +371,7 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
 
     let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
-    let player_randomness = load_random_value()?;
+    let player_randomness = load_random_value().await?;
     let player_commitment = load_random_commitment()?;
 
     // calc
@@ -461,31 +473,22 @@ fn role_assignment(opt: &Opt) -> Result<(), std::io::Error> {
         .flat_map(|c| vec![c.x, c.y])
         .collect::<Vec<_>>();
 
-    role_commitment.iter().for_each(|x| {
-        inputs.push(x.reveal().x);
-        inputs.push(x.reveal().y);
-    });
+    for commitment in role_commitment.iter() {
+        inputs.push(commitment.reveal().await.x);
+        inputs.push(commitment.reveal().await.y);
+    }
 
-    assert!(prove_and_verify(
-        &mpc_index_pk,
-        &index_vk,
-        mpc_role_circuit.clone(),
-        inputs
-    ));
+    assert!(prove_and_verify(&mpc_index_pk, &index_vk, mpc_role_circuit.clone(), inputs).await);
 
     Ok(())
 }
 
-fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
+async fn night_werewolf(opt: &Opt) -> Result<(), std::io::Error> {
     // init
-    Net::init_from_file(
-        opt.input.clone().unwrap().to_str().unwrap(),
-        opt.id.unwrap(),
-    );
 
     let self_role = get_my_role();
 
-    multi_divination(opt);
+    multi_divination().await?;
 
     println!("My role is {:?}", self_role);
     Ok(())
@@ -497,7 +500,7 @@ struct ArgSecretKey {
 }
 
 fn get_my_role() -> Role {
-    let id = Net::party_id();
+    let id = Net.party_id();
 
     println!("id is {:?}", id);
 
@@ -528,7 +531,7 @@ fn get_my_role() -> Role {
     }
 }
 
-fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
+async fn multi_divination() -> Result<(), std::io::Error> {
     let target_id = 1;
 
     let is_werewolf_vec = vec![Fr::from(0), Fr::from(1), Fr::from(0)];
@@ -600,17 +603,17 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     let mut inputs = Vec::new();
 
     // elgamal param
-    inputs.push(elgamal_generator.generator.reveal().x);
-    inputs.push(elgamal_generator.generator.reveal().y);
+    inputs.push(elgamal_generator.generator.reveal().await.x);
+    inputs.push(elgamal_generator.generator.reveal().await.y);
     // elgamal pubkey
-    inputs.push(elgamal_pubkey.reveal().x);
-    inputs.push(elgamal_pubkey.reveal().y);
+    inputs.push(elgamal_pubkey.reveal().await.x);
+    inputs.push(elgamal_pubkey.reveal().await.y);
 
     // elgamal ciphertext
-    inputs.push(enc_result.0.reveal().x);
-    inputs.push(enc_result.0.reveal().y);
-    inputs.push(enc_result.1.reveal().x);
-    inputs.push(enc_result.1.reveal().y);
+    inputs.push(enc_result.0.reveal().await.x);
+    inputs.push(enc_result.0.reveal().await.y);
+    inputs.push(enc_result.1.reveal().await.x);
+    inputs.push(enc_result.1.reveal().await.y);
 
     // input commitment
     // inputs.push(peculiar_is_werewolf_commitment[0].x.reveal());
@@ -630,7 +633,7 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     // prove
     let mpc_proof = MpcMarlin::prove(&mpc_index_pk, multi_divination_circuit, rng).unwrap();
 
-    let proof = mpc_proof.reveal();
+    let proof = mpc_proof.reveal().await;
 
     // verify
     let is_valid = LocalMarlin::verify(&index_vk, &inputs, &proof, rng).unwrap();
@@ -664,11 +667,11 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
         );
 
     println!("player {} is {}", target_id, is_werewolf_vec[target_id]);
-    if Net::party_id() == 0 {
+    if Net.party_id() == 0 {
         let divination_result = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::decrypt(
-            &elgamal_generator.reveal(),
+            &elgamal_generator.reveal().await,
             &deserialized_sk,
-            &enc_result.reveal(),
+            &enc_result.reveal().await,
         )
         .unwrap();
 
@@ -689,7 +692,7 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
 
         write_to_file(
             datas,
-            format!("./werewolf_game/{}/divination_result.json", Net::party_id()).as_str(),
+            format!("./werewolf_game/{}/divination_result.json", Net.party_id()).as_str(),
         )
         .unwrap();
     }
@@ -697,19 +700,17 @@ fn multi_divination(_opt: &Opt) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn voting(opt: &Opt) -> Result<(), std::io::Error> {
+async fn voting(opt: &Opt) -> Result<(), std::io::Error> {
     // init
-    Net::init_from_file(
-        opt.input.clone().unwrap().to_str().unwrap(),
-        opt.id.unwrap(),
-    );
-
     let rng = &mut test_rng();
 
     let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
-    let player_randomness = load_random_value()?;
+    let player_randomness = load_random_value().await?;
     let player_commitment = load_random_commitment()?;
+
+    assert_eq!(player_randomness.len(), Net.n_parties());
+    assert_eq!(player_commitment.len(), Net.n_parties());
 
     // calc
     let most_voted_id = Fr::from(1);
@@ -771,32 +772,17 @@ fn voting(opt: &Opt) -> Result<(), std::io::Error> {
     inputs.push(most_voted_id);
     let invalid_inputs = vec![invalid_most_voted_id];
 
-    assert!(prove_and_verify(
-        &mpc_index_pk,
-        &index_vk,
-        mpc_voting_circuit.clone(),
-        inputs
-    ));
+    assert!(prove_and_verify(&mpc_index_pk, &index_vk, mpc_voting_circuit.clone(), inputs).await);
 
-    assert!(!prove_and_verify(
-        &mpc_index_pk,
-        &index_vk,
-        mpc_voting_circuit,
-        invalid_inputs
-    ));
+    assert!(!prove_and_verify(&mpc_index_pk, &index_vk, mpc_voting_circuit, invalid_inputs).await);
 
     println!("Player {} received the most votes", most_voted_id);
 
     Ok(())
 }
 
-fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
+async fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
     // init
-    Net::init_from_file(
-        opt.input.clone().unwrap().to_str().unwrap(),
-        opt.id.unwrap(),
-    );
-
     let player_num = 3;
     let num_alive = Fr::from(3);
 
@@ -831,7 +817,7 @@ fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
         .map(|x| x.generate_input(&mpc_pedersen_param, &mpc_common_randomness))
         .collect::<Vec<_>>();
 
-    let player_randomness = load_random_value()?;
+    let player_randomness = load_random_value().await?;
     let player_commitment = load_random_commitment()?;
 
     // calc
@@ -841,12 +827,12 @@ fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
         .iter()
         .fold(MFr::zero(), |acc, x| acc + x.input);
     let num_citizen = MFr::from_public(num_alive) - num_werewolf;
-    let exists_werewolf = num_werewolf.is_zero_shared();
+    let exists_werewolf = num_werewolf.is_zero_shared().await;
 
     let game_state = exists_werewolf.field() * MFr::from(2_u32)
         + (!exists_werewolf).field()
-            * (num_werewolf.is_smaller_than(&num_citizen).field() * MFr::from(3_u32)
-                + (MFr::one() - (num_werewolf.is_smaller_than(&num_citizen)).field())
+            * (num_werewolf.is_smaller_than(&num_citizen).await.field() * MFr::from(3_u32)
+                + (MFr::one() - (num_werewolf.is_smaller_than(&num_citizen).await).field())
                     * MFr::from(1_u32));
 
     // prove
@@ -884,37 +870,49 @@ fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
         .flat_map(|c| vec![c.x, c.y])
         .collect::<Vec<_>>();
 
-    inputs.extend_from_slice(&[num_alive, game_state.reveal()]);
+    inputs.extend_from_slice(&[num_alive, game_state.reveal().await]);
 
     for iwc in mpc_am_werewolf_vec.iter() {
-        inputs.push(iwc.commitment.reveal().x);
-        inputs.push(iwc.commitment.reveal().y);
+        inputs.push(iwc.commitment.reveal().await.x);
+        inputs.push(iwc.commitment.reveal().await.y);
     }
 
     let invalid_inputs = vec![];
 
-    assert!(prove_and_verify(
-        &mpc_index_pk,
-        &index_vk,
-        mpc_judgment_circuit.clone(),
-        inputs
-    ));
+    assert!(
+        prove_and_verify(
+            &mpc_index_pk,
+            &index_vk,
+            mpc_judgment_circuit.clone(),
+            inputs
+        )
+        .await
+    );
 
-    assert!(!prove_and_verify(
-        &mpc_index_pk,
-        &index_vk,
-        mpc_judgment_circuit,
-        invalid_inputs
-    ));
+    assert!(
+        !prove_and_verify(
+            &mpc_index_pk,
+            &index_vk,
+            mpc_judgment_circuit,
+            invalid_inputs
+        )
+        .await
+    );
 
     println!("am_werewolf? {:?}", am_werewolf_val);
 
-    match game_state.reveal() {
+    match game_state.reveal().await {
         ref state if *state == Fr::from(1) => println!("Werewolf win"),
         ref state if *state == Fr::from(2) => println!("Villager win"),
         ref state if *state == Fr::from(3) => println!("Game Continue"),
         _ => println!("Error"),
     }
+
+    let self_role = get_my_role();
+
+    multi_divination().await?;
+
+    println!("My role is {:?}", self_role);
 
     Ok(())
 }

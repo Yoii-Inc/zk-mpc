@@ -6,7 +6,7 @@ pub mod preprocessing;
 pub mod serialize;
 pub mod she;
 
-// pub mod werewolf;
+pub mod werewolf;
 
 pub mod field {
     // pub use mpc_algebra::honest_but_curious::*;
