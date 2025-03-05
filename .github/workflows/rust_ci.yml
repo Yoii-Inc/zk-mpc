@@ -91,7 +91,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run tests
-        run: cargo test --lib --release
+        run: cargo test --lib --release -- --test-threads=1
 
   fix-check:
     name: Fix Check
