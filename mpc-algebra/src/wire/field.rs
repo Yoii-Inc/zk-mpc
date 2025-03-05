@@ -738,8 +738,13 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
             }
             false => {
                 // This can be faster.
+                let l = F::Params::MODULUS_BITS as usize;
                 let bits = self.sync_reveal().into_repr().to_bits_le();
-                bits.iter().map(|&b| Self::BooleanField::from(b)).collect()
+                let res = bits
+                    .iter()
+                    .map(|&b| Self::BooleanField::from(b))
+                    .collect::<Vec<_>>();
+                res[..l].to_vec()
             }
         }
     }
