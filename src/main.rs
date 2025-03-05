@@ -9,6 +9,11 @@ mod preprocessing;
 mod serialize;
 mod she;
 
+pub mod field {
+    // pub use mpc_algebra::honest_but_curious::*;
+    pub use mpc_algebra::malicious_majority::*;
+}
+
 use ark_bls12_377::{Bls12_377, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;
 use ark_ff::{BigInteger, FpParameters, PrimeField};

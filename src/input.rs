@@ -18,14 +18,14 @@ use rand::Rng;
 use mpc_algebra::commitment::pedersen::{Parameters, Randomness as MpcRandomness};
 use mpc_algebra::CommitmentScheme;
 
-use mpc_algebra::honest_but_curious::*;
+use crate::field::*;
+
 use tokio::runtime::Runtime;
 use tokio::task::block_in_place;
-// use mpc_algebra::malicious_majority::*;
 
 type MFr = MpcField<Fr>;
 
-// use crate::circuits::ElGamalLocalOrMPC;
+use crate::circuits::ElGamalLocalOrMPC;
 use crate::circuits::LocalOrMPC;
 
 #[derive(Clone)]
@@ -477,277 +477,277 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
     }
 }
 
-// #[derive(Clone)]
-// pub struct WerewolfMpcInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
-//     pub mode: InputMode,
-//     pub peculiar: Option<WerewolfPeculiarInput<F>>,
-//     pub common: Option<WerewolfCommonInput<F>>,
-// }
+#[derive(Clone)]
+pub struct WerewolfMpcInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
+    pub mode: InputMode,
+    pub peculiar: Option<WerewolfPeculiarInput<F>>,
+    pub common: Option<WerewolfCommonInput<F>>,
+}
 
-// #[derive(Clone)]
-// pub struct WerewolfPeculiarInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
-//     pub is_werewolf: Vec<InputWithCommit<F>>,
-//     pub is_target: Vec<InputWithCommit<F>>,
+#[derive(Clone)]
+pub struct WerewolfPeculiarInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
+    pub is_werewolf: Vec<InputWithCommit<F>>,
+    pub is_target: Vec<InputWithCommit<F>>,
 
-//     pub randomness: F::ElGamalRandomness,
-//     pub randomness_bit: Vec<F>,
-// }
+    pub randomness: F::ElGamalRandomness,
+    pub randomness_bit: Vec<F>,
+}
 
-// #[derive(Clone)]
-// pub struct WerewolfCommonInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
-//     pub pedersen_param: F::PedersenParam,
-//     pub elgamal_param: F::ElGamalParam,
-//     pub pub_key: F::ElGamalPubKey,
-// }
+#[derive(Clone)]
+pub struct WerewolfCommonInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
+    pub pedersen_param: F::PedersenParam,
+    pub elgamal_param: F::ElGamalParam,
+    pub pub_key: F::ElGamalPubKey,
+}
 
-// impl MpcInputTrait for WerewolfMpcInput<MFr> {
-//     type Base = Fr;
+impl MpcInputTrait for WerewolfMpcInput<MFr> {
+    type Base = Fr;
 
-//     type Peculiar = (Vec<Fr>, Vec<Fr>);
-//     // type Common = WerewolfCommonInput<MFr>;
-//     type Common = (
-//         <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParam,
-//         <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPubKey,
-//     );
+    type Peculiar = (Vec<Fr>, Vec<Fr>);
+    // type Common = WerewolfCommonInput<MFr>;
+    type Common = (
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalParam,
+        <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPubKey,
+    );
 
-//     fn get_mode(&self) -> InputMode {
-//         self.mode
-//     }
+    fn get_mode(&self) -> InputMode {
+        self.mode
+    }
 
-//     fn init() -> Self {
-//         Self {
-//             mode: InputMode::Init,
-//             peculiar: None,
-//             common: None,
-//         }
-//     }
+    fn init() -> Self {
+        Self {
+            mode: InputMode::Init,
+            peculiar: None,
+            common: None,
+        }
+    }
 
-//     fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
-//         assert_eq!(self.get_mode(), InputMode::Init);
+    fn set_public_input<R: Rng>(&mut self, rng: &mut R, input: Option<Self::Common>) {
+        assert_eq!(self.get_mode(), InputMode::Init);
 
-//         let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+        let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
-//         let elgamal_param = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::setup(rng).unwrap();
+        let elgamal_param = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::setup(rng).unwrap();
 
-//         let (pk, _sk) =
-//             <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::keygen(&elgamal_param, rng).unwrap();
+        let (pk, _sk) =
+            <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::keygen(&elgamal_param, rng).unwrap();
 
-//         let mut mpc_elgamal_param =
-//             <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalParam::from_public(elgamal_param.clone());
+        let mut mpc_elgamal_param =
+            <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalParam::from_public(elgamal_param.clone());
 
-//         let mut mpc_pk = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPubKey::from_public(pk);
+        let mut mpc_pk = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPubKey::from_public(pk);
 
-//         match input {
-//             None => (),
-//             Some((elgamal_param, _pub_key)) => {
-//                 for _i in 0..2 {
-//                     mpc_elgamal_param = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalParam::from_public(
-//                         elgamal_param.clone(),
-//                     );
-//                     mpc_pk = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPubKey::from_public(pk);
-//                 }
-//             }
-//         }
+        match input {
+            None => (),
+            Some((elgamal_param, _pub_key)) => {
+                for _i in 0..2 {
+                    mpc_elgamal_param = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalParam::from_public(
+                        elgamal_param.clone(),
+                    );
+                    mpc_pk = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalPubKey::from_public(pk);
+                }
+            }
+        }
 
-//         self.mode = InputMode::PublicSet;
-//         self.common = Some(WerewolfCommonInput {
-//             pedersen_param: Parameters::<MpcEdwardsProjective>::from_local(&pedersen_param),
-//             elgamal_param: mpc_elgamal_param,
-//             pub_key: mpc_pk,
-//         });
-//     }
+        self.mode = InputMode::PublicSet;
+        self.common = Some(WerewolfCommonInput {
+            pedersen_param: Parameters::<MpcEdwardsProjective>::from_local(&pedersen_param),
+            elgamal_param: mpc_elgamal_param,
+            pub_key: mpc_pk,
+        });
+    }
 
-//     fn set_private_input(&mut self, input: Option<Self::Peculiar>) {
-//         assert_eq!(self.get_mode(), InputMode::PublicSet);
+    fn set_private_input(&mut self, input: Option<Self::Peculiar>) {
+        assert_eq!(self.get_mode(), InputMode::PublicSet);
 
-//         // let num_peer = self.peculiar.len();
+        // let num_peer = self.peculiar.len();
 
-//         self.mode = InputMode::PrivateSet;
-//         let mut is_werewolf = vec![InputWithCommit::default(); 3];
-//         let mut is_target = vec![InputWithCommit::default(); 3];
+        self.mode = InputMode::PrivateSet;
+        let mut is_werewolf = vec![InputWithCommit::default(); 3];
+        let mut is_target = vec![InputWithCommit::default(); 3];
 
-//         for i in 0..2 {
-//             is_werewolf[i].allocation = i;
-//             is_target[i].allocation = i;
-//         }
+        for i in 0..2 {
+            is_werewolf[i].allocation = i;
+            is_target[i].allocation = i;
+        }
 
-//         match input {
-//             None => (),
-//             Some((is_werewolf_values, is_target_values)) => {
-//                 for i in 0..2 {
-//                     assert!(is_werewolf_values[i].is_zero() || is_werewolf_values[i].is_one());
-//                     assert!(is_target_values[i].is_zero() | is_target_values[i].is_one());
-//                     is_werewolf[i].input = MFr::from_public(is_werewolf_values[i]);
-//                     is_target[i].input = MFr::from_public(is_target_values[i]);
-//                 }
-//             }
-//         }
+        match input {
+            None => (),
+            Some((is_werewolf_values, is_target_values)) => {
+                for i in 0..2 {
+                    assert!(is_werewolf_values[i].is_zero() || is_werewolf_values[i].is_one());
+                    assert!(is_target_values[i].is_zero() | is_target_values[i].is_one());
+                    is_werewolf[i].input = MFr::from_public(is_werewolf_values[i]);
+                    is_target[i].input = MFr::from_public(is_target_values[i]);
+                }
+            }
+        }
 
-//         let rng = &mut ark_std::test_rng();
+        let rng = &mut ark_std::test_rng();
 
-//         let local_randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
+        let local_randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
 
-//         let mpc_randomness = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalRandomness::from_public(
-//             local_randomness.clone(),
-//         );
+        let mpc_randomness = <MFr as ElGamalLocalOrMPC<MFr>>::ElGamalRandomness::from_public(
+            local_randomness.clone(),
+        );
 
-//         let local_randomness_bit = local_randomness
-//             .0
-//             .into_repr()
-//             .to_bits_le()
-//             .iter()
-//             .map(|b| Fr::from(*b))
-//             .collect::<Vec<_>>();
+        let local_randomness_bit = local_randomness
+            .0
+            .into_repr()
+            .to_bits_le()
+            .iter()
+            .map(|b| Fr::from(*b))
+            .collect::<Vec<_>>();
 
-//         let mpc_randomness_bit = local_randomness_bit
-//             .iter()
-//             .map(|b| MFr::from_public(*b))
-//             .collect::<Vec<_>>();
+        let mpc_randomness_bit = local_randomness_bit
+            .iter()
+            .map(|b| MFr::from_public(*b))
+            .collect::<Vec<_>>();
 
-//         self.peculiar = Some(WerewolfPeculiarInput {
-//             is_werewolf,
-//             is_target,
-//             randomness: mpc_randomness,
-//             randomness_bit: mpc_randomness_bit,
-//         });
-//     }
+        self.peculiar = Some(WerewolfPeculiarInput {
+            is_werewolf,
+            is_target,
+            randomness: mpc_randomness,
+            randomness_bit: mpc_randomness_bit,
+        });
+    }
 
-//     fn generate_input<R: Rng>(&mut self, rng: &mut R) {
-//         assert_eq!(self.get_mode(), InputMode::PrivateSet);
+    fn generate_input<R: Rng>(&mut self, rng: &mut R) {
+        assert_eq!(self.get_mode(), InputMode::PrivateSet);
 
-//         self.mode = InputMode::Shared;
+        self.mode = InputMode::Shared;
 
-//         let common_randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::pub_rand(rng);
+        let common_randomness = <MFr as LocalOrMPC<MFr>>::PedersenRandomness::pub_rand(rng);
 
-//         let is_werewolf = self.clone().peculiar.unwrap().is_werewolf;
-//         let is_werewolf = is_werewolf
-//             .iter()
-//             .map(|iwc| {
-//                 iwc.generate_input(
-//                     &self.clone().common.unwrap().pedersen_param,
-//                     &common_randomness,
-//                 )
-//             })
-//             .collect::<Vec<_>>();
+        let is_werewolf = self.clone().peculiar.unwrap().is_werewolf;
+        let is_werewolf = is_werewolf
+            .iter()
+            .map(|iwc| {
+                iwc.generate_input(
+                    &self.clone().common.unwrap().pedersen_param,
+                    &common_randomness,
+                )
+            })
+            .collect::<Vec<_>>();
 
-//         let is_target = is_werewolf.clone();
+        let is_target = is_werewolf.clone();
 
-//         let elgamal_randomness = self.clone().peculiar.unwrap().randomness;
-//         let elgamal_randomness_bit = self.clone().peculiar.unwrap().randomness_bit;
+        let elgamal_randomness = self.clone().peculiar.unwrap().randomness;
+        let elgamal_randomness_bit = self.clone().peculiar.unwrap().randomness_bit;
 
-//         let peculiar = WerewolfPeculiarInput {
-//             is_werewolf,
-//             is_target,
-//             randomness: elgamal_randomness,
-//             randomness_bit: elgamal_randomness_bit,
-//         };
+        let peculiar = WerewolfPeculiarInput {
+            is_werewolf,
+            is_target,
+            randomness: elgamal_randomness,
+            randomness_bit: elgamal_randomness_bit,
+        };
 
-//         self.peculiar = Some(peculiar);
-//     }
+        self.peculiar = Some(peculiar);
+    }
 
-//     fn rand<R: Rng>(_rng: &mut R) -> Self {
-//         unimplemented!()
-//     }
-// }
+    fn rand<R: Rng>(_rng: &mut R) -> Self {
+        unimplemented!()
+    }
+}
 
-// impl MpcInputTrait for WerewolfMpcInput<Fr> {
-//     type Base = Fr;
+impl MpcInputTrait for WerewolfMpcInput<Fr> {
+    type Base = Fr;
 
-//     type Peculiar = WerewolfPeculiarInput<Fr>;
-//     type Common = WerewolfCommonInput<Fr>;
+    type Peculiar = WerewolfPeculiarInput<Fr>;
+    type Common = WerewolfCommonInput<Fr>;
 
-//     fn get_mode(&self) -> InputMode {
-//         unimplemented!()
-//     }
+    fn get_mode(&self) -> InputMode {
+        unimplemented!()
+    }
 
-//     fn init() -> Self {
-//         unimplemented!()
-//     }
+    fn init() -> Self {
+        unimplemented!()
+    }
 
-//     fn set_public_input<R: Rng>(&mut self, _rng: &mut R, _input: Option<Self::Common>) {
-//         unimplemented!()
-//     }
+    fn set_public_input<R: Rng>(&mut self, _rng: &mut R, _input: Option<Self::Common>) {
+        unimplemented!()
+    }
 
-//     fn set_private_input(&mut self, _input: Option<Self::Peculiar>) {
-//         unimplemented!()
-//     }
+    fn set_private_input(&mut self, _input: Option<Self::Peculiar>) {
+        unimplemented!()
+    }
 
-//     fn generate_input<R: Rng>(&mut self, _rng: &mut R) {
-//         unimplemented!()
-//     }
+    fn generate_input<R: Rng>(&mut self, _rng: &mut R) {
+        unimplemented!()
+    }
 
-//     fn rand<R: Rng>(rng: &mut R) -> Self {
-//         let mode = InputMode::Local;
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        let mode = InputMode::Local;
 
-//         let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
+        let params = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
-//         let input_a = Fr::rand(rng);
+        let input_a = Fr::rand(rng);
 
-//         let a_bytes = input_a.into_repr().to_bytes_le();
+        let a_bytes = input_a.into_repr().to_bytes_le();
 
-//         //// randomness
-//         let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
+        //// randomness
+        let randomness = <Fr as LocalOrMPC<Fr>>::PedersenRandomness::pub_rand(rng);
 
-//         let a = InputWithCommit {
-//             allocation: 0,
-//             input: input_a,
-//             randomness: randomness.clone(),
-//             commitment: <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
-//                 &params,
-//                 &a_bytes,
-//                 &randomness,
-//             )
-//             .unwrap(),
-//         };
+        let a = InputWithCommit {
+            allocation: 0,
+            input: input_a,
+            randomness: randomness.clone(),
+            commitment: <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
+                &params,
+                &a_bytes,
+                &randomness,
+            )
+            .unwrap(),
+        };
 
-//         let target_id = 1;
-//         let is_werewolf_vec = vec![Fr::from(0), Fr::from(1), Fr::from(0)];
+        let target_id = 1;
+        let is_werewolf_vec = vec![Fr::from(0), Fr::from(1), Fr::from(0)];
 
-//         // input parameters
-//         let elgamal_params = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::setup(rng).unwrap();
+        // input parameters
+        let elgamal_params = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::setup(rng).unwrap();
 
-//         let (pk, _sk) =
-//             <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::keygen(&elgamal_params, rng).unwrap();
+        let (pk, _sk) =
+            <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::keygen(&elgamal_params, rng).unwrap();
 
-//         let message = match is_werewolf_vec[target_id].is_one() {
-//             true => <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::prime_subgroup_generator(),
-//             false => <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::default(),
-//         };
+        let message = match is_werewolf_vec[target_id].is_one() {
+            true => <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::prime_subgroup_generator(),
+            false => <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalPlaintext::default(),
+        };
 
-//         let randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
+        let randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
 
-//         let randomness_bit = randomness
-//             .0
-//             .into_repr()
-//             .to_bits_le()
-//             .iter()
-//             .map(|b| Fr::from(*b))
-//             .collect::<Vec<_>>();
+        let randomness_bit = randomness
+            .0
+            .into_repr()
+            .to_bits_le()
+            .iter()
+            .map(|b| Fr::from(*b))
+            .collect::<Vec<_>>();
 
-//         let _output = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::encrypt(
-//             &elgamal_params,
-//             &pk,
-//             &message,
-//             &randomness,
-//         )
-//         .unwrap();
+        let _output = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalScheme::encrypt(
+            &elgamal_params,
+            &pk,
+            &message,
+            &randomness,
+        )
+        .unwrap();
 
-//         Self {
-//             mode,
-//             peculiar: Some(WerewolfPeculiarInput {
-//                 is_werewolf: vec![a.clone(); 3],
-//                 is_target: vec![a.clone(); 3],
-//                 randomness,
-//                 randomness_bit,
-//             }),
-//             common: Some(WerewolfCommonInput {
-//                 pedersen_param: params,
-//                 elgamal_param: elgamal_params,
-//                 pub_key: pk,
-//             }),
-//         }
-//     }
-// }
+        Self {
+            mode,
+            peculiar: Some(WerewolfPeculiarInput {
+                is_werewolf: vec![a.clone(); 3],
+                is_target: vec![a.clone(); 3],
+                randomness,
+                randomness_bit,
+            }),
+            common: Some(WerewolfCommonInput {
+                pedersen_param: params,
+                elgamal_param: elgamal_params,
+                pub_key: pk,
+            }),
+        }
+    }
+}
 
 #[derive(Derivative)]
 #[derivative(Default(bound = ""))]

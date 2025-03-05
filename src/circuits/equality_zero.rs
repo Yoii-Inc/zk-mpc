@@ -7,8 +7,9 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use mpc_algebra::{MpcBoolean, MpcEqGadget, MpcFpVar};
-// use mpc_algebra::malicious_majority::MpcField;
-use mpc_algebra::honest_but_curious::MpcField;
+
+use crate::field::*;
+
 use mpc_algebra::{BooleanWire, EqualityZero};
 use tokio::{runtime::Runtime, task};
 

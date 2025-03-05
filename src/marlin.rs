@@ -13,10 +13,9 @@ use futures::future::join_all;
 use std::cmp::Ordering;
 use std::io::Write;
 
+use crate::field::*;
 use blake2::Blake2s;
 use itertools::Itertools;
-use mpc_algebra::honest_but_curious::*;
-// use mpc_algebra::malicious_majority::*
 use mpc_algebra::{BooleanWire, LessThan, UniformBitRand};
 use mpc_algebra::{CommitmentScheme, FromLocal, Reveal};
 

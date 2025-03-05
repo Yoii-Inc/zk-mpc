@@ -13,15 +13,8 @@ use ark_ff::bytes::ToBytes;
 use ark_ff::BigInteger;
 use ark_ff::PrimeField;
 use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget};
-
-use mpc_algebra::Reveal;
-
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_std::{fmt::Debug, hash::Hash};
-
-use mpc_algebra::{
-    honest_but_curious as hbc, malicious_majority as mm, pedersen::Input, FieldShare, MpcEqGadget,
-};
 
 use mpc_algebra::{
     commitment::constraints::CommitmentGadget as MpcCommitmentGadget,
@@ -31,7 +24,10 @@ use mpc_algebra::{
     },
     CommitmentScheme as MpcCommitmentScheme,
 };
+use mpc_algebra::{pedersen::Input, MpcEqGadget, Reveal};
 use mpc_trait::MpcWire;
+
+use crate::field::*;
 
 pub trait LocalOrMPC<ConstraintF: PrimeField> {
     type JubJub: ProjectiveCurve;
@@ -106,8 +102,8 @@ impl LocalOrMPC<Fr> for Fr {
     }
 }
 
-impl LocalOrMPC<hbc::MpcField<Fr>> for hbc::MpcField<Fr> {
-    type JubJub = mpc_algebra::edwards2::AdditiveMpcEdwardsProjective;
+impl LocalOrMPC<MpcField<Fr>> for MpcField<Fr> {
+    type JubJub = mpc_algebra::edwards2::SpdzMpcEdwardsProjective;
 
     type PedersenComScheme = MpcCommitment<Self::JubJub, Window>;
     type PedersenCommitment = <Self::PedersenComScheme as MpcCommitmentScheme>::Output;
@@ -115,21 +111,20 @@ impl LocalOrMPC<hbc::MpcField<Fr>> for hbc::MpcField<Fr> {
     type PedersenInput = Input<Self::JubJub>;
     type PedersenRandomness = MpcRandomness<Self::JubJub>;
 
-    type PedersenComSchemeVar =
-        MpcCommGadget<Self::JubJub, mpc_algebra::AdditiveMpcEdwardsVar, Window>;
+    type PedersenComSchemeVar = MpcCommGadget<Self::JubJub, mpc_algebra::SpdzMpcEdwardsVar, Window>;
     type PedersenParamVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
         Self::PedersenComScheme,
-        hbc::MpcField<Fr>,
+        MpcField<Fr>,
     >>::ParametersVar;
     type PedersenInputVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
         Self::PedersenComScheme,
-        hbc::MpcField<Fr>,
+        MpcField<Fr>,
     >>::InputVar;
     type PedersenRandomnessVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
         Self::PedersenComScheme,
-        hbc::MpcField<Fr>,
+        MpcField<Fr>,
     >>::RandomnessVar;
-    type PedersenCommitmentVar = mpc_algebra::AdditiveMpcEdwardsVar;
+    type PedersenCommitmentVar = MpcEdwardsVar;
 
     fn convert_input(&self) -> Self::PedersenInput {
         if self.is_shared() {
@@ -156,56 +151,6 @@ impl LocalOrMPC<hbc::MpcField<Fr>> for hbc::MpcField<Fr> {
         a.enforce_equal(b)
     }
 }
-
-// impl LocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
-//     type JubJub = mpc_algebra::edwards2::SpdzMpcEdwardsProjective;
-
-//     type PedersenComScheme = MpcCommitment<Self::JubJub, Window>;
-//     type PedersenCommitment = <Self::PedersenComScheme as MpcCommitmentScheme>::Output;
-//     type PedersenParam = <Self::PedersenComScheme as MpcCommitmentScheme>::Parameters;
-//     type PedersenInput = Input<Self::JubJub>;
-//     type PedersenRandomness = MpcRandomness<Self::JubJub>;
-
-//     type PedersenComSchemeVar = MpcCommGadget<Self::JubJub, mpc_algebra::SpdzMpcEdwardsVar, Window>;
-//     type PedersenParamVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
-//         Self::PedersenComScheme,
-//         mm::MpcField<Fr>,
-//     >>::ParametersVar;
-//     type PedersenInputVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
-//         Self::PedersenComScheme,
-//         mm::MpcField<Fr>,
-//     >>::InputVar;
-//     type PedersenRandomnessVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
-//         Self::PedersenComScheme,
-//         mm::MpcField<Fr>,
-//     >>::RandomnessVar;
-//     type PedersenCommitmentVar = mpc_algebra::SpdzMpcEdwardsVar;
-
-//     fn convert_input(&self) -> Self::PedersenInput {
-//         if self.is_shared() {
-//             Self::PedersenInput::new(
-//                 <Self::JubJub as ProjectiveCurve>::ScalarField::from_add_shared(
-//                     ark_ed_on_bls12_377::Fr::from_le_bytes_mod_order(
-//                         &self.unwrap_as_public().into_repr().to_bytes_le(),
-//                     ),
-//                 ),
-//             )
-//         } else {
-//             Self::PedersenInput::new(<Self::JubJub as ProjectiveCurve>::ScalarField::from_public(
-//                 ark_ed_on_bls12_377::Fr::from_le_bytes_mod_order(
-//                     &self.unwrap_as_public().into_repr().to_bytes_le(),
-//                 ),
-//             ))
-//         }
-//     }
-
-//     fn enforce_equal_output(
-//         a: &Self::PedersenCommitmentVar,
-//         b: &Self::PedersenCommitmentVar,
-//     ) -> Result<(), SynthesisError> {
-//         a.enforce_equal(b)
-//     }
-// }
 
 pub const PERDERSON_WINDOW_SIZE: usize = 256;
 pub const PERDERSON_WINDOW_NUM: usize = 1;
