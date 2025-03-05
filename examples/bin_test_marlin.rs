@@ -23,7 +23,7 @@ async fn main() {
     net.listen().await.unwrap();
     net.connect_to_all().await.unwrap();
 
-    Net::simulate(net, |_| async {
+    Net::simulate(net, (), |_, _| async {
         marlin::mpc_test_prove_and_verify(1).await;
         marlin::mpc_test_prove_and_verify_pedersen(1).await;
         marlin::test_equality_zero(1).await;

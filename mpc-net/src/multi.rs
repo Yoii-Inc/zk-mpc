@@ -397,7 +397,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin + Send> MpcNet for MPCNetConnection<IO> 
     ) -> Result<Vec<Bytes>, MPCNetError> {
         let mut results = Vec::with_capacity(self.n_parties);
         let len = bytes.len();
-        results.push(bytes.clone()); // 自分の値を追加
+        results.push((self.id, bytes.clone())); // 自分の値を追加
 
         let mut send_futures = FuturesUnordered::new();
         for (peer_id, peer) in &self.peers {
@@ -408,13 +408,10 @@ impl<IO: AsyncRead + AsyncWrite + Unpin + Send> MpcNet for MPCNetConnection<IO> 
             let bytes_clone = bytes.clone();
             let sid_clone = sid.clone();
             send_futures.push(Box::pin(async move {
-                match self
-                    .send_to(peer_id_clone, bytes_clone.clone(), sid_clone)
+                // 送信タスク: 送信結果はエラー判定のみで、peer_id は送信先として利用できる
+                self.send_to(peer_id_clone, bytes_clone, sid_clone)
                     .await
-                {
-                    Ok(_) => Ok::<_, MPCNetError>(()),
-                    Err(e) => Err(e),
-                }
+                    .map(|_| peer_id_clone)
             }));
         }
 
@@ -426,10 +423,10 @@ impl<IO: AsyncRead + AsyncWrite + Unpin + Send> MpcNet for MPCNetConnection<IO> 
             let peer_id_clone = *peer_id;
             let sid_clone = sid.clone();
             recv_futures.push(Box::pin(async move {
-                match self.recv_from(peer_id_clone, sid_clone).await {
-                    Ok(bytes) => Ok::<_, MPCNetError>(bytes),
-                    Err(e) => Err(e),
-                }
+                // 受信タスク: 結果として (peer_id, Bytes) を返す
+                self.recv_from(peer_id_clone, sid_clone)
+                    .await
+                    .map(|b| (peer_id, b))
             }));
         }
 
@@ -438,12 +435,13 @@ impl<IO: AsyncRead + AsyncWrite + Unpin + Send> MpcNet for MPCNetConnection<IO> 
         let recv_results = recv_futures.try_collect::<Vec<_>>().await;
 
         match (send_results, recv_results) {
-            (Ok(_), Ok(recv_bytes)) => {
-                for bytes in recv_bytes {
+            (Ok(_), Ok(mut recv_bytes)) => {
+                for (peer_id, bytes) in recv_bytes.drain(..) {
                     self.download.fetch_add(bytes.len(), Ordering::Relaxed);
-                    results.push(bytes);
+                    results.push((*peer_id, bytes));
                 }
-                Ok(results)
+                results.sort_by_key(|(peer_id, _)| *peer_id);
+                Ok(results.into_iter().map(|(_, b)| b).collect())
             }
             (Err(e), _) => Err(e),
             (_, Err(e)) => Err(e),
@@ -528,16 +526,22 @@ task_local! {
 pub struct MpcMultiNet;
 
 impl MpcMultiNet {
-    pub async fn simulate<F: Future<Output = K> + Send, K: Send + Sync + 'static>(
+    pub async fn simulate<
+        F: Future<Output = K> + Send,
+        K: Send + Sync + 'static,
+        U: Clone + Send + Sync + 'static,
+    >(
         connections: MPCNetConnection<TcpStream>,
-        f: impl Fn(Arc<MPCNetConnection<TcpStream>>) -> F + Send + Sync + Clone + 'static,
+        user_data: U,
+        f: impl Fn(Arc<MPCNetConnection<TcpStream>>, U) -> F + Send + Sync + Clone + 'static,
     ) -> Vec<K> {
         let mut futures = FuturesOrdered::new();
         let next_f = f.clone();
+        let next_user_data = user_data.clone();
         let connections_arc = Arc::new(connections);
         let conn_for_scope = connections_arc.clone();
         futures.push_back(Box::pin(async move {
-            let task = async move { next_f(connections_arc.clone()).await };
+            let task = async move { next_f(connections_arc.clone(), next_user_data).await };
             let handle = tokio::task::spawn(NET.scope(conn_for_scope, task));
             handle.await.unwrap()
         }));
