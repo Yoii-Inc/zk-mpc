@@ -82,7 +82,7 @@ impl Game {
         }
     }
 
-    pub fn role_assignment(&mut self, is_prove: bool) {
+    pub async fn role_assignment(&mut self, is_prove: bool) {
         let role = role::calc_role(self.state.players.len(), &self.rules);
 
         for (player, role) in self.state.players.iter_mut().zip(role) {
@@ -91,13 +91,13 @@ impl Game {
 
         if is_prove {
             // prove and verify
-            if let Err(e) = self.prove_and_verify() {
+            if let Err(e) = self.prove_and_verify().await {
                 eprintln!("Failed to prove and verify: {}", e);
             }
         }
     }
 
-    fn prove_and_verify(&self) -> Result<(), std::io::Error> {
+    async fn prove_and_verify(&self) -> Result<(), std::io::Error> {
         let n = self.state.players.len();
         let m = self.rules.grouping_parameter.get_num_groups();
 
@@ -105,7 +105,7 @@ impl Game {
 
         let pedersen_param = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::setup(rng).unwrap();
 
-        let player_randomness = load_random_value()?;
+        let player_randomness = load_random_value().await?;
         let player_commitment = load_random_commitment()?;
 
         // calc
@@ -207,17 +207,12 @@ impl Game {
             .flat_map(|c| vec![c.x, c.y])
             .collect::<Vec<_>>();
 
-        role_commitment.iter().for_each(|x| {
-            inputs.push(x.reveal().x);
-            inputs.push(x.reveal().y);
-        });
+        for commitment in role_commitment {
+            inputs.push(commitment.reveal().await.x);
+            inputs.push(commitment.reveal().await.y);
+        }
 
-        assert!(prove_and_verify(
-            &mpc_index_pk,
-            &index_vk,
-            mpc_role_circuit.clone(),
-            inputs
-        ));
+        assert!(prove_and_verify(&mpc_index_pk, &index_vk, mpc_role_circuit.clone(), inputs).await);
 
         Ok(())
     }
@@ -253,7 +248,7 @@ impl Game {
         }
     }
 
-    fn prove_and_verify_victory(&self) {
+    async fn prove_and_verify_victory(&self) {
         // setup
 
         let num_alive = Fr::from(self.state.players.iter().filter(|p| p.is_alive).count() as i32);
@@ -297,7 +292,7 @@ impl Game {
             .map(|x| x.generate_input(&mpc_pedersen_param, &mpc_common_randomness))
             .collect::<Vec<_>>();
 
-        let player_randomness = load_random_value().unwrap();
+        let player_randomness = load_random_value().await.unwrap();
         let player_commitment = load_random_commitment().unwrap();
 
         // calc
@@ -306,17 +301,19 @@ impl Game {
             .iter()
             .fold(MFr::default(), |acc, x| acc + x.input);
         let num_citizen = MFr::from_public(num_alive) - num_werewolf;
-        let exists_werewolf = num_werewolf.is_zero_shared();
+        let exists_werewolf = num_werewolf.is_zero_shared().await;
 
         let game_state = exists_werewolf.field() * MFr::from(2_u32)
             + (!exists_werewolf).field()
                 * ((num_werewolf + MFr::one())
                     .is_smaller_than(&num_citizen)
+                    .await
                     .field()
                     * MFr::from(3_u32)
                     + (MFr::one()
                         - ((num_werewolf + MFr::one())
                             .is_smaller_than(&num_citizen)
+                            .await
                             .field()))
                         * MFr::from(1_u32));
 
@@ -356,36 +353,35 @@ impl Game {
             .flat_map(|c| vec![c.x, c.y])
             .collect::<Vec<_>>();
 
-        inputs.extend_from_slice(&[num_alive, game_state.reveal()]);
+        inputs.extend_from_slice(&[num_alive, game_state.reveal().await]);
 
         for iwc in mpc_am_werewolf_vec.iter() {
-            inputs.push(iwc.commitment.reveal().x);
-            inputs.push(iwc.commitment.reveal().y);
+            inputs.push(iwc.commitment.reveal().await.x);
+            inputs.push(iwc.commitment.reveal().await.y);
         }
 
-        assert!(prove_and_verify(
-            &mpc_index_pk,
-            &index_vk,
-            mpc_judgment_circuit.clone(),
-            inputs
-        ));
+        assert!(
+            prove_and_verify(
+                &mpc_index_pk,
+                &index_vk,
+                mpc_judgment_circuit.clone(),
+                inputs
+            )
+            .await
+        );
     }
 
-    pub fn werewolf_attack(&mut self, target_id: MFr) -> Vec<String> {
+    pub async fn werewolf_attack(&mut self, target_id: MFr) -> Vec<String> {
         let mut events = Vec::new();
 
-        let am_werewolf = self
-            .state
-            .players
-            .iter()
-            .any(|p| p.id == Net::party_id() && p.role == Some(Role::Werewolf) && p.is_alive);
+        let am_werewolf = self.state.players.iter().any(|p| {
+            p.id == Net.party_id() as usize && p.role == Some(Role::Werewolf) && p.is_alive
+        });
 
         // calc
-        if let Some(target) =
-            self.state.players.iter_mut().find(|p| {
-                Fr::from(p.id as i32) == target_id.reveal() && p.is_alive && !p.is_werewolf()
-            })
-        {
+        if let Some(target) = self.state.players.iter_mut().find(|p| {
+            Fr::from(p.id as i32) == target_id.sync_reveal() && p.is_alive && !p.is_werewolf()
+        }) {
             target.mark_for_death();
             if am_werewolf {
                 events.push(format!(
@@ -406,10 +402,9 @@ impl Game {
         let mut events = Vec::new();
 
         // get FortuneTeller
-        let am_fortune_teller =
-            self.state.players.iter().any(|p| {
-                p.id == Net::party_id() && p.role == Some(Role::FortuneTeller) && p.is_alive
-            });
+        let am_fortune_teller = self.state.players.iter().any(|p| {
+            p.id == Net.party_id() as usize && p.role == Some(Role::FortuneTeller) && p.is_alive
+        });
 
         // calc
         if let Some(seer) = self
@@ -419,7 +414,7 @@ impl Game {
             .find(|p| p.role == Some(Role::FortuneTeller) && p.is_alive)
         {
             if let Some(target) = self.state.players.iter().find(|p| {
-                Fr::from(p.id as i32) == target_id.reveal() && p.is_alive && p.id != seer.id
+                Fr::from(p.id as i32) == target_id.sync_reveal() && p.is_alive && p.id != seer.id
             }) {
                 let role_name = if target.is_werewolf() {
                     "Werewolf"
@@ -441,11 +436,11 @@ impl Game {
         events
     }
 
-    pub fn morning_phase(&mut self) -> Vec<String> {
+    pub async fn morning_phase(&mut self) -> Vec<String> {
         let mut events = Vec::new();
 
         for player in &mut self.state.players {
-            if player.marked_for_death.reveal().is_one() && player.is_alive {
+            if player.marked_for_death.reveal().await.is_one() && player.is_alive {
                 player.kill(self.state.day);
                 events.push(format!("{} was found dead.", player.name));
                 player.marked_for_death = MpcBooleanField::pub_false();
@@ -463,7 +458,7 @@ impl Game {
         vec!["The discussion phase has begun.".to_string()]
     }
 
-    pub fn voting_phase(&mut self, votes: Vec<usize>, is_prove: bool) -> Vec<String> {
+    pub async fn voting_phase(&mut self, votes: Vec<usize>, is_prove: bool) -> Vec<String> {
         let mut events = Vec::new();
         let mut vote_count = vec![0; self.state.players.len()];
 
@@ -522,6 +517,7 @@ impl Game {
             let most_voted_id = Fr::from(executed_index as i32);
 
             self.prove_and_verify_voting(&mpc_vote_data, &most_voted_id)
+                .await
                 .unwrap();
         }
 
@@ -542,7 +538,7 @@ impl Game {
         mpc_votes
     }
 
-    fn prove_and_verify_voting(
+    async fn prove_and_verify_voting(
         &self,
         votes_data: &Vec<Vec<MFr>>,
         most_voted_id: &Fr,
@@ -555,7 +551,7 @@ impl Game {
 
         let pedersen_param = self.state.pedersen_param.clone();
 
-        let player_randomness = load_random_value()?;
+        let player_randomness = load_random_value().await?;
         let player_commitment = load_random_commitment()?;
 
         for i in 0..player_num {
@@ -605,12 +601,9 @@ impl Game {
 
         inputs.push(*most_voted_id);
 
-        assert!(prove_and_verify(
-            &mpc_index_pk,
-            &index_vk,
-            mpc_voting_circuit.clone(),
-            inputs
-        ));
+        assert!(
+            prove_and_verify(&mpc_index_pk, &index_vk, mpc_voting_circuit.clone(), inputs).await
+        );
 
         println!("Voting is verified!");
 
