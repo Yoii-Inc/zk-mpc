@@ -5,7 +5,6 @@ use mpc_algebra::channel::MpcSerNet;
 use mpc_algebra::Reveal;
 use mpc_net::multi::MPCNetConnection;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
-use rand::thread_rng;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use structopt::StructOpt;

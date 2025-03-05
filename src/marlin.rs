@@ -7,7 +7,7 @@ use ark_marlin::{ahp::prover::*, *};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_relations::r1cs::ConstraintSynthesizer;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_serialize::CanonicalSerialize;
 use ark_std::{end_timer, start_timer, test_rng, PubUniformRand, UniformRand};
 use futures::future::join_all;
 use std::cmp::Ordering;
@@ -394,6 +394,8 @@ mod tests {
     use mpc_net::LocalTestNet;
 
     use crate::circuits::circuit::MySimpleCircuit;
+
+    use ark_serialize::CanonicalDeserialize;
 
     use super::*;
 

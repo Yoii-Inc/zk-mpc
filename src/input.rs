@@ -20,7 +20,6 @@ use mpc_algebra::CommitmentScheme;
 
 use crate::field::*;
 
-use tokio::runtime::Runtime;
 use tokio::task::block_in_place;
 
 type MFr = MpcField<Fr>;

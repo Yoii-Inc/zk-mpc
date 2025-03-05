@@ -11,7 +11,7 @@ use mpc_algebra::{MpcBoolean, MpcEqGadget, MpcFpVar};
 use crate::field::*;
 
 use mpc_algebra::{BooleanWire, EqualityZero};
-use tokio::{runtime::Runtime, task};
+use tokio::task;
 
 type Fr = ark_bls12_377::Fr;
 type MFr = MpcField<Fr>;

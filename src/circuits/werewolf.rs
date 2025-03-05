@@ -24,7 +24,6 @@ use mpc_algebra::{
 
 use nalgebra as na;
 
-use mpc_algebra::honest_but_curious as hbc;
 use mpc_algebra::malicious_majority as mm;
 
 use mpc_algebra::encryption::constraints::AsymmetricEncryptionGadget;
@@ -32,7 +31,7 @@ use mpc_algebra::encryption::elgamal::{
     constraints::ElGamalEncGadget as MpcElGamalEncGadget, elgamal::ElGamal as MpcElGamal,
 };
 
-use super::{circuit, LocalOrMPC, PedersenComCircuit};
+use super::{LocalOrMPC, PedersenComCircuit};
 use crate::input::{InputWithCommit, WerewolfKeyInput, WerewolfMpcInput};
 
 #[derive(Clone)]

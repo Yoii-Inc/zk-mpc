@@ -1,6 +1,6 @@
 use ark_bls12_377::Fr;
 use ark_crypto_primitives::CommitmentScheme;
-use ark_ff::{BigInteger, FpParameters, PrimeField};
+use ark_ff::{BigInteger, PrimeField};
 use ark_marlin::IndexProverKey;
 use ark_serialize::{CanonicalDeserialize, Read};
 use ark_std::test_rng;
