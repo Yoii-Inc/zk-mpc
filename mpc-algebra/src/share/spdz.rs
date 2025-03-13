@@ -284,17 +284,28 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
     type Base = G;
 
     async fn reveal(self) -> G {
-        let vals: Vec<G> = Net.broadcast(&self.sh.val).await;
-        // _Pragmatic MPC_ 6.6.2
-        let x: G = vals.iter().sum();
-        let dx_t: G = {
-            let mut t = x.clone();
-            t *= mac_share::<G::ScalarField>();
-            t - self.mac.val
-        };
-        let all_dx_ts: Vec<G> = Net.atomic_broadcast(&dx_t).await;
-        let sum: G = all_dx_ts.iter().sum();
-        assert!(sum.is_zero());
+        let maximal_try = 10;
+        let mut try_count = 0;
+        let mut x = G::zero();
+        loop {
+            let vals: Vec<G> = Net.broadcast(&self.sh.val).await;
+            x = vals.iter().sum();
+            let dx_t = {
+                let mut t = x.clone();
+                t *= mac_share::<G::ScalarField>();
+                t - self.mac.val
+            };
+
+            let all_dx_ts: Vec<G> = Net.atomic_broadcast(&dx_t).await;
+            let sum: G = all_dx_ts.iter().sum();
+            if sum.is_zero() {
+                break;
+            }
+            try_count += 1;
+            if try_count >= maximal_try {
+                panic!("Reveal failed after {} tries", maximal_try);
+            }
+        }
         x
     }
     fn from_public(f: G) -> Self {
