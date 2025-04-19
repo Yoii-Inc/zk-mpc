@@ -531,17 +531,16 @@ impl MpcMultiNet {
         K: Send + Sync + 'static,
         U: Clone + Send + Sync + 'static,
     >(
-        connections: MPCNetConnection<TcpStream>,
+        connections: Arc<MPCNetConnection<TcpStream>>,
         user_data: U,
         f: impl Fn(Arc<MPCNetConnection<TcpStream>>, U) -> F + Send + Sync + Clone + 'static,
     ) -> Vec<K> {
         let mut futures = FuturesOrdered::new();
         let next_f = f.clone();
         let next_user_data = user_data.clone();
-        let connections_arc = Arc::new(connections);
-        let conn_for_scope = connections_arc.clone();
+        let conn_for_scope = connections.clone();
         futures.push_back(Box::pin(async move {
-            let task = async move { next_f(connections_arc.clone(), next_user_data).await };
+            let task = async move { next_f(connections.clone(), next_user_data).await };
             let handle = tokio::task::spawn(NET.scope(conn_for_scope, task));
             handle.await.unwrap()
         }));

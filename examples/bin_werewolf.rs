@@ -24,6 +24,7 @@ use mpc_net::multi::MPCNetConnection;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use rand::Rng;
 use serde::Deserialize;
+use std::sync::Arc;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 use zk_mpc::circuits::LocalOrMPC;
@@ -103,7 +104,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         net.listen().await.unwrap();
         net.connect_to_all().await.unwrap();
 
-        Net::simulate(net, opt.clone(), |_, opt| async move {
+        let net_arc = Arc::new(net);
+
+        Net::simulate(net_arc, opt.clone(), |_, opt| async move {
             match opt.mode.as_str() {
                 "preprocessing" => {
                     println!("Preprocessing mode");
@@ -130,7 +133,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     net.listen().await.unwrap();
                     net.connect_to_all().await.unwrap();
 
-                    Net::simulate(net, opt, |_, opt| async move {
+                    let net_arc = Arc::new(net);
+
+                    Net::simulate(net_arc, opt, |_, opt| async move {
                         println!("Vote mode");
                         // run the vote phase
                         voting(&opt).await.unwrap();

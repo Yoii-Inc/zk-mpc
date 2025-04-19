@@ -8,7 +8,7 @@ use mpc_algebra::Reveal;
 use mpc_net::{multi::MPCNetConnection, MpcMultiNet as Net, MpcNet};
 use rand::{rngs::StdRng, SeedableRng};
 use serde::Deserialize;
-use std::{fs::File, path::PathBuf, vec};
+use std::{fs::File, path::PathBuf, sync::Arc, vec};
 use structopt::StructOpt;
 use zk_mpc::{
     circuits::{circuit::MyCircuit, LocalOrMPC},
@@ -108,6 +108,8 @@ async fn main() {
     net.listen().await.unwrap();
     net.connect_to_all().await.unwrap();
 
+    let net_arc = Arc::new(net);
+
     let mut file = File::open(opt.input_file_path).expect("Failed to open file");
     let mut contents = String::new();
     file.read_to_string(&mut contents)
@@ -173,7 +175,7 @@ async fn main() {
         )
     };
 
-    Net::simulate(net, (), move |_, _| async move {
+    Net::simulate(net_arc, (), move |_, _| async move {
         let rng = &mut StdRng::from_entropy();
         let common_rng = &mut test_rng();
 

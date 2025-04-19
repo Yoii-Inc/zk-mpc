@@ -1,5 +1,5 @@
 use mpc_net::{multi::MPCNetConnection, MpcMultiNet as Net};
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -21,7 +21,9 @@ async fn main() {
     net.listen().await.unwrap();
     net.connect_to_all().await.unwrap();
 
-    Net::simulate(net, (), |_, _| async {
+    let net_arc = Arc::new(net);
+
+    Net::simulate(net_arc, (), |_, _| async {
         zk_mpc::groth16::mpc_test_prove_and_verify::<
             ark_bls12_377::Bls12_377,
             mpc_algebra::AdditivePairingShare<ark_bls12_377::Bls12_377>,

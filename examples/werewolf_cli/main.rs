@@ -7,6 +7,7 @@ use mpc_net::multi::MPCNetConnection;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
 use structopt::StructOpt;
 use zk_mpc::marlin::MFr;
 use zk_mpc::werewolf::types::{GroupingParameter, Role};
@@ -39,7 +40,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     net.listen().await.unwrap();
     net.connect_to_all().await.unwrap();
 
-    Net::simulate(net, opt.clone(), |_, opt| async move {
+    let net_arc = Arc::new(net);
+
+    Net::simulate(net_arc, opt.clone(), |_, opt| async move {
         let game_rule = GameRules {
             min_players: 4,
             max_players: 10,
