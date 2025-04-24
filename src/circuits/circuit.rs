@@ -3,6 +3,7 @@ use ark_relations::{
     lc,
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
 };
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, SerializationError, Write};
 
 use crate::input::SampleMpcInput;
 
@@ -75,7 +76,7 @@ impl<ConstraintF: PrimeField + LocalOrMPC<ConstraintF>> ConstraintSynthesizer<Co
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct MySimpleCircuit<F: PrimeField> {
     pub a: Option<F>,
     pub b: Option<F>,

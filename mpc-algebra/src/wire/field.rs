@@ -5,6 +5,7 @@ use futures::future::join_all;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
 use rand::Rng;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{self, Debug, Display};
 use std::io::{self, Read, Write};
 use std::iter::{Product, Sum};
@@ -176,17 +177,23 @@ impl<F: Field, S: FieldShare<F>> FromBytes for MpcField<F, S> {
 }
 
 impl<F: Field, S: FieldShare<F>> CanonicalSerialize for MpcField<F, S> {
-    fn serialize<W: Write>(&self, writer: W) -> Result<(), ark_serialize::SerializationError> {
+    fn serialize<W: Write>(&self, mut writer: W) -> Result<(), ark_serialize::SerializationError> {
         match self {
-            Self::Public(v) => v.serialize(writer),
-            Self::Shared(_) => unimplemented!("serialize share: {}", self),
+            Self::Public(v) => {
+                writer.write_all(&[0])?;
+                v.serialize(writer)
+            }
+            Self::Shared(v) => {
+                writer.write_all(&[1])?;
+                v.serialize(writer)
+            }
         }
     }
 
     fn serialized_size(&self) -> usize {
         match self {
-            Self::Public(v) => v.serialized_size(),
-            Self::Shared(_) => unimplemented!("serialized_size share: {}", self),
+            Self::Public(v) => 1 + v.serialized_size(),
+            Self::Shared(v) => 1 + v.serialized_size(),
         }
     }
 }
@@ -209,8 +216,15 @@ impl<F: Field, S: FieldShare<F>> CanonicalSerializeWithFlags for MpcField<F, S> 
 }
 
 impl<F: Field, S: FieldShare<F>> CanonicalDeserialize for MpcField<F, S> {
-    fn deserialize<R: Read>(_reader: R) -> Result<Self, ark_serialize::SerializationError> {
-        todo!()
+    fn deserialize<R: Read>(mut reader: R) -> Result<Self, ark_serialize::SerializationError> {
+        let mut flag = [0u8; 1];
+        reader.read_exact(&mut flag)?;
+
+        match flag[0] {
+            0 => Ok(MpcField::Public(F::deserialize(reader)?)),
+            1 => Ok(MpcField::Shared(S::deserialize(reader)?)),
+            _ => Err(ark_serialize::SerializationError::InvalidData),
+        }
     }
 }
 
@@ -1132,6 +1146,31 @@ impl<F1: PrimeField, S1: FieldShare<F1>, F2: PrimeField, S2: FieldShare<F2>>
     }
 }
 
+impl<F: Field, S: FieldShare<F>> Serialize for MpcField<F, S> {
+    fn serialize<Sr>(&self, serializer: Sr) -> Result<Sr::Ok, Sr::Error>
+    where
+        Sr: Serializer,
+    {
+        let mut bytes = Vec::new();
+        CanonicalSerialize::serialize(self, &mut bytes).map_err(serde::ser::Error::custom)?;
+
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<'de, F: Field, S: FieldShare<F>> Deserialize<'de> for MpcField<F, S> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes: Vec<u8> = serde::de::Deserialize::deserialize(deserializer)?;
+
+        let a: MpcField<F, S> = <Self as CanonicalDeserialize>::deserialize(&bytes[..])
+            .map_err(serde::de::Error::custom)?;
+        Ok(a)
+    }
+}
+
 mod poly_impl {
 
     use crate::share::*;
@@ -1176,15 +1215,18 @@ mod poly_impl {
 #[cfg(test)]
 mod tests {
 
-    use crate::{AdditiveFieldShare, Reveal};
+    use crate::{AdditiveFieldShare, Reveal, SpdzFieldShare};
     use ark_bls12_377::Fr;
-    use ark_ff::{PrimeField, UniformRand};
+    use ark_ff::{PrimeField, PubUniformRand, UniformRand};
+    use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
     use mpc_net::{LocalTestNet, MpcMultiNet as Net, MpcNet};
+    use mpc_trait::MpcWire;
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
     use super::MpcField;
 
     type MFr = MpcField<Fr, AdditiveFieldShare<Fr>>;
+    type SpdzMFr = MpcField<Fr, SpdzFieldShare<Fr>>;
 
     #[tokio::test]
     async fn test_add() {
@@ -1224,6 +1266,156 @@ mod tests {
                     let b = MFr::async_king_share(a, rng).await;
 
                     assert_eq!(a, b.reveal().await);
+                }
+            })
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_canonical_serialization() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |_conn, _| async move {
+                let rng = &mut ark_std::test_rng();
+
+                // Test public value serialization/deserialization
+                {
+                    let public_value = MFr::pub_rand(rng);
+                    let mut serialized = Vec::new();
+
+                    // Serialize public value
+                    public_value.serialize(&mut serialized).unwrap();
+
+                    // Deserialize public value
+                    let deserialized = MFr::deserialize(&mut &serialized[..]).unwrap();
+                    assert_eq!(public_value, deserialized);
+
+                    // Check serialized size
+                    let expected_size = public_value.serialized_size();
+                    assert_eq!(serialized.len(), expected_size);
+                }
+
+                // Test shared value serialization/deserialization
+                {
+                    let shared_value = MFr::rand(rng);
+                    assert!(shared_value.is_shared());
+                    let mut serialized = Vec::new();
+
+                    // Serialize shared value
+                    shared_value.serialize(&mut serialized).unwrap();
+
+                    // Deserialize shared value
+                    let deserialized = MFr::deserialize(&mut &serialized[..]).unwrap();
+
+                    // Check equality after reveal
+                    assert_eq!(shared_value.reveal().await, deserialized.reveal().await);
+
+                    // Check serialized size
+                    let expected_size = shared_value.serialized_size();
+                    assert_eq!(serialized.len(), expected_size);
+                }
+
+                // Test mixed serialization/deserialization
+                {
+                    let mut values = vec![
+                        MFr::pub_rand(rng),
+                        MFr::rand(rng),
+                        MFr::pub_rand(rng),
+                        MFr::rand(rng),
+                    ];
+
+                    let mut serialized_all = Vec::new();
+                    for value in &values {
+                        value.serialize(&mut serialized_all).unwrap();
+                    }
+
+                    let mut deserialized = Vec::new();
+                    let mut cursor = &serialized_all[..];
+                    while !cursor.is_empty() {
+                        deserialized.push(MFr::deserialize(&mut cursor).unwrap());
+                    }
+
+                    // Compare original and deserialized values
+                    for (orig, deser) in values.into_iter().zip(deserialized) {
+                        assert_eq!(orig.reveal().await, deser.reveal().await);
+                    }
+                }
+            })
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_canonical_serialization_spdz() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |_conn, _| async move {
+                let rng = &mut ark_std::test_rng();
+
+                // Test public value serialization/deserialization
+                {
+                    let public_value = SpdzMFr::pub_rand(rng);
+                    let mut serialized = Vec::new();
+
+                    // Serialize public value
+                    public_value.serialize(&mut serialized).unwrap();
+
+                    // Deserialize public value
+                    let deserialized = SpdzMFr::deserialize(&mut &serialized[..]).unwrap();
+                    assert_eq!(public_value, deserialized);
+
+                    // Check serialized size
+                    let expected_size = public_value.serialized_size();
+                    assert_eq!(serialized.len(), expected_size);
+                }
+
+                // Test shared value serialization/deserialization
+                {
+                    let shared_value = SpdzMFr::rand(rng);
+                    assert!(shared_value.is_shared());
+                    let mut serialized = Vec::new();
+
+                    // Serialize shared value
+                    shared_value.serialize(&mut serialized).unwrap();
+
+                    // Deserialize shared value
+                    let deserialized = SpdzMFr::deserialize(&mut &serialized[..]).unwrap();
+
+                    // Check equality after reveal
+                    assert_eq!(shared_value.reveal().await, deserialized.reveal().await);
+
+                    // Check serialized size
+                    let expected_size = shared_value.serialized_size();
+                    assert_eq!(serialized.len(), expected_size);
+                }
+
+                // Test mixed serialization/deserialization
+                {
+                    let mut values = vec![
+                        SpdzMFr::pub_rand(rng),
+                        SpdzMFr::rand(rng),
+                        SpdzMFr::pub_rand(rng),
+                        SpdzMFr::rand(rng),
+                    ];
+
+                    let mut serialized_all = Vec::new();
+                    for value in &values {
+                        value.serialize(&mut serialized_all).unwrap();
+                    }
+
+                    let mut deserialized = Vec::new();
+                    let mut cursor = &serialized_all[..];
+                    while !cursor.is_empty() {
+                        deserialized.push(SpdzMFr::deserialize(&mut cursor).unwrap());
+                    }
+
+                    // Compare original and deserialized values
+                    for (orig, deser) in values.into_iter().zip(deserialized) {
+                        assert_eq!(orig.reveal().await, deser.reveal().await);
+                    }
                 }
             })
             .await;

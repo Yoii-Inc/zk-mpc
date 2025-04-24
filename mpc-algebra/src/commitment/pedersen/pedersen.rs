@@ -1,6 +1,7 @@
 use ark_crypto_primitives::Error;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{bytes::ToBytes, BitIteratorLE, Field, FpParameters, PrimeField, ToConstraintField};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, SerializationError};
 use ark_std::io::{Result as IoResult, Write};
 use ark_std::marker::PhantomData;
 use ark_std::rand::Rng;
@@ -16,7 +17,7 @@ use crate::{BitDecomposition, CommitmentScheme, FieldShare, MpcField, Reveal};
 // pub use ark_crypto_primitives::crh::pedersen::Window;
 // use ark_crypto_primitives::crh::{pedersen, CRH};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Parameters<C: ProjectiveCurve> {
     pub randomness_generator: Vec<C>,
     pub generators: Vec<Vec<C>>,
@@ -37,7 +38,7 @@ impl<C: ProjectiveCurve> Input<C> {
     }
 }
 
-#[derive(Derivative)]
+#[derive(Derivative, CanonicalDeserialize, CanonicalSerialize)]
 #[derivative(Clone, Copy, PartialEq, Debug, Eq, Default)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);
 

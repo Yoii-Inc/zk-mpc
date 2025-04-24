@@ -37,6 +37,9 @@ structopt = "0.3"
 env_logger = "0.8"
 sha2 = "0.9"
 
+
+serde = { version = "1.0", features = ["derive"] }
+
 [features]
 default = ["ark-r1cs-std"]
 

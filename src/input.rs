@@ -6,6 +6,9 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::AffineCurve;
 use ark_ff::Field;
+use ark_serialize::CanonicalDeserialize;
+use ark_serialize::CanonicalSerialize;
+use ark_serialize::{Read, SerializationError, Write};
 use ark_std::PubUniformRand;
 use ark_std::UniformRand;
 use derivative::Derivative;
@@ -42,13 +45,13 @@ pub struct PeculiarInput<F: PrimeField + LocalOrMPC<F>> {
 }
 
 // Common values used in the circuit
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct CommonInput<F: PrimeField + LocalOrMPC<F>> {
     pub pedersen_param: F::PedersenParam,
 }
 
 // A private value and its commitments
-#[derive(Clone, Default)]
+#[derive(Clone, Default, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputWithCommit<F: PrimeField + LocalOrMPC<F>> {
     pub allocation: usize,
     pub input: F,
@@ -106,6 +109,39 @@ pub enum InputMode {
     PrivateSet,
     Shared,
     Local,
+}
+
+impl CanonicalSerialize for InputMode {
+    fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+        // match self {
+        //     InputMode::Init => writer.write_all(&[0]),
+        //     InputMode::PublicSet => writer.write_all(&[1]),
+        //     InputMode::PrivateSet => writer.write_all(&[2]),
+        //     InputMode::Shared => writer.write_all(&[3]),
+        //     InputMode::Local => writer.write_all(&[4]),
+        // }
+        todo!()
+    }
+
+    fn serialized_size(&self) -> usize {
+        todo!()
+    }
+}
+
+impl CanonicalDeserialize for InputMode {
+    fn deserialize<R: Read>(reader: R) -> Result<Self, SerializationError> {
+        // let mut buf = [0; 1];
+        // reader.read_exact(&mut buf)?;
+        // match buf[0] {
+        //     0 => Ok(InputMode::Init),
+        //     1 => Ok(InputMode::PublicSet),
+        //     2 => Ok(InputMode::PrivateSet),
+        //     3 => Ok(InputMode::Shared),
+        //     4 => Ok(InputMode::Local),
+        //     _ => Err(SerializationError::InvalidData),
+        // }
+        todo!()
+    }
 }
 
 pub trait MpcInputTrait {
@@ -264,14 +300,14 @@ impl MpcInputTrait for SampleMpcInput<Fr> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfKeyInput<F: PrimeField + LocalOrMPC<F>> {
     pub mode: InputMode,
     pub peculiar: Option<WerewolfKeyPeculiarInput<F>>,
     pub common: Option<CommonInput<F>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfKeyPeculiarInput<F: PrimeField + LocalOrMPC<F>> {
     pub pub_key_or_dummy_x: Vec<InputWithCommit<F>>,
     pub pub_key_or_dummy_y: Vec<InputWithCommit<F>>,
@@ -476,14 +512,14 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfMpcInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
     pub mode: InputMode,
     pub peculiar: Option<WerewolfPeculiarInput<F>>,
     pub common: Option<WerewolfCommonInput<F>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfPeculiarInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
     pub is_werewolf: Vec<InputWithCommit<F>>,
     pub is_target: Vec<InputWithCommit<F>>,
@@ -492,7 +528,7 @@ pub struct WerewolfPeculiarInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrM
     pub randomness_bit: Vec<F>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfCommonInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
     pub pedersen_param: F::PedersenParam,
     pub elgamal_param: F::ElGamalParam,

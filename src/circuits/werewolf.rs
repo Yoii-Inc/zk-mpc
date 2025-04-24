@@ -14,6 +14,9 @@ use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::select::CondSelectGadget;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_serialize::SerializationError;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_serialize::{Read, Write};
 use ark_std::{test_rng, One, Zero};
 use mpc_algebra::groups::MpcCurveVar;
 use mpc_algebra::mpc_fields::MpcFieldVar;
@@ -572,7 +575,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct AnonymousVotingCircuit<F: PrimeField + LocalOrMPC<F>> {
     pub is_target_id: Vec<Vec<F>>,
     pub is_most_voted_id: F,
@@ -1197,10 +1200,10 @@ pub trait ElGamalLocalOrMPC<ConstraintF: PrimeField> {
         Plaintext = Self::ElGamalPlaintext,
         Ciphertext = Self::ElGamalCiphertext,
     >;
-    type ElGamalParam: Clone;
-    type ElGamalPubKey: Clone;
+    type ElGamalParam: Clone + CanonicalSerialize + CanonicalDeserialize;
+    type ElGamalPubKey: Clone + CanonicalSerialize + CanonicalDeserialize;
     type ElGamalSecretKey;
-    type ElGamalRandomness: Clone;
+    type ElGamalRandomness: Clone + CanonicalSerialize + CanonicalDeserialize;
     type ElGamalPlaintext: Clone;
     type ElGamalCiphertext: Clone;
 

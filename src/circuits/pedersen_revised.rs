@@ -14,6 +14,7 @@ use ark_ff::BigInteger;
 use ark_ff::PrimeField;
 use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{fmt::Debug, hash::Hash};
 
 use mpc_algebra::{
@@ -37,10 +38,23 @@ pub trait LocalOrMPC<ConstraintF: PrimeField> {
         Input = Self::PedersenInput,
         Randomness = Self::PedersenRandomness,
     >;
-    type PedersenCommitment: ToBytes + Clone + Default + Eq + Hash + Debug;
-    type PedersenParam: Clone;
+    type PedersenCommitment: ToBytes
+        + Clone
+        + Default
+        + Eq
+        + Hash
+        + Debug
+        + CanonicalSerialize
+        + CanonicalDeserialize;
+    type PedersenParam: Clone + CanonicalSerialize + CanonicalDeserialize;
     type PedersenInput;
-    type PedersenRandomness: Clone + PartialEq + Debug + Eq + Default;
+    type PedersenRandomness: Clone
+        + PartialEq
+        + Debug
+        + Eq
+        + Default
+        + CanonicalSerialize
+        + CanonicalDeserialize;
 
     type PedersenComSchemeVar: MpcCommitmentGadget<
         Self::PedersenComScheme,

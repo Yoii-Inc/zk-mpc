@@ -209,7 +209,7 @@ macro_rules! impl_field_basics {
             }
 
             fn serialized_size(&self) -> usize {
-                todo!()
+                self.val.serialized_size()
             }
         }
         impl<T: $bound> CanonicalSerializeWithFlags for $share<T> {

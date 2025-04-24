@@ -78,11 +78,12 @@ macro_rules! impl_basics_spdz {
             }
         }
         impl<T: $bound> CanonicalSerialize for $share<T> {
-            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
-                unimplemented!("serialize")
+            fn serialize<W: Write>(&self, mut writer: W) -> Result<(), SerializationError> {
+                self.sh.serialize(&mut writer).unwrap();
+                self.mac.serialize(writer)
             }
             fn serialized_size(&self) -> usize {
-                unimplemented!("serialized_size")
+                self.sh.serialized_size() + self.mac.serialized_size()
             }
         }
         impl<T: $bound> CanonicalSerializeWithFlags for $share<T> {
@@ -99,8 +100,10 @@ macro_rules! impl_basics_spdz {
             }
         }
         impl<T: $bound> CanonicalDeserialize for $share<T> {
-            fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
-                unimplemented!("deserialize")
+            fn deserialize<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
+                let sh = AdditiveFieldShare::deserialize(&mut reader).unwrap();
+                let mac = AdditiveFieldShare::deserialize(reader).unwrap();
+                Ok(Self { sh, mac })
             }
         }
         impl<T: $bound> CanonicalDeserializeWithFlags for $share<T> {

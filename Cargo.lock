@@ -1049,6 +1049,7 @@ dependencies = [
  "mpc-trait",
  "num-bigint",
  "rand",
+ "serde",
  "sha2",
  "structopt",
  "tokio",
