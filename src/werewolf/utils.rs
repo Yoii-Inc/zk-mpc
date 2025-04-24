@@ -104,7 +104,7 @@ pub fn generate_individual_shuffle_matrix<F: PrimeField, R: Rng>(
     shuffle_matrix
 }
 
-pub fn generate_random_commitment<R: Rng>(
+pub async fn generate_random_commitment<R: Rng>(
     rng: &mut R,
     pedersen_param: &<Fr as LocalOrMPC<Fr>>::PedersenParam,
 ) -> Vec<<Fr as LocalOrMPC<Fr>>::PedersenCommitment> {
@@ -118,11 +118,11 @@ pub fn generate_random_commitment<R: Rng>(
     .unwrap();
 
     // record random value
-    let id = Net::party_id();
+    let id = Net.party_id();
     let file_path = format!("./werewolf_game/{}/random.json", id);
     write_to_file(vec![("random".to_string(), random_value)], &file_path).unwrap();
 
-    let commitment_vec = Net::broadcast(&commitment);
+    let commitment_vec = Net.broadcast(&commitment).await;
     let commitment_vec_data = commitment_vec
         .clone()
         .into_iter()
@@ -136,8 +136,8 @@ pub fn generate_random_commitment<R: Rng>(
 }
 
 // TODO: change to return mpc shared value
-pub fn load_random_value() -> Result<Vec<Fr>, std::io::Error> {
-    let id = Net::party_id();
+pub async fn load_random_value() -> Result<Vec<Fr>, std::io::Error> {
+    let id = Net.party_id();
     let file_path = format!("./werewolf_game/{}/random.json", id);
     let mut file = std::fs::File::open(file_path)?;
     let mut output_string = String::new();
@@ -163,7 +163,7 @@ pub fn load_random_value() -> Result<Vec<Fr>, std::io::Error> {
         })
         .collect::<Vec<_>>()[0];
 
-    let random_vec = Net::broadcast(&random_value);
+    let random_vec = Net.broadcast(&random_value).await;
 
     Ok(random_vec)
 }
@@ -194,7 +194,17 @@ pub fn load_random_commitment(
             <Fr as LocalOrMPC<Fr>>::PedersenCommitment::deserialize(reader).unwrap()
         })
         .collect::<Vec<_>>();
-
+    if commitment_vec.len() < Net.n_parties() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Commitment vector is too short",
+        ));
+    }
+    let mut commitment_vec = commitment_vec;
+    commitment_vec.resize(
+        Net.n_parties(),
+        <Fr as LocalOrMPC<Fr>>::PedersenCommitment::default(),
+    );
     Ok(commitment_vec)
 }
 

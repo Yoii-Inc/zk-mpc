@@ -1,79 +1,168 @@
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use mpc_net::MpcNet;
-use rand::RngCore;
+use async_trait::async_trait;
+use mpc_net::{end_timer, start_timer, MPCNetError, MpcNet, MultiplexedStreamID};
 use sha2::{Digest, Sha256};
 use std::cell::Cell;
+use tokio_util::bytes::Bytes;
 
 /// A trait for MPC networks that can serialize and deserialize.
+#[async_trait]
 pub trait MpcSerNet: MpcNet {
     /// Broadcast a value to each other.
-    fn broadcast<T: CanonicalSerialize + CanonicalDeserialize>(out: &T) -> Vec<T> {
+    async fn broadcast<T: CanonicalSerialize + CanonicalDeserialize + Send + Sync>(
+        &self,
+        out: &T,
+    ) -> Vec<T> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
-        let bytes_in = Self::broadcast_bytes(&bytes_out);
+        let bytes_out = Bytes::from(bytes_out);
+
+        let bytes_in = self
+            .broadcast_bytes(&bytes_out, MultiplexedStreamID::Zero)
+            .await
+            .unwrap();
         bytes_in
             .into_iter()
             .map(|b| T::deserialize(&b[..]).unwrap())
             .collect()
     }
 
-    fn send_to_king<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Option<Vec<T>> {
-        let mut bytes_out = Vec::new();
-        out.serialize(&mut bytes_out).unwrap();
-        Self::send_bytes_to_king(&bytes_out).map(|bytes_in| {
-            bytes_in
-                .into_iter()
-                .map(|b| T::deserialize(&b[..]).unwrap())
-                .collect()
-        })
-    }
+    // fn send_to_king<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Option<Vec<T>> {
+    //     let mut bytes_out = Vec::new();
+    //     out.serialize(&mut bytes_out).unwrap();
+    //     Self::send_bytes_to_king(&bytes_out).map(|bytes_in| {
+    //         bytes_in
+    //             .into_iter()
+    //             .map(|b| T::deserialize(&b[..]).unwrap())
+    //             .collect()
+    //     })
+    // }
 
     fn receive_from_king<T: CanonicalSerialize + CanonicalDeserialize>(out: Option<Vec<T>>) -> T {
-        let bytes_in = Self::recv_bytes_from_king(out.map(|outs| {
+        // let bytes_in = Self::recv_bytes_from_king(out.map(|outs| {
+        //     outs.iter()
+        //         .map(|out| {
+        //             let mut bytes_out = Vec::new();
+        //             out.serialize(&mut bytes_out).unwrap();
+        //             bytes_out
+        //         })
+        //         .collect()
+        // }));
+        // T::deserialize(&bytes_in[..]).unwrap()
+        unimplemented!()
+    }
+
+    async fn atomic_broadcast<T: CanonicalDeserialize + CanonicalSerialize + Send + Sync>(
+        &self,
+        out: &T,
+    ) -> Vec<T> {
+        // let mut bytes_out = Vec::new();
+        // out.serialize(&mut bytes_out).unwrap();
+        // let ser_len = bytes_out.len();
+        // bytes_out.resize(ser_len + COMMIT_RAND_BYTES, 0);
+        // rand::thread_rng().fill_bytes(&mut bytes_out[ser_len..]);
+        // let commitment = CommitHash::new().chain(&bytes_out).finalize();
+        // // exchange commitments
+        // let all_commits = Self::broadcast_bytes(&commitment[..]);
+        // // exchange (data || randomness)
+        // let all_data = Self::broadcast_bytes(&bytes_out);
+        // let self_id = Self::party_id();
+        // for i in 0..all_commits.len() {
+        //     if i != self_id {
+        //         // check other commitment
+        //         assert_eq!(
+        //             &all_commits[i][..],
+        //             &CommitHash::new().chain(&all_data[i]).finalize()[..]
+        //         );
+        //     }
+        // }
+        // all_data
+        //     .into_iter()
+        //     .map(|d| T::deserialize(&d[..ser_len]).unwrap())
+        //     .collect()
+        self.broadcast(out).await
+    }
+
+    // fn king_compute<T: CanonicalDeserialize + CanonicalSerialize>(
+    //     x: &T,
+    //     f: impl Fn(Vec<T>) -> Vec<T>,
+    // ) -> T {
+    //     let king_response = Self::send_to_king(x).map(f);
+    //     Self::receive_from_king(king_response)
+    // }
+
+    async fn worker_send_or_leader_receive_element<
+        T: CanonicalDeserialize + CanonicalSerialize + Sync,
+    >(
+        &self,
+        out: &T,
+    ) -> Result<Option<Vec<T>>, MPCNetError> {
+        let mut bytes_out = Vec::new();
+        out.serialize(&mut bytes_out).unwrap();
+        let bytes_in = self
+            .worker_send_or_leader_receive(&bytes_out, MultiplexedStreamID::Zero)
+            .await?;
+        if let Some(bytes_in) = bytes_in {
+            // This is leader
+            debug_assert!(self.is_leader());
+            let results: Vec<Result<T, MPCNetError>> = bytes_in
+                .into_iter()
+                .map(|b| {
+                    T::deserialize(&b[..]).map_err(|err| MPCNetError::Generic(err.to_string()))
+                })
+                .collect();
+
+            let mut ret = Vec::new();
+            for result in results {
+                ret.push(result?);
+            }
+
+            Ok(Some(ret))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn worker_receive_or_leader_send_element<
+        T: CanonicalDeserialize + CanonicalSerialize + Send,
+        // A bug of rustc, T does not have to be Send actually. See https://github.com/rust-lang/rust/issues/63768
+    >(
+        &self,
+        out: Option<Vec<T>>,
+    ) -> Result<T, MPCNetError> {
+        let bytes = out.map(|outs| {
             outs.iter()
                 .map(|out| {
                     let mut bytes_out = Vec::new();
                     out.serialize(&mut bytes_out).unwrap();
-                    bytes_out
+                    bytes_out.into()
                 })
                 .collect()
-        }));
-        T::deserialize(&bytes_in[..]).unwrap()
+        });
+
+        let bytes_in = self
+            .worker_receive_or_leader_send(bytes, MultiplexedStreamID::Zero)
+            .await?;
+        Ok(T::deserialize(&bytes_in[..])?)
     }
 
-    fn atomic_broadcast<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Vec<T> {
-        let mut bytes_out = Vec::new();
-        out.serialize(&mut bytes_out).unwrap();
-        let ser_len = bytes_out.len();
-        bytes_out.resize(ser_len + COMMIT_RAND_BYTES, 0);
-        rand::thread_rng().fill_bytes(&mut bytes_out[ser_len..]);
-        let commitment = CommitHash::new().chain(&bytes_out).finalize();
-        // exchange commitments
-        let all_commits = Self::broadcast_bytes(&commitment[..]);
-        // exchange (data || randomness)
-        let all_data = Self::broadcast_bytes(&bytes_out);
-        let self_id = Self::party_id();
-        for i in 0..all_commits.len() {
-            if i != self_id {
-                // check other commitment
-                assert_eq!(
-                    &all_commits[i][..],
-                    &CommitHash::new().chain(&all_data[i]).finalize()[..]
-                );
-            }
-        }
-        all_data
-            .into_iter()
-            .map(|d| T::deserialize(&d[..ser_len]).unwrap())
-            .collect()
-    }
-
-    fn king_compute<T: CanonicalDeserialize + CanonicalSerialize>(
-        x: &T,
-        f: impl Fn(Vec<T>) -> Vec<T>,
-    ) -> T {
-        let king_response = Self::send_to_king(x).map(f);
-        Self::receive_from_king(king_response)
+    async fn leader_compute_element<
+        T: CanonicalDeserialize + CanonicalSerialize + Send + Clone + Sync,
+    >(
+        &self,
+        out: &T,
+        f: impl Fn(Vec<T>) -> Vec<T> + Send,
+        for_what: &str,
+    ) -> Result<T, MPCNetError> {
+        let leader_response = self.worker_send_or_leader_receive_element(out).await?;
+        let timer = start_timer!(
+            format!("Leader: Compute element ({})", for_what),
+            self.is_leader()
+        );
+        let leader_response = leader_response.map(f);
+        end_timer!(timer);
+        self.worker_receive_or_leader_send_element(leader_response)
+            .await
     }
 }
 

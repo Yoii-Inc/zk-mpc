@@ -1,7 +1,8 @@
 use crate::{Error, Vec};
 use ark_ec::ProjectiveCurve;
 use ark_ff::{bytes::ToBytes, BitIteratorLE, Field, FpParameters, PrimeField, ToConstraintField};
-use ark_std::io::{Result as IoResult, Write};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, SerializationError, Write};
+use ark_std::io::Result as IoResult;
 use ark_std::marker::PhantomData;
 use ark_std::rand::Rng;
 use ark_std::{PubUniformRand, UniformRand};
@@ -15,7 +16,7 @@ use crate::crh::{pedersen, CRH};
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Parameters<C: ProjectiveCurve> {
     pub randomness_generator: Vec<C>,
     pub generators: Vec<Vec<C>>,
@@ -28,6 +29,7 @@ pub struct Commitment<C: ProjectiveCurve, W: Window> {
 
 #[derive(Derivative)]
 #[derivative(Clone, PartialEq, Debug, Eq, Default)]
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);
 
 impl<C: ProjectiveCurve> UniformRand for Randomness<C> {

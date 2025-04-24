@@ -1,6 +1,7 @@
 use ark_crypto_primitives::Error;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{bytes::ToBytes, BitIteratorLE, Field, FpParameters, PrimeField, ToConstraintField};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, SerializationError};
 use ark_std::io::{Result as IoResult, Write};
 use ark_std::marker::PhantomData;
 use ark_std::rand::Rng;
@@ -16,7 +17,7 @@ use crate::{BitDecomposition, CommitmentScheme, FieldShare, MpcField, Reveal};
 // pub use ark_crypto_primitives::crh::pedersen::Window;
 // use ark_crypto_primitives::crh::{pedersen, CRH};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Parameters<C: ProjectiveCurve> {
     pub randomness_generator: Vec<C>,
     pub generators: Vec<Vec<C>>,
@@ -37,7 +38,7 @@ impl<C: ProjectiveCurve> Input<C> {
     }
 }
 
-#[derive(Derivative)]
+#[derive(Derivative, CanonicalDeserialize, CanonicalSerialize)]
 #[derivative(Clone, Copy, PartialEq, Debug, Eq, Default)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);
 
@@ -104,7 +105,7 @@ where
 
         let input_bits = input
             .0
-            .bit_decomposition()
+            .sync_bit_decomposition()
             .iter()
             .map(|x| x.field())
             .collect::<Vec<_>>();
@@ -151,9 +152,10 @@ where
             .iter()
             .map(|x| x.into_affine())
             .collect::<Vec<_>>();
+
         let bits = randomness
             .0
-            .bit_decomposition()
+            .sync_bit_decomposition()
             .iter()
             .map(|x| x.field())
             .collect::<Vec<_>>();
@@ -191,10 +193,10 @@ where
 {
     type Base = ark_crypto_primitives::commitment::pedersen::Parameters<<C as Reveal>::Base>;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         Self::Base {
-            randomness_generator: self.randomness_generator.reveal(),
-            generators: self.generators.reveal(),
+            randomness_generator: self.randomness_generator.reveal().await,
+            generators: self.generators.reveal().await,
         }
     }
 
@@ -215,8 +217,10 @@ where
 {
     type Base = ark_crypto_primitives::commitment::pedersen::Randomness<<C as Reveal>::Base>;
 
-    fn reveal(self) -> Self::Base {
-        Self::Base { 0: self.0.reveal() }
+    async fn reveal(self) -> Self::Base {
+        Self::Base {
+            0: self.0.reveal().await,
+        }
     }
 
     fn from_add_shared(_b: Self::Base) -> Self {

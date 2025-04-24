@@ -6,6 +6,9 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::AffineCurve;
 use ark_ff::Field;
+use ark_serialize::CanonicalDeserialize;
+use ark_serialize::CanonicalSerialize;
+use ark_serialize::{Read, SerializationError, Write};
 use ark_std::PubUniformRand;
 use ark_std::UniformRand;
 use derivative::Derivative;
@@ -18,8 +21,9 @@ use rand::Rng;
 use mpc_algebra::commitment::pedersen::{Parameters, Randomness as MpcRandomness};
 use mpc_algebra::CommitmentScheme;
 
-// use mpc_algebra::honest_but_curious::*;
-use mpc_algebra::malicious_majority::*;
+use crate::field::*;
+
+use tokio::task::block_in_place;
 
 type MFr = MpcField<Fr>;
 
@@ -41,13 +45,13 @@ pub struct PeculiarInput<F: PrimeField + LocalOrMPC<F>> {
 }
 
 // Common values used in the circuit
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct CommonInput<F: PrimeField + LocalOrMPC<F>> {
     pub pedersen_param: F::PedersenParam,
 }
 
 // A private value and its commitments
-#[derive(Clone, Default)]
+#[derive(Clone, Default, CanonicalSerialize, CanonicalDeserialize)]
 pub struct InputWithCommit<F: PrimeField + LocalOrMPC<F>> {
     pub allocation: usize,
     pub input: F,
@@ -66,10 +70,27 @@ impl InputWithCommit<MFr> {
 
         iwc.randomness = *common_randomness;
 
+        // let rt = Runtime::new().unwrap();
+
+        // let h_x = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
+        //     &pedersen_param.to_local(),
+        //     &rt.block_on(iwc.input.clone().reveal())
+        //         .into_repr()
+        //         .to_bytes_le(),
+        //     &rt.block_on(common_randomness.clone().reveal()),
+        // )
+        // .unwrap();
+
         let h_x = <Fr as LocalOrMPC<Fr>>::PedersenComScheme::commit(
             &pedersen_param.to_local(),
-            &iwc.input.clone().reveal().into_repr().to_bytes_le(),
-            &common_randomness.clone().reveal(),
+            &block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(iwc.input.clone().reveal())
+            })
+            .into_repr()
+            .to_bytes_le(),
+            &block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(common_randomness.clone().reveal())
+            }),
         )
         .unwrap();
 
@@ -88,6 +109,39 @@ pub enum InputMode {
     PrivateSet,
     Shared,
     Local,
+}
+
+impl CanonicalSerialize for InputMode {
+    fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+        // match self {
+        //     InputMode::Init => writer.write_all(&[0]),
+        //     InputMode::PublicSet => writer.write_all(&[1]),
+        //     InputMode::PrivateSet => writer.write_all(&[2]),
+        //     InputMode::Shared => writer.write_all(&[3]),
+        //     InputMode::Local => writer.write_all(&[4]),
+        // }
+        todo!()
+    }
+
+    fn serialized_size(&self) -> usize {
+        todo!()
+    }
+}
+
+impl CanonicalDeserialize for InputMode {
+    fn deserialize<R: Read>(reader: R) -> Result<Self, SerializationError> {
+        // let mut buf = [0; 1];
+        // reader.read_exact(&mut buf)?;
+        // match buf[0] {
+        //     0 => Ok(InputMode::Init),
+        //     1 => Ok(InputMode::PublicSet),
+        //     2 => Ok(InputMode::PrivateSet),
+        //     3 => Ok(InputMode::Shared),
+        //     4 => Ok(InputMode::Local),
+        //     _ => Err(SerializationError::InvalidData),
+        // }
+        todo!()
+    }
 }
 
 pub trait MpcInputTrait {
@@ -145,10 +199,10 @@ impl MpcInputTrait for SampleMpcInput<MFr> {
         match input {
             None => (),
             Some((a_value, b_value)) => {
-                if Net::party_id() == a.allocation {
+                if Net.party_id() as usize == a.allocation {
                     a.input = MFr::from_add_shared(a_value);
                 }
-                if Net::party_id() == b.allocation {
+                if Net.party_id() as usize == b.allocation {
                     b.input = MFr::from_add_shared(b_value);
                 }
             }
@@ -246,14 +300,14 @@ impl MpcInputTrait for SampleMpcInput<Fr> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfKeyInput<F: PrimeField + LocalOrMPC<F>> {
     pub mode: InputMode,
     pub peculiar: Option<WerewolfKeyPeculiarInput<F>>,
     pub common: Option<CommonInput<F>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfKeyPeculiarInput<F: PrimeField + LocalOrMPC<F>> {
     pub pub_key_or_dummy_x: Vec<InputWithCommit<F>>,
     pub pub_key_or_dummy_y: Vec<InputWithCommit<F>>,
@@ -458,14 +512,14 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfMpcInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
     pub mode: InputMode,
     pub peculiar: Option<WerewolfPeculiarInput<F>>,
     pub common: Option<WerewolfCommonInput<F>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfPeculiarInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
     pub is_werewolf: Vec<InputWithCommit<F>>,
     pub is_target: Vec<InputWithCommit<F>>,
@@ -474,7 +528,7 @@ pub struct WerewolfPeculiarInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrM
     pub randomness_bit: Vec<F>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct WerewolfCommonInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
     pub pedersen_param: F::PedersenParam,
     pub elgamal_param: F::ElGamalParam,
@@ -758,9 +812,12 @@ impl<F: Field, S: FieldShare<F>> MpcSharePhase<F, S> for mpc_algebra::MpcField<F
         let r = share_source.zero();
 
         // TODO: implement correctly.
-        let sum_r = r.reveal();
+        // let rt = Runtime::new().unwrap();
+        // let sum_r = rt.block_on(r.reveal());
 
-        if Net::party_id() != allocator {
+        let sum_r = block_in_place(|| tokio::runtime::Handle::current().block_on(r.reveal()));
+
+        if Net.party_id() as usize != allocator {
             mpc_algebra::MpcField::Shared(r)
         } else {
             Self::from_add_shared(self.unwrap_as_public() + r.unwrap_as_public() + sum_r)

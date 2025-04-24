@@ -2,7 +2,9 @@ use ark_ff::One;
 use ark_ff::PrimeField;
 use ark_r1cs_std::{alloc::AllocVar, boolean::Boolean};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
-use mpc_algebra::{malicious_majority::MpcField, MpcBoolean};
+
+use crate::field::*;
+use mpc_algebra::MpcBoolean;
 
 type Fr = ark_bls12_377::Fr;
 type MFr = MpcField<Fr>;

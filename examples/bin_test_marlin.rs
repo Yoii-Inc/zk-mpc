@@ -1,5 +1,5 @@
-use mpc_net::{MpcMultiNet as Net, MpcNet};
-use std::path::PathBuf;
+use mpc_net::{multi::MPCNetConnection, MpcMultiNet as Net};
+use std::{path::PathBuf, sync::Arc};
 use structopt::StructOpt;
 
 use zk_mpc::marlin;
@@ -15,14 +15,24 @@ struct Opt {
     input: PathBuf,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let opt = Opt::from_args();
-    Net::init_from_file(opt.input.to_str().unwrap(), opt.id);
-    marlin::mpc_test_prove_and_verify(1);
-    marlin::mpc_test_prove_and_verify_pedersen(1);
-    marlin::test_equality_zero(1);
-    marlin::test_not_equality_zero(10);
-    marlin::test_bit_decomposition(1);
-    marlin::test_enforce_smaller_eq_than(3);
-    marlin::test_smaller_than(5);
+
+    let mut net = MPCNetConnection::init_from_path(&opt.input, opt.id as u32);
+    net.listen().await.unwrap();
+    net.connect_to_all().await.unwrap();
+
+    let net_arc = Arc::new(net);
+
+    Net::simulate(net_arc, (), |_, _| async {
+        marlin::mpc_test_prove_and_verify(2).await;
+        marlin::mpc_test_prove_and_verify_pedersen(2).await;
+        marlin::test_equality_zero(1).await;
+        marlin::test_not_equality_zero(10).await;
+        marlin::test_bit_decomposition(1).await;
+        marlin::test_enforce_smaller_eq_than(3).await;
+        marlin::test_smaller_than(5).await;
+    })
+    .await;
 }

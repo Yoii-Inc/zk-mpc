@@ -2,6 +2,7 @@ use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_crypto_primitives::Error;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::{fields::PrimeField, UniformRand};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, SerializationError, Write};
 use ark_std::marker::PhantomData;
 use ark_std::rand::Rng;
 
@@ -9,7 +10,7 @@ pub struct ElGamal<C: ProjectiveCurve> {
     _group: PhantomData<C>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Parameters<C: ProjectiveCurve> {
     pub generator: C::Affine,
 }
@@ -30,7 +31,7 @@ impl<C: ProjectiveCurve> SecretKey<C> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);
 
 impl<C: ProjectiveCurve> UniformRand for Randomness<C> {

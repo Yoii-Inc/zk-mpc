@@ -4,6 +4,8 @@
 mod error;
 mod flags;
 
+use std::sync::Arc;
+
 pub use ark_std::io::{Read, Write};
 use ark_std::{
     borrow::{Cow, ToOwned},
@@ -655,6 +657,51 @@ impl<T: CanonicalDeserialize> CanonicalDeserialize for Rc<T> {
     #[inline]
     fn deserialize_unchecked<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
         Ok(Rc::new(T::deserialize_unchecked(&mut reader)?))
+    }
+}
+
+// Implement Serialization for `Arc<T>`
+impl<T: CanonicalSerialize> CanonicalSerialize for Arc<T> {
+    #[inline]
+    fn serialize<W: Write>(&self, mut writer: W) -> Result<(), SerializationError> {
+        self.as_ref().serialize(&mut writer)
+    }
+
+    #[inline]
+    fn serialized_size(&self) -> usize {
+        self.as_ref().serialized_size()
+    }
+
+    #[inline]
+    fn serialize_uncompressed<W: Write>(&self, mut writer: W) -> Result<(), SerializationError> {
+        self.as_ref().serialize_uncompressed(&mut writer)
+    }
+
+    #[inline]
+    fn uncompressed_size(&self) -> usize {
+        self.as_ref().uncompressed_size()
+    }
+
+    #[inline]
+    fn serialize_unchecked<W: Write>(&self, mut writer: W) -> Result<(), SerializationError> {
+        self.as_ref().serialize_unchecked(&mut writer)
+    }
+}
+
+impl<T: CanonicalDeserialize> CanonicalDeserialize for Arc<T> {
+    #[inline]
+    fn deserialize<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
+        Ok(Arc::new(T::deserialize(&mut reader)?))
+    }
+
+    #[inline]
+    fn deserialize_uncompressed<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
+        Ok(Arc::new(T::deserialize_uncompressed(&mut reader)?))
+    }
+
+    #[inline]
+    fn deserialize_unchecked<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
+        Ok(Arc::new(T::deserialize_unchecked(&mut reader)?))
     }
 }
 

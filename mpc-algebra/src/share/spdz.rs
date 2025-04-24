@@ -16,6 +16,9 @@ use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
+use futures::future::join_all;
+use tokio::runtime::Runtime;
+
 use crate::channel::{can_cheat, MpcSerNet};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
@@ -29,7 +32,7 @@ use crate::Reveal;
 
 #[inline]
 pub fn mac_share<F: Field>() -> F {
-    if Net::am_king() {
+    if Net.is_leader() {
         F::one()
     } else {
         F::zero()
@@ -75,11 +78,12 @@ macro_rules! impl_basics_spdz {
             }
         }
         impl<T: $bound> CanonicalSerialize for $share<T> {
-            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
-                unimplemented!("serialize")
+            fn serialize<W: Write>(&self, mut writer: W) -> Result<(), SerializationError> {
+                self.sh.serialize(&mut writer).unwrap();
+                self.mac.serialize(writer)
             }
             fn serialized_size(&self) -> usize {
-                unimplemented!("serialized_size")
+                self.sh.serialized_size() + self.mac.serialized_size()
             }
         }
         impl<T: $bound> CanonicalSerializeWithFlags for $share<T> {
@@ -96,8 +100,10 @@ macro_rules! impl_basics_spdz {
             }
         }
         impl<T: $bound> CanonicalDeserialize for $share<T> {
-            fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
-                unimplemented!("deserialize")
+            fn deserialize<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
+                let sh = AdditiveFieldShare::deserialize(&mut reader).unwrap();
+                let mac = AdditiveFieldShare::deserialize(reader).unwrap();
+                Ok(Self { sh, mac })
             }
         }
         impl<T: $bound> CanonicalDeserializeWithFlags for $share<T> {
@@ -119,12 +125,12 @@ impl_basics_spdz!(SpdzFieldShare, Field);
 impl<F: Field> Reveal for SpdzFieldShare<F> {
     type Base = F;
 
-    fn reveal(self) -> F {
-        let vals: Vec<F> = Net::broadcast(&self.sh.val);
+    async fn reveal(self) -> F {
+        let vals: Vec<F> = Net.broadcast(&self.sh.val).await;
         // _Pragmatic MPC_ 6.6.2
         let x: F = vals.iter().sum();
         let dx_t: F = mac_share::<F>() * x - self.mac.val;
-        let all_dx_ts: Vec<F> = Net::atomic_broadcast(&dx_t);
+        let all_dx_ts: Vec<F> = Net.atomic_broadcast(&dx_t).await;
         let sum: F = all_dx_ts.iter().sum();
         assert!(sum.is_zero());
         x
@@ -141,25 +147,25 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
             mac: Reveal::from_add_shared(f * mac::<F>()),
         }
     }
-    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-        let mut r: Vec<F> = (0..(Net::n_parties() - 1)).map(|_| F::rand(rng)).collect();
+    async fn async_king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        let mut r: Vec<F> = (0..(Net.n_parties() - 1)).map(|_| F::rand(rng)).collect();
         let sum_r: F = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
-            Some(r)
-        } else {
-            None
-        }))
+        Self::from_add_shared(
+            Net.worker_receive_or_leader_send_element(if Net.is_leader() { Some(r) } else { None })
+                .await
+                .unwrap(),
+        )
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-        let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
+        let mut rs: Vec<Vec<Self::Base>> = (0..(Net.n_parties() - 1))
             .map(|_| (0..f.len()).map(|_| F::rand(rng)).collect())
             .collect();
         let final_shares: Vec<Self::Base> = (0..rs[0].len())
             .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
             .collect();
         rs.push(final_shares);
-        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
+        Net::receive_from_king(if Net.is_leader() { Some(rs) } else { None })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -171,11 +177,11 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
 }
 
 impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
-    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
+    async fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let (s_vals, macs): (Vec<F>, Vec<F>) =
             selfs.into_iter().map(|s| (s.sh.val, s.mac.val)).unzip();
         let n = s_vals.len();
-        let all_vals = Net::broadcast(&s_vals);
+        let all_vals = Net.broadcast(&s_vals).await;
         let vals: Vec<F> = (0..n)
             .map(|i| all_vals.iter().map(|v| &v[i]).sum())
             .collect();
@@ -184,7 +190,7 @@ impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
             .zip(vals.iter())
             .map(|(mac, val)| mac_share::<F>() * val - mac)
             .collect();
-        let all_dx_ts: Vec<Vec<F>> = Net::atomic_broadcast(&dx_ts);
+        let all_dx_ts: Vec<Vec<F>> = Net.atomic_broadcast(&dx_ts).await;
         for i in 0..n {
             let sum: F = all_dx_ts.iter().map(|dx_ts| &dx_ts[i]).sum();
             assert!(sum.is_zero());
@@ -247,12 +253,13 @@ impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
         ))
     }
 
-    fn modulus_conversion<F2: PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
+    async fn modulus_conversion<F2: PrimeField, S2: FieldShare<F2>>(&mut self) -> S2
     where
         F: PrimeField,
     {
         // TODO: bad implementation, so it's just for testing
-        let revealed_val = self.reveal();
+
+        let revealed_val = self.reveal().await;
         let bits = revealed_val.into_repr().to_bits_le();
         let converted_val = F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap();
 
@@ -279,18 +286,29 @@ pub struct SpdzGroupShare<T, M> {
 impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
     type Base = G;
 
-    fn reveal(self) -> G {
-        let vals: Vec<G> = Net::broadcast(&self.sh.val);
-        // _Pragmatic MPC_ 6.6.2
-        let x: G = vals.iter().sum();
-        let dx_t: G = {
-            let mut t = x.clone();
-            t *= mac_share::<G::ScalarField>();
-            t - self.mac.val
-        };
-        let all_dx_ts: Vec<G> = Net::atomic_broadcast(&dx_t);
-        let sum: G = all_dx_ts.iter().sum();
-        assert!(sum.is_zero());
+    async fn reveal(self) -> G {
+        let maximal_try = 10;
+        let mut try_count = 0;
+        let mut x = G::zero();
+        loop {
+            let vals: Vec<G> = Net.broadcast(&self.sh.val).await;
+            x = vals.iter().sum();
+            let dx_t = {
+                let mut t = x.clone();
+                t *= mac_share::<G::ScalarField>();
+                t - self.mac.val
+            };
+
+            let all_dx_ts: Vec<G> = Net.atomic_broadcast(&dx_t).await;
+            let sum: G = all_dx_ts.iter().sum();
+            if sum.is_zero() {
+                break;
+            }
+            try_count += 1;
+            if try_count >= maximal_try {
+                panic!("Reveal failed after {} tries", maximal_try);
+            }
+        }
         x
     }
     fn from_public(f: G) -> Self {
@@ -317,24 +335,24 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
         self.sh.unwrap_as_public()
     }
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-        let mut r: Vec<G> = (0..(Net::n_parties() - 1)).map(|_| G::rand(rng)).collect();
+        let mut r: Vec<G> = (0..(Net.n_parties() - 1)).map(|_| G::rand(rng)).collect();
         let sum_r: G = r.iter().sum();
         r.push(f - sum_r);
-        Self::from_add_shared(Net::receive_from_king(if Net::am_king() {
+        Self::from_add_shared(Net::receive_from_king(if Net.is_leader() {
             Some(r)
         } else {
             None
         }))
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-        let mut rs: Vec<Vec<Self::Base>> = (0..(Net::n_parties() - 1))
+        let mut rs: Vec<Vec<Self::Base>> = (0..(Net.n_parties() - 1))
             .map(|_| (0..f.len()).map(|_| Self::Base::rand(rng)).collect())
             .collect();
         let final_shares: Vec<Self::Base> = (0..rs[0].len())
             .map(|i| f[i] - &rs.iter().map(|r| &r[i]).sum())
             .collect();
         rs.push(final_shares);
-        Net::receive_from_king(if Net::am_king() { Some(rs) } else { None })
+        Net::receive_from_king(if Net.is_leader() { Some(rs) } else { None })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -409,11 +427,11 @@ impl<G: Group, M> UniformRand for SpdzGroupShare<G, M> {
 impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M> {
     type FieldShare = SpdzFieldShare<G::ScalarField>;
 
-    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
+    async fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
         let (s_vals, macs): (Vec<G>, Vec<G>) =
             selfs.into_iter().map(|s| (s.sh.val, s.mac.val)).unzip();
         let n = s_vals.len();
-        let all_vals = Net::broadcast(&s_vals);
+        let all_vals = Net.broadcast(&s_vals).await;
         let vals: Vec<G> = (0..n)
             .map(|i| all_vals.iter().map(|v| &v[i]).sum())
             .collect();
@@ -422,7 +440,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
             .zip(vals.iter())
             .map(|(mac, val)| val.mul(&mac_share::<G::ScalarField>()) - mac)
             .collect();
-        let all_dx_ts: Vec<Vec<G>> = Net::atomic_broadcast(&dx_ts);
+        let all_dx_ts: Vec<Vec<G>> = Net.atomic_broadcast(&dx_ts).await;
         for i in 0..n {
             let sum: G = all_dx_ts.iter().map(|dx_ts| &dx_ts[i]).sum();
             assert!(sum.is_zero());
@@ -455,7 +473,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {
-        if Net::am_king() {
+        if Net.is_leader() {
             self.sh.shift(other);
         }
         let mut other = other.clone();
@@ -499,12 +517,12 @@ impl<T: Field, S: PrimeField> UniformRand for SpdzMulFieldShare<T, S> {
 impl<F: Field, S: PrimeField> Reveal for SpdzMulFieldShare<F, S> {
     type Base = F;
 
-    fn reveal(self) -> F {
-        let vals: Vec<F> = Net::broadcast(&self.sh.val);
+    async fn reveal(self) -> F {
+        let vals: Vec<F> = Net.broadcast(&self.sh.val).await;
         // _Pragmatic MPC_ 6.6.2
         let x: F = vals.iter().product();
         let dx_t: F = x.pow(&mac_share::<S>().into_repr()) / self.mac.val;
-        let all_dx_ts: Vec<F> = Net::atomic_broadcast(&dx_t);
+        let all_dx_ts: Vec<F> = Net.atomic_broadcast(&dx_t).await;
         let prod: F = all_dx_ts.iter().product();
         assert!(prod.is_one());
         x
@@ -531,7 +549,7 @@ impl<F: Field, S: PrimeField> FieldShare<F> for SpdzMulFieldShare<F, S> {
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
-        if Net::am_king() {
+        if Net.is_leader() {
             self.sh.scale(other);
         }
         self.mac.scale(&other.pow(&mac_share::<S>().into_repr()));
@@ -542,36 +560,52 @@ impl<F: Field, S: PrimeField> FieldShare<F> for SpdzMulFieldShare<F, S> {
         unimplemented!("add for SpdzMulFieldShare")
     }
 
-    fn beaver_mul<S2: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut S2) -> Self {
+    async fn beaver_mul<S2: BeaverSource<Self, Self, Self>>(
+        self,
+        other: Self,
+        _source: &mut S2,
+    ) -> Self {
         self.sh
-            .beaver_mul(other.sh, &mut PanicBeaverSource::default());
+            .beaver_mul(other.sh, &mut PanicBeaverSource::default())
+            .await;
         self.mac
-            .beaver_mul(other.mac, &mut PanicBeaverSource::default());
+            .beaver_mul(other.mac, &mut PanicBeaverSource::default())
+            .await;
         self
     }
 
-    fn batch_mul<S2: BeaverSource<Self, Self, Self>>(
+    async fn batch_mul<S2: BeaverSource<Self, Self, Self>>(
         mut xs: Vec<Self>,
         ys: Vec<Self>,
         _source: &mut S2,
     ) -> Vec<Self> {
         for (x, y) in xs.iter_mut().zip(ys.iter()) {
-            x.sh.beaver_mul(y.sh, &mut PanicBeaverSource::default());
-            x.mac.beaver_mul(y.mac, &mut PanicBeaverSource::default());
+            x.sh.beaver_mul(y.sh, &mut PanicBeaverSource::default())
+                .await;
+            x.mac
+                .beaver_mul(y.mac, &mut PanicBeaverSource::default())
+                .await;
         }
         xs
     }
 
-    fn inv<S2: BeaverSource<Self, Self, Self>>(self, _source: &mut S2) -> Self {
+    async fn inv<S2: BeaverSource<Self, Self, Self>>(self, _source: &mut S2) -> Self {
         Self {
-            sh: self.sh.inv(&mut PanicBeaverSource::default()),
-            mac: self.mac.inv(&mut PanicBeaverSource::default()),
+            sh: self.sh.inv(&mut PanicBeaverSource::default()).await,
+            mac: self.mac.inv(&mut PanicBeaverSource::default()).await,
             _phants: PhantomData::default(),
         }
     }
 
-    fn batch_inv<S2: BeaverSource<Self, Self, Self>>(xs: Vec<Self>, source: &mut S2) -> Vec<Self> {
-        xs.into_iter().map(|x| x.inv(source)).collect()
+    async fn batch_inv<S2: BeaverSource<Self, Self, Self>>(
+        xs: Vec<Self>,
+        source: &mut S2,
+    ) -> Vec<Self> {
+        let mut res = Vec::with_capacity(xs.len());
+        for i in 0..xs.len() {
+            res.push(xs[i].inv(source).await);
+        }
+        res
     }
 }
 
@@ -642,7 +676,7 @@ macro_rules! groups_share {
                 mut a: Self::ProjectiveShare,
                 o: &E::$affine,
             ) -> Self::ProjectiveShare {
-                if Net::am_king() {
+                if Net.is_leader() {
                     a.sh.val.add_assign_mixed(&o);
                 }
                 a.mac.val += &o.scalar_mul(mac_share::<E::Fr>());

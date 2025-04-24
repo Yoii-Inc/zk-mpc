@@ -306,7 +306,7 @@ impl R1CStoQAP {
     }
 }
 
-pub fn mpc_test_prove_and_verify<E: PairingEngine, S: PairingShare<E>>(n_iters: usize) {
+pub async fn mpc_test_prove_and_verify<E: PairingEngine, S: PairingShare<E>>(n_iters: usize) {
     let rng = &mut test_rng();
 
     let params =
@@ -329,9 +329,9 @@ pub fn mpc_test_prove_and_verify<E: PairingEngine, S: PairingShare<E>>(n_iters: 
 
         let mpc_proof = create_random_proof(mpc_circuit, &mpc_params, rng).unwrap();
 
-        let proof = mpc_proof.reveal();
-        let pub_a = a.reveal();
-        let pub_c = c.reveal();
+        let proof = mpc_proof.reveal().await;
+        let pub_a = a.reveal().await;
+        let pub_c = c.reveal().await;
 
         assert!(verify_proof(&pvk, &proof, &[pub_c]).unwrap());
         assert!(!verify_proof(&pvk, &proof, &[pub_a]).unwrap());
@@ -345,7 +345,11 @@ mod tests {
     use ark_snark::SNARK;
     use ark_std::UniformRand;
 
+    use mpc_net::LocalTestNet;
+
     use super::super::circuits::circuit::MySimpleCircuit;
+
+    use super::*;
 
     #[test]
     fn test_single() {
@@ -369,5 +373,21 @@ mod tests {
 
         assert!(Groth16::<Bls12_377>::verify(&circuit_vk, &[c], &proof).unwrap());
         assert!(!Groth16::<Bls12_377>::verify(&circuit_vk, &[a], &proof).unwrap());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_multi() {
+        const N_PARTIES: usize = 3;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |_, _| async move {
+                mpc_test_prove_and_verify::<
+                    ark_bls12_377::Bls12_377,
+                    mpc_algebra::AdditivePairingShare<ark_bls12_377::Bls12_377>,
+                >(1)
+                .await
+            })
+            .await;
     }
 }

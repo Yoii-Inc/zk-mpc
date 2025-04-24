@@ -1,6 +1,10 @@
 #![macro_use]
 use ark_std::{collections::BTreeMap, marker::PhantomData, rc::Rc};
+use futures::future;
+use mpc_net::MultiplexedStreamID;
 use rand::Rng;
+
+use crate::channel::MpcSerNet;
 
 /// A type should implement [Reveal] if it represents the MPC abstraction of some base type.
 ///
@@ -16,7 +20,11 @@ pub trait Reveal: Sized {
     type Base;
 
     /// Reveal shared data, yielding plain data.
-    fn reveal(self) -> Self::Base;
+    async fn reveal(self) -> Self::Base;
+
+    fn sync_reveal(self) -> Self::Base {
+        tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(self.reveal()))
+    }
     /// Construct a share of the sum of the `b` over all machines in the protocol.
     fn from_add_shared(b: Self::Base) -> Self;
     /// Lift public data (same in all machines) into shared data.
@@ -28,7 +36,13 @@ pub trait Reveal: Sized {
         unimplemented!("No unwrap as public for {}", std::any::type_name::<Self>())
     }
     /// Have the king share their `b` value, and send shares to all parties.
-    fn king_share<R: Rng>(_b: Self::Base, _rng: &mut R) -> Self {
+    fn king_share<R: Rng>(b: Self::Base, rng: &mut R) -> Self {
+        // unimplemented!("No king share for {}", std::any::type_name::<Self>())
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(Self::async_king_share(b, rng))
+        })
+    }
+    async fn async_king_share<R: Rng>(_b: Self::Base, _rng: &mut R) -> Self {
         unimplemented!("No king share for {}", std::any::type_name::<Self>())
     }
     /// Have the king share their `b` values, and send shares to all parties.
@@ -45,7 +59,7 @@ pub trait Reveal: Sized {
 impl Reveal for usize {
     type Base = usize;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         self
     }
 
@@ -69,7 +83,7 @@ impl Reveal for usize {
 impl<T: Reveal> Reveal for PhantomData<T> {
     type Base = PhantomData<T::Base>;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         PhantomData::default()
     }
 
@@ -98,8 +112,11 @@ impl<T: Reveal> Reveal for PhantomData<T> {
 
 impl<T: Reveal> Reveal for Vec<T> {
     type Base = Vec<T::Base>;
-    fn reveal(self) -> Self::Base {
-        self.into_iter().map(|x| x.reveal()).collect()
+    async fn reveal(self) -> Self::Base {
+        future::join_all(self.into_iter().map(|x| x.reveal()))
+            .await
+            .into_iter()
+            .collect()
     }
     fn from_public(other: Self::Base) -> Self {
         other
@@ -136,8 +153,12 @@ where
     K::Base: Ord,
 {
     type Base = BTreeMap<K::Base, V::Base>;
-    fn reveal(self) -> Self::Base {
-        self.into_iter().map(|x| x.reveal()).collect()
+    async fn reveal(self) -> Self::Base {
+        // self.into_iter().map(|x| x.reveal()).collect()
+        future::join_all(self.into_iter().map(|x| x.reveal()))
+            .await
+            .into_iter()
+            .collect()
     }
     fn from_public(other: Self::Base) -> Self {
         other.into_iter().map(|x| Reveal::from_public(x)).collect()
@@ -167,8 +188,11 @@ where
 
 impl<T: Reveal> Reveal for Option<T> {
     type Base = Option<T::Base>;
-    fn reveal(self) -> Self::Base {
-        self.map(|x| x.reveal())
+    async fn reveal(self) -> Self::Base {
+        match self {
+            Some(x) => Some(x.reveal().await),
+            None => None,
+        }
     }
     fn from_public(other: Self::Base) -> Self {
         other.map(|x| <T as Reveal>::from_public(x))
@@ -192,8 +216,8 @@ where
     T::Base: Clone,
 {
     type Base = Rc<T::Base>;
-    fn reveal(self) -> Self::Base {
-        Rc::new((*self).clone().reveal())
+    async fn reveal(self) -> Self::Base {
+        Rc::new((*self).clone().reveal().await)
     }
     fn from_public(other: Self::Base) -> Self {
         Rc::new(Reveal::from_public((*other).clone()))
@@ -214,8 +238,8 @@ where
 
 impl<A: Reveal, B: Reveal> Reveal for (A, B) {
     type Base = (A::Base, B::Base);
-    fn reveal(self) -> Self::Base {
-        (self.0.reveal(), self.1.reveal())
+    async fn reveal(self) -> Self::Base {
+        (self.0.reveal().await, self.1.reveal().await)
     }
     fn from_public(other: Self::Base) -> Self {
         (
@@ -246,10 +270,10 @@ impl<A: Reveal, B: Reveal> Reveal for (A, B) {
 #[macro_export]
 macro_rules! struct_reveal_impl {
     ($s:ty, $con:tt ; $( ($x_ty:ty, $x:tt) ),*) => {
-        fn reveal(self) -> Self::Base {
+        async fn reveal(self) -> Self::Base {
             $con {
                 $(
-                    $x: self.$x.reveal(),
+                    $x: self.$x.reveal().await,
                 )*
             }
         }
@@ -280,10 +304,10 @@ macro_rules! struct_reveal_impl {
 #[macro_export]
 macro_rules! struct_reveal_simp_impl {
     ($con:path ; $( $x:tt ),*) => {
-        fn reveal(self) -> Self::Base {
+        async fn reveal(self) -> Self::Base {
             $con {
                 $(
-                    $x: self.$x.reveal(),
+                    $x: self.$x.reveal().await,
                 )*
             }
         }

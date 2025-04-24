@@ -23,7 +23,7 @@ macro_rules! struct_mpc_wire_impl {
     //
     // Use inside an impl block with the right bounds
     ($s:ty; $( ($x_ty:ty, $x:tt) ),*) => {
-        fn publicize(&mut self) {
+         fn publicize(&mut self) {
             $(
                 self.$x.publicize();
             )*
@@ -45,7 +45,7 @@ macro_rules! struct_mpc_wire_simp_impl {
     //
     // Use inside an impl block with the right bounds
     ($s:ty; $( $x:tt ),*) => {
-        fn publicize(&mut self) {
+         fn publicize(&mut self) {
             $(
                 self.$x.publicize();
             )*

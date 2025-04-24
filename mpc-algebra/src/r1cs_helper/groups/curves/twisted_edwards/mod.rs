@@ -15,8 +15,7 @@ use crate::{
     groups::{GroupOpsBounds, MpcCurveVar},
     mpc_fields::FieldOpsBounds,
     r1cs_helper::mpc_fields::MpcFieldVar,
-    AdditiveAffProjShare, FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget,
-    Reveal,
+    FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget, Reveal,
 };
 
 use crate::MpcGroupProjectiveVariant;
@@ -315,7 +314,7 @@ where
                 let ge: MpcTEAffine<P, AffProjShare<P>> = ge.into();
 
                 // TODO: Remove reveal operation.
-                let revealed_ge = ge.reveal();
+                let revealed_ge = ge.sync_reveal();
                 (Ok(revealed_ge.x), Ok(revealed_ge.y))
             }
             _ => (
@@ -466,10 +465,10 @@ where
         let xytzrsuv = rsuv_variant + proj_variant;
 
         // step4: reveal
-        let revealed_xr = xytzrsuv.reveal();
+        let revealed_xr = xytzrsuv.sync_reveal();
 
         // step5: allocate share
-        let share = if Net::am_king() {
+        let share = if Net.is_leader() {
             MpcTEProjective::from_public(revealed_xr) - rsuv
         } else {
             -rsuv

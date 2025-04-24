@@ -7,10 +7,10 @@ use crate::boolean_field::BooleanWire;
 pub trait UniformBitRand: Sized {
     type BaseField;
 
-    fn bit_rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
+    async fn bit_rand<R: Rng + ?Sized>(rng: &mut R) -> Self;
     // little-endian
-    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField);
-    fn rand_number_bitwise_less_than_half_modulus<R: Rng + ?Sized>(
+    async fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField);
+    async fn rand_number_bitwise_less_than_half_modulus<R: Rng + ?Sized>(
         rng: &mut R,
     ) -> (Vec<Self>, Self::BaseField);
 }
@@ -24,27 +24,39 @@ pub trait BitwiseLessThan {
 pub trait LessThan {
     type Output;
 
-    fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output;
-    fn is_smaller_than(&self, other: &Self) -> Self::Output;
+    async fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output;
+    async fn is_smaller_than(&self, other: &Self) -> Self::Output;
 }
 
 pub trait LogicalOperations {
     type Output;
 
-    fn kary_and(&self) -> Self::Output;
+    async fn kary_and(&self) -> Self::Output;
 
-    fn kary_or(&self) -> Self::Output;
+    async fn kary_or(&self) -> Self::Output;
 }
 
 pub trait EqualityZero {
     type Output: BooleanWire<Base = Self>;
-    fn is_zero_shared(&self) -> Self::Output;
+    async fn is_zero_shared(&self) -> Self::Output;
+
+    fn sync_is_zero_shared(&self) -> Self::Output {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.is_zero_shared())
+        })
+    }
 }
 
 pub trait BitDecomposition {
     type BooleanField: BooleanWire<Base = Self>;
 
-    fn bit_decomposition(&self) -> Vec<Self::BooleanField>;
+    async fn bit_decomposition(&self) -> Vec<Self::BooleanField>;
+
+    fn sync_bit_decomposition(&self) -> Vec<Self::BooleanField> {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.bit_decomposition())
+        })
+    }
 }
 
 pub trait BitAdd {
@@ -56,8 +68,14 @@ pub trait BitAdd {
 }
 
 pub trait ModulusConversion<F: PrimeField>: PrimeField {
-    fn modulus_conversion(&mut self) -> F {
+    async fn modulus_conversion(&mut self) -> F {
         let bits = self.into_repr().to_bits_le();
         F::from_repr(BigInteger::from_bits_le(&bits)).unwrap()
+    }
+
+    fn sync_modulus_conversion(&mut self) -> F {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.modulus_conversion())
+        })
     }
 }

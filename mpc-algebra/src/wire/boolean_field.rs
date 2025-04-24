@@ -150,9 +150,9 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcBooleanField<F,
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBooleanField<F, S> {
     type BaseField = MpcField<F, S>;
 
-    fn bit_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+    async fn bit_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
         let r = Self::BaseField::rand(rng);
-        let r2 = (r * r).reveal();
+        let r2 = (r * r).reveal().await;
         let mut root_r2;
 
         loop {
@@ -169,7 +169,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
         )
     }
 
-    fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField) {
+    async fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField) {
         let modulus_size = F::Params::MODULUS_BITS as usize;
 
         let mut modulus_bits = F::Params::MODULUS
@@ -181,15 +181,17 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
         modulus_bits = modulus_bits[..modulus_size].to_vec();
 
         let valid_bits = loop {
-            let bits = (0..modulus_size)
-                .map(|_| Self::bit_rand(rng))
-                .collect::<Vec<_>>();
+            let mut bits = Vec::with_capacity(modulus_size);
+            for _ in 0..modulus_size {
+                bits.push(Self::bit_rand(rng).await);
+            }
 
             if bits
                 .clone()
                 .is_smaller_than_le(&modulus_bits)
                 .field()
                 .reveal()
+                .await
                 .is_one()
             {
                 break bits;
@@ -208,7 +210,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
         (valid_bits, num)
     }
 
-    fn rand_number_bitwise_less_than_half_modulus<R: Rng + ?Sized>(
+    async fn rand_number_bitwise_less_than_half_modulus<R: Rng + ?Sized>(
         rng: &mut R,
     ) -> (Vec<Self>, Self::BaseField) {
         let modulus_size = F::Params::MODULUS_BITS as usize;
@@ -222,15 +224,17 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
         half_modulus_bits = half_modulus_bits[..modulus_size].to_vec();
 
         let valid_bits = loop {
-            let bits = (0..modulus_size)
-                .map(|_| Self::bit_rand(rng))
-                .collect::<Vec<_>>();
+            let mut bits = Vec::with_capacity(modulus_size);
+            for _ in 0..modulus_size {
+                bits.push(Self::bit_rand(rng).await);
+            }
 
             if bits
                 .clone()
                 .is_smaller_than_le(&half_modulus_bits)
                 .field()
                 .reveal()
+                .await
                 .is_one()
             {
                 break bits;
@@ -342,8 +346,8 @@ impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
 impl<F: Field, S: FieldShare<F>> Reveal for MpcBooleanField<F, S> {
     type Base = F;
     #[inline]
-    fn reveal(self) -> Self::Base {
-        self.0.reveal()
+    async fn reveal(self) -> Self::Base {
+        self.0.reveal().await
     }
     #[inline]
     fn from_public(b: Self::Base) -> Self {

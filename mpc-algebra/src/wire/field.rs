@@ -1,15 +1,19 @@
 use ark_std::{end_timer, start_timer};
 use core::panic;
 use derivative::Derivative;
+use futures::future::join_all;
 use mpc_trait::MpcWire;
 use num_bigint::BigUint;
 use rand::Rng;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{self, Debug, Display};
 use std::io::{self, Read, Write};
 use std::iter::{Product, Sum};
 use std::marker::PhantomData;
 use std::ops::*;
 use std::str::FromStr;
+use tokio::runtime::Runtime;
+use tokio::task::block_in_place;
 use zeroize::Zeroize;
 
 use log::debug;
@@ -22,7 +26,6 @@ use ark_serialize::{
 };
 
 use crate::boolean_field::{BooleanWire, MpcBooleanField};
-// use crate::channel::MpcSerNet;
 use crate::share::field::FieldShare;
 use crate::{
     mpc_primitives, BeaverSource, BitAdd, BitDecomposition, BitwiseLessThan, LessThan,
@@ -47,25 +50,25 @@ pub struct DummyFieldTripleSource<F, S> {
 impl<T: Field, S: FieldShare<T>> BeaverSource<S, S, S> for DummyFieldTripleSource<T, S> {
     fn triple(&mut self) -> (S, S, S) {
         (
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
         )
     }
     fn inv_pair(&mut self) -> (S, S) {
         (
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
-            S::from_add_shared(if Net::am_king() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
+            S::from_add_shared(if Net.is_leader() { T::one() } else { T::zero() }),
         )
     }
 }
 
 impl<F: Field, S: FieldShare<F>> MpcField<F, S> {
-    pub fn inv(self) -> Option<Self> {
+    pub async fn inv(self) -> Option<Self> {
         match self {
             Self::Public(x) => x.inverse().map(MpcField::Public),
             Self::Shared(x) => Some(MpcField::Shared(
-                x.inv(&mut DummyFieldTripleSource::default()),
+                x.inv(&mut DummyFieldTripleSource::default()).await,
             )),
         }
     }
@@ -100,13 +103,17 @@ impl<F: Field, S: FieldShare<F>> MpcField<F, S> {
 impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
     type Base = T;
     #[inline]
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         let result = match self {
-            Self::Shared(s) => s.reveal(),
+            Self::Shared(s) => s.reveal().await,
             Self::Public(s) => s,
         };
         super::macros::check_eq(result);
         result
+    }
+    #[inline]
+    fn sync_reveal(self) -> Self::Base {
+        block_in_place(|| tokio::runtime::Handle::current().block_on(self.reveal()))
     }
     #[inline]
     fn from_public(b: Self::Base) -> Self {
@@ -126,6 +133,9 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
     #[inline]
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
         Self::Shared(S::king_share(f, rng))
+    }
+    async fn async_king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        Self::Shared(S::async_king_share(f, rng).await)
     }
     #[inline]
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
@@ -167,17 +177,23 @@ impl<F: Field, S: FieldShare<F>> FromBytes for MpcField<F, S> {
 }
 
 impl<F: Field, S: FieldShare<F>> CanonicalSerialize for MpcField<F, S> {
-    fn serialize<W: Write>(&self, writer: W) -> Result<(), ark_serialize::SerializationError> {
+    fn serialize<W: Write>(&self, mut writer: W) -> Result<(), ark_serialize::SerializationError> {
         match self {
-            Self::Public(v) => v.serialize(writer),
-            Self::Shared(_) => unimplemented!("serialize share: {}", self),
+            Self::Public(v) => {
+                writer.write_all(&[0])?;
+                v.serialize(writer)
+            }
+            Self::Shared(v) => {
+                writer.write_all(&[1])?;
+                v.serialize(writer)
+            }
         }
     }
 
     fn serialized_size(&self) -> usize {
         match self {
-            Self::Public(v) => v.serialized_size(),
-            Self::Shared(_) => unimplemented!("serialized_size share: {}", self),
+            Self::Public(v) => 1 + v.serialized_size(),
+            Self::Shared(v) => 1 + v.serialized_size(),
         }
     }
 }
@@ -200,8 +216,15 @@ impl<F: Field, S: FieldShare<F>> CanonicalSerializeWithFlags for MpcField<F, S> 
 }
 
 impl<F: Field, S: FieldShare<F>> CanonicalDeserialize for MpcField<F, S> {
-    fn deserialize<R: Read>(_reader: R) -> Result<Self, ark_serialize::SerializationError> {
-        todo!()
+    fn deserialize<R: Read>(mut reader: R) -> Result<Self, ark_serialize::SerializationError> {
+        let mut flag = [0u8; 1];
+        reader.read_exact(&mut flag)?;
+
+        match flag[0] {
+            0 => Ok(MpcField::Public(F::deserialize(reader)?)),
+            1 => Ok(MpcField::Shared(S::deserialize(reader)?)),
+            _ => Err(ark_serialize::SerializationError::InvalidData),
+        }
     }
 }
 
@@ -228,16 +251,16 @@ impl<F: Field, S: FieldShare<F>> PubUniformRand for MpcField<F, S> {
 impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F, S> {
     type Output = MpcBooleanField<F, S>;
     // check if shared value a is in the interval [0, modulus/2)
-    fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output {
+    async fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output {
         // define double self as x
         let x = *self * Self::from_public(F::from(2u8));
 
         // generate pair of random bits & composed random number
         let rng = &mut ark_std::test_rng();
-        let (vec_r, r) = Self::Output::rand_number_bitwise(rng);
+        let (vec_r, r) = Self::Output::rand_number_bitwise(rng).await;
 
         // calculate [c]_p = [x]_p + [r]_p and reveal it. Get least significant bits of c
-        let c = (r + x).reveal();
+        let c = (r + x).reveal().await;
         let mut vec_c = c
             .into_repr()
             .to_bits_le()
@@ -262,19 +285,22 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
     }
 
     // TODO: Fix: This function should be returns false  when the two values are equal.
-    fn is_smaller_than(&self, other: &Self) -> Self::Output {
+    async fn is_smaller_than(&self, other: &Self) -> Self::Output {
         let timer = start_timer!(|| "LessThan");
         // [z]=[other−self<p/2],[x]=[self<p/2],[y]=[other>p/2]
         // ([z]∧[x])∨([z]∧[y])∨(¬[z]∧[x]∧[y])=[z(x+y)+(1−2*z)xy].
         let z = (*other - self)
             .is_smaller_or_equal_than_mod_minus_one_div_two()
+            .await
             .field();
         let x = self
             .is_smaller_or_equal_than_mod_minus_one_div_two()
+            .await
             .field();
         let y = Self::one()
             - other
                 .is_smaller_or_equal_than_mod_minus_one_div_two()
+                .await
                 .field();
         end_timer!(timer);
         (z * (x + y) + (Self::one() - Self::from_public(F::from(2u8)) * z) * x * y).into()
@@ -285,19 +311,23 @@ impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcBooleanField<F, S>
     type Output = MpcBooleanField<F, S>;
     // TODO: Implement kary_nand
 
-    fn kary_and(&self) -> Self::Output {
+    async fn kary_and(&self) -> Self::Output {
         debug_assert!({
             // each element is 0 or 1
-            self.iter()
-                .all(|x| x.field().reveal().is_zero() || x.field().reveal().is_one())
+            join_all(self.iter().map(|x| async move {
+                x.field().reveal().await.is_zero() || x.field().reveal().await.is_one()
+            }))
+            .await
+            .into_iter()
+            .all(|x| x)
         });
         self.iter()
             .fold(Self::Output::pub_true(), |acc, &x| acc & x)
     }
 
-    fn kary_or(&self) -> Self::Output {
+    async fn kary_or(&self) -> Self::Output {
         let not_self = self.iter().map(|&x| !x).collect::<Vec<_>>();
-        !not_self.kary_and()
+        !not_self.kary_and().await
     }
 }
 
@@ -453,7 +483,9 @@ impl<'a, F: Field, S: FieldShare<F>> MulAssign<&'a MpcField<F, S>> for MpcField<
 
                     let mut source = DummyFieldTripleSource::<F, S>::default();
 
-                    let t = a.beaver_mul(*b, &mut source);
+                    let t = block_in_place(|| {
+                        tokio::runtime::Handle::current().block_on(a.beaver_mul(*b, &mut source))
+                    });
                     *self = MpcField::Shared(t);
                 }
             },
@@ -503,7 +535,9 @@ impl<'a, F: Field, S: FieldShare<F>> DivAssign<&'a MpcField<F, S>> for MpcField<
                 MpcField::Shared(b) => {
                     // TODO implement correctly by using beaver triples
                     let src = &mut DummyFieldTripleSource::default();
-                    *a = a.beaver_div(*b, src);
+                    block_in_place(|| {
+                        tokio::runtime::Handle::current().block_on(a.beaver_div(*b, src))
+                    });
                 }
             },
         }
@@ -585,7 +619,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
     ///
     /// # Returns
     /// A MPC boolean field element.
-    fn is_zero_shared(&self) -> Self::Output {
+    async fn is_zero_shared(&self) -> Self::Output {
         let res = match self {
             MpcField::Public(_) => {
                 panic!("public is not expected here");
@@ -594,9 +628,9 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                 let timer = start_timer!(|| "EqualityZero");
                 let rng = &mut ark_std::test_rng();
 
-                let (vec_r, r) = Self::Output::rand_number_bitwise(rng);
+                let (vec_r, r) = Self::Output::rand_number_bitwise(rng).await;
 
-                let c = (r + self).reveal();
+                let c = (r + self).reveal().await;
 
                 let bits: Vec<Option<bool>> = {
                     let field_char = BitIteratorBE::new(F::characteristic());
@@ -626,7 +660,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> EqualityZero for MpcFiel
                     .collect::<Vec<_>>();
 
                 end_timer!(timer);
-                c_prime.kary_and()
+                c_prime.kary_and().await
             }
         };
         res
@@ -643,7 +677,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
     ///
     /// # Returns
     /// A vector of bits of the Mpc field element(Little-Endian).
-    fn bit_decomposition(&self) -> Vec<Self::BooleanField> {
+    async fn bit_decomposition(&self) -> Vec<Self::BooleanField> {
         match self.is_shared() {
             true => {
                 let timer = start_timer!(|| "Bit Decomposition");
@@ -652,11 +686,11 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
                 let l = F::Params::MODULUS_BITS as usize;
 
                 // 1
-                let (vec_r, r) = Self::BooleanField::rand_number_bitwise(rng);
+                let (vec_r, r) = Self::BooleanField::rand_number_bitwise(rng).await;
 
                 // 2
                 let c = -r + self;
-                let revealed_c = c.reveal();
+                let revealed_c = c.reveal().await;
                 if revealed_c.is_zero() {
                     return vec_r;
                 }
@@ -718,8 +752,13 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> BitDecomposition for Mpc
             }
             false => {
                 // This can be faster.
-                Self::king_share(self.unwrap_as_public(), &mut ark_std::test_rng())
-                    .bit_decomposition()
+                let l = F::Params::MODULUS_BITS as usize;
+                let bits = self.sync_reveal().into_repr().to_bits_le();
+                let res = bits
+                    .iter()
+                    .map(|&b| Self::BooleanField::from(b))
+                    .collect::<Vec<_>>();
+                res[..l].to_vec()
             }
         }
     }
@@ -804,7 +843,9 @@ impl<F: Field, S: FieldShare<F>> MpcWire for MpcField<F, S> {
         match self {
             MpcField::Public(_) => {}
             MpcField::Shared(s) => {
-                *self = MpcField::Public(s.open());
+                // let rt = Runtime::new().unwrap();
+                let s = block_in_place(|| tokio::runtime::Handle::current().block_on(s.open()));
+                *self = MpcField::Public(s);
             }
         }
         debug_assert!({
@@ -863,7 +904,7 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     }
 
     fn inverse(&self) -> Option<Self> {
-        self.inv()
+        block_in_place(|| tokio::runtime::Handle::current().block_on(self.inv()))
     }
 
     fn inverse_in_place(&mut self) -> Option<&mut Self> {
@@ -900,7 +941,13 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
-            let nshares = S::batch_mul(sshares, oshares, &mut DummyFieldTripleSource::default());
+            let nshares = block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(S::batch_mul(
+                    sshares,
+                    oshares,
+                    &mut DummyFieldTripleSource::default(),
+                ))
+            });
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
@@ -937,7 +984,14 @@ impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
-            let nshares = S::batch_div(sshares, oshares, &mut DummyFieldTripleSource::default());
+
+            let nshares = block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(S::batch_div(
+                    sshares,
+                    oshares,
+                    &mut DummyFieldTripleSource::default(),
+                ))
+            });
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
@@ -1081,14 +1135,39 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> SquareRootField for MpcF
 impl<F1: PrimeField, S1: FieldShare<F1>, F2: PrimeField, S2: FieldShare<F2>>
     mpc_primitives::ModulusConversion<MpcField<F2, S2>> for MpcField<F1, S1>
 {
-    fn modulus_conversion(&mut self) -> MpcField<F2, S2> {
+    async fn modulus_conversion(&mut self) -> MpcField<F2, S2> {
         match self {
             MpcField::Public(x) => {
                 let bits = x.into_repr().to_bits_le();
                 MpcField::Public(F2::from_repr(BigInteger::from_bits_le(&bits)).unwrap())
             }
-            MpcField::Shared(x) => MpcField::Shared(x.modulus_conversion()),
+            MpcField::Shared(x) => MpcField::Shared(x.modulus_conversion::<F2, S2>().await),
         }
+    }
+}
+
+impl<F: Field, S: FieldShare<F>> Serialize for MpcField<F, S> {
+    fn serialize<Sr>(&self, serializer: Sr) -> Result<Sr::Ok, Sr::Error>
+    where
+        Sr: Serializer,
+    {
+        let mut bytes = Vec::new();
+        CanonicalSerialize::serialize(self, &mut bytes).map_err(serde::ser::Error::custom)?;
+
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<'de, F: Field, S: FieldShare<F>> Deserialize<'de> for MpcField<F, S> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes: Vec<u8> = serde::de::Deserialize::deserialize(deserializer)?;
+
+        let a: MpcField<F, S> = <Self as CanonicalDeserialize>::deserialize(&bytes[..])
+            .map_err(serde::de::Error::custom)?;
+        Ok(a)
     }
 }
 
@@ -1110,9 +1189,9 @@ mod poly_impl {
     impl<F: PrimeField, S: FieldShare<F>> Reveal for Evaluations<MpcField<F, S>> {
         type Base = Evaluations<F>;
 
-        fn reveal(self) -> Self::Base {
+        async fn reveal(self) -> Self::Base {
             Evaluations::from_vec_and_domain(
-                self.evals.reveal(),
+                self.evals.reveal().await,
                 GeneralEvaluationDomain::new(self.domain.size()).unwrap(),
             )
         }
@@ -1130,5 +1209,215 @@ mod poly_impl {
                 GeneralEvaluationDomain::new(b.domain.size()).unwrap(),
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::{AdditiveFieldShare, Reveal, SpdzFieldShare};
+    use ark_bls12_377::Fr;
+    use ark_ff::{PrimeField, PubUniformRand, UniformRand};
+    use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+    use mpc_net::{LocalTestNet, MpcMultiNet as Net, MpcNet};
+    use mpc_trait::MpcWire;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    use super::MpcField;
+
+    type MFr = MpcField<Fr, AdditiveFieldShare<Fr>>;
+    type SpdzMFr = MpcField<Fr, SpdzFieldShare<Fr>>;
+
+    #[tokio::test]
+    async fn test_add() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |conn, _| async move {
+                let rng = &mut StdRng::from_entropy();
+
+                for i in 0..100 {
+                    let a = MFr::rand(rng);
+                    let b = MFr::rand(rng);
+
+                    let revealed_a = a.reveal().await;
+                    let revealed_b = b.reveal().await;
+
+                    assert_eq!(revealed_a + revealed_b, (a + b).reveal().await);
+                }
+            })
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_king_share() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |_conn, _| async move {
+                let rng = &mut StdRng::from_entropy();
+                let common_rng = &mut ark_std::test_rng();
+
+                for _ in 0..100 {
+                    let a = Fr::rand(common_rng);
+
+                    let b = MFr::async_king_share(a, rng).await;
+
+                    assert_eq!(a, b.reveal().await);
+                }
+            })
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_canonical_serialization() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |_conn, _| async move {
+                let rng = &mut ark_std::test_rng();
+
+                // Test public value serialization/deserialization
+                {
+                    let public_value = MFr::pub_rand(rng);
+                    let mut serialized = Vec::new();
+
+                    // Serialize public value
+                    public_value.serialize(&mut serialized).unwrap();
+
+                    // Deserialize public value
+                    let deserialized = MFr::deserialize(&mut &serialized[..]).unwrap();
+                    assert_eq!(public_value, deserialized);
+
+                    // Check serialized size
+                    let expected_size = public_value.serialized_size();
+                    assert_eq!(serialized.len(), expected_size);
+                }
+
+                // Test shared value serialization/deserialization
+                {
+                    let shared_value = MFr::rand(rng);
+                    assert!(shared_value.is_shared());
+                    let mut serialized = Vec::new();
+
+                    // Serialize shared value
+                    shared_value.serialize(&mut serialized).unwrap();
+
+                    // Deserialize shared value
+                    let deserialized = MFr::deserialize(&mut &serialized[..]).unwrap();
+
+                    // Check equality after reveal
+                    assert_eq!(shared_value.reveal().await, deserialized.reveal().await);
+
+                    // Check serialized size
+                    let expected_size = shared_value.serialized_size();
+                    assert_eq!(serialized.len(), expected_size);
+                }
+
+                // Test mixed serialization/deserialization
+                {
+                    let mut values = vec![
+                        MFr::pub_rand(rng),
+                        MFr::rand(rng),
+                        MFr::pub_rand(rng),
+                        MFr::rand(rng),
+                    ];
+
+                    let mut serialized_all = Vec::new();
+                    for value in &values {
+                        value.serialize(&mut serialized_all).unwrap();
+                    }
+
+                    let mut deserialized = Vec::new();
+                    let mut cursor = &serialized_all[..];
+                    while !cursor.is_empty() {
+                        deserialized.push(MFr::deserialize(&mut cursor).unwrap());
+                    }
+
+                    // Compare original and deserialized values
+                    for (orig, deser) in values.into_iter().zip(deserialized) {
+                        assert_eq!(orig.reveal().await, deser.reveal().await);
+                    }
+                }
+            })
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_canonical_serialization_spdz() {
+        const N_PARTIES: usize = 4;
+        let testnet = LocalTestNet::new_local_testnet(N_PARTIES).await.unwrap();
+
+        testnet
+            .simulate_network_round((), |_conn, _| async move {
+                let rng = &mut ark_std::test_rng();
+
+                // Test public value serialization/deserialization
+                {
+                    let public_value = SpdzMFr::pub_rand(rng);
+                    let mut serialized = Vec::new();
+
+                    // Serialize public value
+                    public_value.serialize(&mut serialized).unwrap();
+
+                    // Deserialize public value
+                    let deserialized = SpdzMFr::deserialize(&mut &serialized[..]).unwrap();
+                    assert_eq!(public_value, deserialized);
+
+                    // Check serialized size
+                    let expected_size = public_value.serialized_size();
+                    assert_eq!(serialized.len(), expected_size);
+                }
+
+                // Test shared value serialization/deserialization
+                {
+                    let shared_value = SpdzMFr::rand(rng);
+                    assert!(shared_value.is_shared());
+                    let mut serialized = Vec::new();
+
+                    // Serialize shared value
+                    shared_value.serialize(&mut serialized).unwrap();
+
+                    // Deserialize shared value
+                    let deserialized = SpdzMFr::deserialize(&mut &serialized[..]).unwrap();
+
+                    // Check equality after reveal
+                    assert_eq!(shared_value.reveal().await, deserialized.reveal().await);
+
+                    // Check serialized size
+                    let expected_size = shared_value.serialized_size();
+                    assert_eq!(serialized.len(), expected_size);
+                }
+
+                // Test mixed serialization/deserialization
+                {
+                    let mut values = vec![
+                        SpdzMFr::pub_rand(rng),
+                        SpdzMFr::rand(rng),
+                        SpdzMFr::pub_rand(rng),
+                        SpdzMFr::rand(rng),
+                    ];
+
+                    let mut serialized_all = Vec::new();
+                    for value in &values {
+                        value.serialize(&mut serialized_all).unwrap();
+                    }
+
+                    let mut deserialized = Vec::new();
+                    let mut cursor = &serialized_all[..];
+                    while !cursor.is_empty() {
+                        deserialized.push(SpdzMFr::deserialize(&mut cursor).unwrap());
+                    }
+
+                    // Compare original and deserialized values
+                    for (orig, deser) in values.into_iter().zip(deserialized) {
+                        assert_eq!(orig.reveal().await, deser.reveal().await);
+                    }
+                }
+            })
+            .await;
     }
 }

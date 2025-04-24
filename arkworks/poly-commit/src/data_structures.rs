@@ -1,4 +1,6 @@
-use crate::{Polynomial, PolynomialCommitment, Rc, String, Vec};
+use std::sync::Arc;
+
+use crate::{Polynomial, PolynomialCommitment, String, Vec};
 use ark_ff::{Field, ToConstraintField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::rand::RngCore;
@@ -119,7 +121,7 @@ pub struct BatchLCProof<F: Field, P: Polynomial<F>, PC: PolynomialCommitment<F, 
 pub struct LabeledPolynomial<F: Field, P: Polynomial<F>> {
     label: PolynomialLabel,
     /// The polynomial
-    pub polynomial: Rc<P>,
+    pub polynomial: Arc<P>,
     degree_bound: Option<usize>,
     hiding_bound: Option<usize>,
     _field: PhantomData<F>,
@@ -143,7 +145,7 @@ impl<'a, F: Field, P: Polynomial<F>> LabeledPolynomial<F, P> {
     ) -> Self {
         Self {
             label,
-            polynomial: Rc::new(polynomial),
+            polynomial: Arc::new(polynomial),
             degree_bound,
             hiding_bound,
             _field: PhantomData,

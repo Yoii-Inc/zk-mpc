@@ -112,12 +112,12 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjectiveVariant<P, S> {
 impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupProjectiveVariant<P, S> {
     type Base = GroupProjective<P>;
 
-    fn reveal(self) -> Self::Base {
+    async fn reveal(self) -> Self::Base {
         Self::Base::new(
-            self.x.reveal(),
-            self.y.reveal(),
-            self.t.reveal(),
-            self.z.reveal(),
+            self.x.reveal().await,
+            self.y.reveal().await,
+            self.t.reveal().await,
+            self.z.reveal().await,
         )
     }
 
@@ -175,8 +175,8 @@ impl<P: Parameters, S: APShare<P>> Group for MpcGroupAffine<P, S> {
 impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupProjective<P, S> {
     type Base = GroupProjective<P>;
     #[inline]
-    fn reveal(self) -> Self::Base {
-        self.val.reveal()
+    async fn reveal(self) -> Self::Base {
+        self.val.reveal().await
     }
     #[inline]
     fn from_public(t: Self::Base) -> Self {
@@ -469,8 +469,8 @@ where
 impl<P: Parameters, S: APShare<P>> Reveal for MpcGroupAffine<P, S> {
     type Base = GroupAffine<P>;
     #[inline]
-    fn reveal(self) -> Self::Base {
-        self.val.reveal()
+    async fn reveal(self) -> Self::Base {
+        self.val.reveal().await
     }
     #[inline]
     fn from_public(t: Self::Base) -> Self {
@@ -885,7 +885,7 @@ impl<P: Parameters> AffProjShare<P::ScalarField, GroupAffine<P>, GroupProjective
         mut a: Self::ProjectiveShare,
         o: &GroupAffine<P>,
     ) -> Self::ProjectiveShare {
-        if Net::am_king() {
+        if Net.is_leader() {
             a.val.add_assign_mixed(&o);
         }
         a
@@ -928,7 +928,7 @@ impl<P: Parameters> AffProjShare<P::ScalarField, GroupAffine<P>, GroupProjective
         mut a: Self::ProjectiveShare,
         o: &GroupAffine<P>,
     ) -> Self::ProjectiveShare {
-        if Net::am_king() {
+        if Net.is_leader() {
             a.sh.val.add_assign_mixed(&o);
         }
         a
@@ -972,10 +972,10 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                 let unprocessed = self.val.unwrap_as_public();
 
                 // 2. generate shares and communicate
-                let vec_x = (0..Net::n_parties())
+                let vec_x = (0..Net.n_parties())
                     .map(|i| {
                         MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
-                            if Net::party_id() == i {
+                            if Net.party_id() == i as u32 {
                                 unprocessed.x
                             } else {
                                 P::BaseField::zero()
@@ -984,10 +984,10 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                     })
                     .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
-                let vec_y = (0..Net::n_parties())
+                let vec_y = (0..Net.n_parties())
                     .map(|i| {
                         MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
-                            if Net::party_id() == i {
+                            if Net.party_id() == i as u32 {
                                 unprocessed.y
                             } else {
                                 P::BaseField::zero()
@@ -996,10 +996,10 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                     })
                     .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
-                let vec_t = (0..Net::n_parties())
+                let vec_t = (0..Net.n_parties())
                     .map(|i| {
                         MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
-                            if Net::party_id() == i {
+                            if Net.party_id() == i as u32 {
                                 unprocessed.t
                             } else {
                                 P::BaseField::zero()
@@ -1008,10 +1008,10 @@ impl<P: Parameters, S: APShare<P>> MpcGroupProjective<P, S> {
                     })
                     .collect::<Vec<MpcField<P::BaseField, S::BaseShare>>>();
 
-                let vec_z = (0..Net::n_parties())
+                let vec_z = (0..Net.n_parties())
                     .map(|i| {
                         MpcField::<P::BaseField, S::BaseShare>::from_add_shared(
-                            if Net::party_id() == i {
+                            if Net.party_id() == i as u32 {
                                 unprocessed.z
                             } else {
                                 P::BaseField::zero()
@@ -1246,7 +1246,7 @@ macro_rules! impl_edwards_related {
         impl Reveal for ElGamalParameters<$curve> {
             type Base = LocalElGamalParameters<EdwardsProjective>;
 
-            fn reveal(self) -> Self::Base {
+            async fn reveal(self) -> Self::Base {
                 Self::Base {
                     generator: self.generator.to_local(),
                 }
@@ -1266,7 +1266,7 @@ macro_rules! impl_edwards_related {
         impl Reveal for ElGamalRandomness<$curve> {
             type Base = LocalElGamalRandomness<EdwardsProjective>;
 
-            fn reveal(self) -> Self::Base {
+            async fn reveal(self) -> Self::Base {
                 unimplemented!()
             }
 
