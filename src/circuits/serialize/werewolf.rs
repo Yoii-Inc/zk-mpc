@@ -8,7 +8,6 @@ use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use serde::{Deserialize, Serialize};
 
-
 // KeyPublicizeCircuitのserde::serializeを実装
 impl<F: PrimeField + LocalOrMPC<F>> Serialize for KeyPublicizeCircuit<F> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
