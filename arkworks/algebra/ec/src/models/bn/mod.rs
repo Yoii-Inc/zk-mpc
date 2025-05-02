@@ -64,12 +64,12 @@ impl<P: BnParameters> Bn<P> {
                 c2.mul_assign_by_fp(&p.y);
                 c1.mul_assign_by_fp(&p.x);
                 f.mul_by_014(&c0, &c1, &c2);
-            }
+            },
             TwistType::D => {
                 c0.mul_assign_by_fp(&p.y);
                 c1.mul_assign_by_fp(&p.x);
                 f.mul_by_034(&c0, &c1, &c2);
-            }
+            },
         }
     }
 
@@ -122,12 +122,12 @@ impl<P: BnParameters> PairingEngine for Bn<P> {
                     for &mut (p, ref mut coeffs) in &mut pairs {
                         Self::ell(&mut f, coeffs.next().unwrap(), &p.0);
                     }
-                }
+                },
                 -1 => {
                     for &mut (p, ref mut coeffs) in &mut pairs {
                         Self::ell(&mut f, coeffs.next().unwrap(), &p.0);
                     }
-                }
+                },
                 _ => continue,
             }
         }

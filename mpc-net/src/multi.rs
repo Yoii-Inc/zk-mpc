@@ -588,7 +588,7 @@ impl MpcNet for MpcMultiNet {
 
 #[cfg(test)]
 mod tests {
-    
+
     use tokio_util::bytes::Bytes;
 
     use crate::multi::MpcMultiNet as Net;
