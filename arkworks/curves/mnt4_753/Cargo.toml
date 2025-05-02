@@ -21,7 +21,7 @@ ark-r1cs-std = { path = "../../r1cs-std", version = "^0.3.0", default-features =
 [dev-dependencies]
 ark-relations = { path = "../../snark/relations", version = "^0.3.0", default-features = false }
 ark-serialize = { path = "../../algebra/serialize", version = "^0.3.0", default-features = false }
-ark-algebra-test-templates = { version = "^0.3.0", default-features = false }
+ark-algebra-test-templates = { path = "../../algebra/test-templates", version = "^0.3.0", default-features = false }
 ark-curve-constraint-tests = { path = "../curve-constraint-tests", default-features = false }
 
 [features]

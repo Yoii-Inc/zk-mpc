@@ -19,7 +19,7 @@ ark-std = { path = "../../std", version="^0.3.0", default-features = false }
 
 [dev-dependencies]
 ark-serialize = { path = "../../algebra/serialize", version="^0.3.0", default-features = false }
-ark-algebra-test-templates = { version="^0.3.0", default-features = false }
+ark-algebra-test-templates = { path = "../../algebra/test-templates", version="^0.3.0", default-features = false }
 
 [features]
 default = [ "curve" ]

@@ -43,7 +43,7 @@ blake2 = { version = "0.9", default-features = false }
 ark-bls12-381 = { path = "../curves/bls12_381", version = "^0.3.0", default-features = false, features = [ "curve" ] }
 ark-mnt4-298 = { version = "^0.3.0", default-features = false, features = ["r1cs", "curve"] }
 ark-mnt6-298 = { version = "^0.3.0", default-features = false, features = ["r1cs"] }
-ark-mnt4-753 = { version = "^0.3.0", default-features = false, features = ["r1cs", "curve"] }
+ark-mnt4-753 = { path = "../curves/mnt4_753", version = "^0.3.0", default-features = false, features = ["r1cs", "curve"] }
 ark-mnt6-753 = { version = "^0.3.0", default-features = false, features = ["r1cs"] }
 
 [profile.release]
