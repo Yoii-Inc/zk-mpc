@@ -8,7 +8,7 @@ use ark_crypto_primitives::{
     crh::pedersen::Window,
 };
 use ark_ec::ProjectiveCurve;
-use ark_ff::{to_bytes, Field, PrimeField};
+use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
     groups::{CurveVar, GroupOpsBounds},

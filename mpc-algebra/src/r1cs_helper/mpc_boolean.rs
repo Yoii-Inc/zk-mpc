@@ -2,7 +2,7 @@ use ark_ff::{BitIteratorBE, Field, FpParameters, PrimeField};
 use ark_r1cs_std::{
     fields::fp::{AllocatedFp, FpVar},
     prelude::*,
-    Assignment, ToConstraintFieldGadget,
+    Assignment,
 };
 use ark_relations::{
     lc,
@@ -11,9 +11,7 @@ use ark_relations::{
 use ark_std::{One, Zero};
 use core::borrow::Borrow;
 
-use crate::{mpc_eq::MpcEqGadget, mpc_fp::MpcFpVar, mpc_select::MpcCondSelectGadget, MpcField};
-
-use crate::reveal::Reveal;
+use crate::{mpc_eq::MpcEqGadget, mpc_select::MpcCondSelectGadget};
 
 /// Represents a variable in the constraint system which is guaranteed
 /// to be either zero or one.

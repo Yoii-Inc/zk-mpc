@@ -12,7 +12,7 @@ use ark_serialize::{
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
 
-use crate::commitment::pedersen::{Parameters as PedersenParameters, Randomness};
+use crate::commitment::pedersen::Parameters as PedersenParameters;
 use crate::encryption::elgamal::elgamal::{
     Parameters as ElGamalParameters, Randomness as ElGamalRandomness,
 };
@@ -837,8 +837,8 @@ type FqShare<P: Parameters> = AdditiveFieldShare<P::BaseField>;
 type SpdzFrShare<P: Parameters> = SpdzFieldShare<P::ScalarField>;
 type SpdzFqShare<P: Parameters> = SpdzFieldShare<P::BaseField>;
 
-type AffineShare<P: Parameters> = AdditiveGroupShare<GroupAffine<P>, AffineMsm<GroupAffine<P>>>;
-type ProjectiveShare<P: Parameters> =
+type AffineShare<P> = AdditiveGroupShare<GroupAffine<P>, AffineMsm<GroupAffine<P>>>;
+type ProjectiveShare<P> =
     AdditiveGroupShare<GroupProjective<P>, crate::msm::ProjectiveMsm<GroupProjective<P>>>;
 
 // type APShare<P> = AffProjShare<

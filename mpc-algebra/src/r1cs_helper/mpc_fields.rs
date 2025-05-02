@@ -1,7 +1,6 @@
 use ark_ff::{BitIteratorBE, Field, PrimeField, SquareRootField};
 use ark_r1cs_std::{alloc::AllocVar, R1CSVar};
 use ark_relations::r1cs::SynthesisError;
-use sha2::digest::generic_array::typenum::SquareRoot;
 
 use core::{
     fmt::Debug,

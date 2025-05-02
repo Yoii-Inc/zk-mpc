@@ -3,7 +3,7 @@ use crate::{
         pedersen::{Parameters, Window, CRH},
         CRHGadget as CRHGadgetTrait,
     },
-    FieldShare, MpcBoolean, MpcUInt8,
+    MpcBoolean, MpcUInt8,
 };
 use ark_ec::ProjectiveCurve;
 use ark_ff::Field;

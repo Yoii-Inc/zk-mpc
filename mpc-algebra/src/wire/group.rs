@@ -16,7 +16,6 @@ use ark_serialize::{Flags, SerializationError};
 use derivative::Derivative;
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 use mpc_trait::MpcWire;
-use tokio::runtime::Runtime;
 use tokio::task::block_in_place;
 
 use crate::share::group::GroupShare;

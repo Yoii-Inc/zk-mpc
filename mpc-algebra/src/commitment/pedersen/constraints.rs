@@ -4,7 +4,7 @@ use crate::{
         constraints::CommitmentGadget,
         pedersen::{Commitment, Input, Parameters, Randomness},
     },
-    mpc_primitives, MpcUInt8,
+    mpc_primitives,
 };
 
 use crate::crh::pedersen::Window;
@@ -17,7 +17,7 @@ use ark_ec::ProjectiveCurve;
 use ark_ff::BigInteger;
 use ark_ff::{
     fields::{Field, PrimeField},
-    to_bytes, SquareRootField, Zero,
+    SquareRootField, Zero,
 };
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_relations::r1cs::{Namespace, SynthesisError};

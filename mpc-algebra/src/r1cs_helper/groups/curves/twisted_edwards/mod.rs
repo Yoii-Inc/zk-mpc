@@ -1,5 +1,4 @@
 use ark_ec::{
-    twisted_edwards_extended::{GroupAffine as TEAffine, GroupProjective as TEProjective},
     AffineCurve, ModelParameters, MontgomeryModelParameters, ProjectiveCurve, TEModelParameters,
 };
 use ark_ff::{
