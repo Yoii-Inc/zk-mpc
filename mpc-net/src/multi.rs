@@ -399,7 +399,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin + Send> MpcNet for MPCNetConnection<IO> 
         let len = bytes.len();
         results.push((self.id, bytes.clone())); // 自分の値を追加
 
-        let mut send_futures = FuturesUnordered::new();
+        let send_futures = FuturesUnordered::new();
         for (peer_id, peer) in &self.peers {
             if *peer_id == self.id {
                 continue; // 自分自身には送信しない
@@ -415,7 +415,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin + Send> MpcNet for MPCNetConnection<IO> 
             }));
         }
 
-        let mut recv_futures = FuturesUnordered::new();
+        let recv_futures = FuturesUnordered::new();
         for (peer_id, _) in &self.peers {
             if *peer_id == self.id {
                 continue; // 自分自身からは受信しない
@@ -588,7 +588,7 @@ impl MpcNet for MpcMultiNet {
 
 #[cfg(test)]
 mod tests {
-    use rayon::vec;
+    
     use tokio_util::bytes::Bytes;
 
     use crate::multi::MpcMultiNet as Net;
