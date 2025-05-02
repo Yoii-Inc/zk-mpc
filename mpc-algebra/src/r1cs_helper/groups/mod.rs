@@ -7,8 +7,8 @@ use core::ops::{Add, AddAssign, Sub, SubAssign};
 use core::{borrow::Borrow, fmt::Debug};
 
 use crate::MpcBoolean;
+use crate::MpcCondSelectGadget;
 use crate::MpcToBitsGadget;
-use crate::{FieldShare, MpcCondSelectGadget};
 
 use crate::MpcEqGadget;
 

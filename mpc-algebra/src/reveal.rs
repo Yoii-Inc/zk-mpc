@@ -1,10 +1,7 @@
 #![macro_use]
 use ark_std::{collections::BTreeMap, marker::PhantomData, rc::Rc};
 use futures::future;
-use mpc_net::MultiplexedStreamID;
 use rand::Rng;
-
-use crate::channel::MpcSerNet;
 
 /// A type should implement [Reveal] if it represents the MPC abstraction of some base type.
 ///

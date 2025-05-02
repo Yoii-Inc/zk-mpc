@@ -12,7 +12,6 @@ use std::iter::{Product, Sum};
 use std::marker::PhantomData;
 use std::ops::*;
 use std::str::FromStr;
-use tokio::runtime::Runtime;
 use tokio::task::block_in_place;
 use zeroize::Zeroize;
 
@@ -1217,11 +1216,11 @@ mod tests {
 
     use crate::{AdditiveFieldShare, Reveal, SpdzFieldShare};
     use ark_bls12_377::Fr;
-    use ark_ff::{PrimeField, PubUniformRand, UniformRand};
+    use ark_ff::{PubUniformRand, UniformRand};
     use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-    use mpc_net::{LocalTestNet, MpcMultiNet as Net, MpcNet};
+    use mpc_net::LocalTestNet;
     use mpc_trait::MpcWire;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{rngs::StdRng, SeedableRng};
 
     use super::MpcField;
 
@@ -1319,7 +1318,7 @@ mod tests {
 
                 // Test mixed serialization/deserialization
                 {
-                    let mut values = vec![
+                    let values = vec![
                         MFr::pub_rand(rng),
                         MFr::rand(rng),
                         MFr::pub_rand(rng),
@@ -1394,7 +1393,7 @@ mod tests {
 
                 // Test mixed serialization/deserialization
                 {
-                    let mut values = vec![
+                    let values = vec![
                         SpdzMFr::pub_rand(rng),
                         SpdzMFr::rand(rng),
                         SpdzMFr::pub_rand(rng),

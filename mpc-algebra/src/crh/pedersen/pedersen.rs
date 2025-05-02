@@ -88,7 +88,7 @@ impl<C: ProjectiveCurve, W: Window> CRHTrait for CRH<C, W> {
         // Pad the input if it is not the current length.
         if (input.len()) < W::WINDOW_SIZE * W::NUM_WINDOWS {
             padded_input.extend_from_slice(input);
-            let padded_length = (W::WINDOW_SIZE * W::NUM_WINDOWS);
+            let padded_length = W::WINDOW_SIZE * W::NUM_WINDOWS;
             padded_input.resize(padded_length, C::ScalarField::zero());
             input = &padded_input;
         }

@@ -1,9 +1,9 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use ark_crypto_primitives::{CommitmentScheme, CRH};
 use ark_ff::{BigInteger, BigInteger256, FpParameters, PrimeField, UniformRand};
 use ark_ff::{One, Zero};
-use ark_poly::reveal;
 use ark_std::PubUniformRand;
 use ark_std::{end_timer, start_timer};
 use log::debug;
@@ -11,12 +11,12 @@ use mpc_algebra::boolean_field::MpcBooleanField;
 use mpc_algebra::honest_but_curious::MpcEdwardsProjective;
 use mpc_algebra::pedersen::Randomness;
 use mpc_algebra::{
-    edwards2, share, AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, BooleanWire,
+    AdditiveFieldShare, BitAdd, BitDecomposition, BitwiseLessThan, BooleanWire,
     CommitmentScheme as MpcCommitmentScheme, EqualityZero, LessThan, LogicalOperations,
     /* MpcEdwardsProjective,*/ MpcField, Reveal, UniformBitRand,
 };
 use mpc_net::multi::MPCNetConnection;
-use mpc_net::{MpcMultiNet as Net, MpcNet};
+use mpc_net::MpcMultiNet as Net;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -484,7 +484,9 @@ async fn main() {
     net.listen().await.unwrap();
     net.connect_to_all().await.unwrap();
 
-    Net::simulate(net, (), |_, _| async {
+    let net_arc = Arc::new(net);
+
+    Net::simulate(net_arc, (), |_, _| async {
         println!("Test started");
         test_add().await;
         println!("Test add passed");

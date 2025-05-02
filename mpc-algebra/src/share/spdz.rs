@@ -16,9 +16,6 @@ use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
-use futures::future::join_all;
-use tokio::runtime::Runtime;
-
 use crate::channel::{can_cheat, MpcSerNet};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 

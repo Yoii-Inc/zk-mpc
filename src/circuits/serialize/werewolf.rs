@@ -8,8 +8,6 @@ use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use serde::{Deserialize, Serialize};
 
-use nalgebra as na;
-
 // KeyPublicizeCircuitのserde::serializeを実装
 impl<F: PrimeField + LocalOrMPC<F>> Serialize for KeyPublicizeCircuit<F> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -70,7 +68,7 @@ impl<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> Serialize for RoleAss
     where
         S: serde::Serializer,
     {
-        let mut bytes = Vec::new();
+        let bytes = Vec::new();
 
         // // Serialize parameters
         // self.pedersen_param

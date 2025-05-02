@@ -593,9 +593,9 @@ mod tests {
 
     use crate::{AdditiveFieldShare, Reveal};
     use ark_bls12_377::Fr;
-    use ark_ff::{PrimeField, UniformRand};
+
     use mpc_net::{LocalTestNet, MpcMultiNet as Net, MpcNet};
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{rngs::StdRng, SeedableRng};
 
     #[tokio::test]
     async fn test_reveal() {

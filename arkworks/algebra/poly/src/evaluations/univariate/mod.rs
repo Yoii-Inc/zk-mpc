@@ -1,7 +1,7 @@
 //! A univariate polynomial represented in evaluations form.
 
 use crate::{univariate::DensePolynomial, EvaluationDomain, GeneralEvaluationDomain, UVPolynomial};
-use ark_ff::{batch_inversion, FftField, Field};
+use ark_ff::{FftField, Field};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::{
     io::{Read, Write},

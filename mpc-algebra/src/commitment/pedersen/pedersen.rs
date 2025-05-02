@@ -1,6 +1,6 @@
 use ark_crypto_primitives::Error;
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{bytes::ToBytes, BitIteratorLE, Field, FpParameters, PrimeField, ToConstraintField};
+use ark_ff::{bytes::ToBytes, Field, FpParameters, PrimeField, ToConstraintField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, SerializationError};
 use ark_std::io::{Result as IoResult, Write};
 use ark_std::marker::PhantomData;
@@ -12,7 +12,7 @@ use mpc_trait::MpcWire;
 
 use crate::crh::{pedersen, pedersen::Window, CRH};
 use crate::wire::boolean_field::BooleanWire;
-use crate::{BitDecomposition, CommitmentScheme, FieldShare, MpcField, Reveal};
+use crate::{BitDecomposition, CommitmentScheme, Reveal};
 
 // pub use ark_crypto_primitives::crh::pedersen::Window;
 // use ark_crypto_primitives::crh::{pedersen, CRH};

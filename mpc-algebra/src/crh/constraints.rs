@@ -1,9 +1,9 @@
-use ark_ff::{Field, PrimeField};
+use ark_ff::PrimeField;
 use core::fmt::Debug;
 
 use crate::{
     crh::{TwoToOneCRH, CRH},
-    FieldShare, MpcCondSelectGadget, MpcEqGadget, MpcUInt8,
+    MpcCondSelectGadget, MpcEqGadget, MpcUInt8,
 };
 use ark_relations::r1cs::SynthesisError;
 

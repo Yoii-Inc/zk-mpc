@@ -139,7 +139,13 @@ macro_rules! impl_Fp {
             /// For *internal* use only; please use the `field_new` macro instead
             /// of this method
             #[doc(hidden)]
-            pub const fn const_from_str(limbs: &[u64], is_positive: bool, r2: $BigIntegerType, modulus: $BigIntegerType, inv: u64) -> Self {
+            pub const fn const_from_str(
+                limbs: &[u64],
+                is_positive: bool,
+                r2: $BigIntegerType,
+                modulus: $BigIntegerType,
+                inv: u64,
+            ) -> Self {
                 let mut repr = $BigInteger([0; $limbs]);
                 let mut i = 0;
                 while i < limbs.len() {
@@ -155,7 +161,12 @@ macro_rules! impl_Fp {
             }
 
             #[inline]
-            pub(crate) const fn const_from_repr(repr: $BigIntegerType, r2: $BigIntegerType, modulus: $BigIntegerType, inv: u64) -> Self {
+            pub(crate) const fn const_from_repr(
+                repr: $BigIntegerType,
+                r2: $BigIntegerType,
+                modulus: $BigIntegerType,
+                inv: u64,
+            ) -> Self {
                 let mut r = Self::new(repr);
                 if r.const_is_zero() {
                     r
@@ -166,13 +177,19 @@ macro_rules! impl_Fp {
             }
 
             #[ark_ff_asm::unroll_for_loops]
-            const fn mul_without_reduce(mut self, other: &Self, modulus: $BigIntegerType, inv: u64) -> Self {
+            const fn mul_without_reduce(
+                mut self,
+                other: &Self,
+                modulus: $BigIntegerType,
+                inv: u64,
+            ) -> Self {
                 let mut r = [0u64; $limbs * 2];
 
                 for i in 0..$limbs {
                     let mut carry = 0;
                     for j in 0..$limbs {
-                        r[j + i] = mac_with_carry!(r[j + i], (self.0).0[i], (other.0).0[j], &mut carry);
+                        r[j + i] =
+                            mac_with_carry!(r[j + i], (self.0).0[i], (other.0).0[j], &mut carry);
                     }
                     r[$limbs + i] = carry;
                 }
@@ -201,14 +218,13 @@ macro_rules! impl_Fp {
                 self.const_reduce(modulus)
             }
 
-
             #[ark_ff_asm::unroll_for_loops]
             const fn const_is_valid(&self, modulus: $BigIntegerType) -> bool {
                 for i in 0..$limbs {
                     if (self.0).0[($limbs - i - 1)] < modulus.0[($limbs - i - 1)] {
-                        return true
+                        return true;
                     } else if (self.0).0[($limbs - i - 1)] > modulus.0[($limbs - i - 1)] {
-                        return false
+                        return false;
                     }
                 }
                 false
@@ -274,8 +290,7 @@ macro_rules! impl_Fp {
             }
         }
 
-        impl<P: $FpParameters> MpcWire for $Fp<P> {
-        }
+        impl<P: $FpParameters> MpcWire for $Fp<P> {}
 
         impl<P: $FpParameters> Field for $Fp<P> {
             type BasePrimeField = Self;
@@ -315,19 +330,21 @@ macro_rules! impl_Fp {
             #[inline]
             fn from_random_bytes_with_flags<F: Flags>(bytes: &[u8]) -> Option<(Self, F)> {
                 if F::BIT_SIZE > 8 {
-                    return None
+                    return None;
                 } else {
                     let mut result_bytes = [0u8; $limbs * 8 + 1];
                     // Copy the input into a temporary buffer.
-                    result_bytes.iter_mut().zip(bytes).for_each(|(result, input)| {
-                        *result = *input;
-                    });
+                    result_bytes
+                        .iter_mut()
+                        .zip(bytes)
+                        .for_each(|(result, input)| {
+                            *result = *input;
+                        });
                     // This mask retains everything in the last limb
                     // that is below `P::MODULUS_BITS`.
                     let last_limb_mask = (u64::MAX >> P::REPR_SHAVE_BITS).to_le_bytes();
                     let mut last_bytes_mask = [0u8; 9];
                     last_bytes_mask[..8].copy_from_slice(&last_limb_mask);
-
 
                     // Length of the buffer containing the field element and the flag.
                     let output_byte_size = buffer_byte_size(P::MODULUS_BITS as usize + F::BIT_SIZE);
@@ -554,11 +571,10 @@ macro_rules! impl_Fp {
         impl<P: $FpParameters> FromBytes for $Fp<P> {
             #[inline]
             fn read<R: Read>(reader: R) -> IoResult<Self> {
-                $BigInteger::read(reader).and_then(|b|
-                    match $Fp::from_repr(b) {
-                        Some(f) => Ok(f),
-                        None => Err(crate::error("FromBytes::read failed")),
-                    })
+                $BigInteger::read(reader).and_then(|b| match $Fp::from_repr(b) {
+                    Some(f) => Ok(f),
+                    None => Err(crate::error("FromBytes::read failed")),
+                })
             }
         }
 
@@ -615,7 +631,7 @@ macro_rules! impl_Fp {
         impl<P: $FpParameters> Display for $Fp<P> {
             #[inline]
             fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-                write!(f, stringify!($Fp"({})"), self.into_repr())
+                write!(f, stringify!("({})"$Fp), self.into_repr())
             }
         }
 
@@ -734,5 +750,5 @@ macro_rules! impl_Fp {
                 self.into_repr().into()
             }
         }
-    }
+    };
 }
