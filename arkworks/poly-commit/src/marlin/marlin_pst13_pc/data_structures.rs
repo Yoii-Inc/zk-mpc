@@ -563,7 +563,7 @@ impl<E: PairingEngine> ToBytes for Proof<E> {
         self.w
             .iter()
             .map(|e| e.write(&mut writer))
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<(), _>>()?;
         self.random_v
             .as_ref()
             .unwrap_or(&E::Fr::zero())

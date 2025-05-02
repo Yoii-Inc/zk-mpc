@@ -55,11 +55,11 @@ num-integer = { version = "0.1.44", default-features = false }
 paste = "1.0"
 ark-bls12-377 = { path = "../curves/bls12_377", version = "^0.3.0", features = ["curve"], default-features = false  }
 ark-bls12-381 = { path = "../curves/bls12_381", version = "^0.3.0", features = ["curve"], default-features = false  }
-ark-mnt4-298 = { version = "^0.3.0", features = ["curve"], default-features = false  }
+ark-mnt4-298 = { path = "../curves/mnt4_298", version = "^0.3.0", features = ["curve"], default-features = false  }
 ark-mnt4-753 = { path = "../curves/mnt4_753", version = "^0.3.0", features = ["curve"], default-features = false  }
-ark-mnt6-298 = { version = "^0.3.0", default-features = false  }
-ark-mnt6-753 = { version = "^0.3.0", default-features = false  }
-ark-pallas = { version = "^0.3.0", features = ["curve"],  default-features = false  }
+ark-mnt6-298 = { path = "../curves/mnt6_298", version = "^0.3.0", default-features = false  }
+ark-mnt6-753 = { path = "../curves/mnt6_753", version = "^0.3.0", default-features = false  }
+ark-pallas = { path = "../curves/pallas", version = "^0.3.0", features = ["curve"],  default-features = false  }
 
 [features]
 default = []

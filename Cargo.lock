@@ -142,17 +142,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-bls12-377"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc41c02c0d18a226947ee9ee023b1d957bdb6a68fc22ac296722935a9fef423c"
-dependencies = [
- "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "ark-bls12-381"
 version = "0.3.0"
 dependencies = [
@@ -166,25 +155,25 @@ dependencies = [
 [[package]]
 name = "ark-cp6-782"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb8b94a4e6f8912729377e6cbc67bee76315a3a696605f56fb4ace0a6479481d"
 dependencies = [
- "ark-bls12-377 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-algebra-test-templates",
+ "ark-bls12-377",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
 ]
 
 [[package]]
 name = "ark-crypto-primitives"
 version = "0.3.0"
 dependencies = [
- "ark-bls12-377 0.3.0",
+ "ark-bls12-377",
  "ark-ec 0.3.0",
  "ark-ed-on-bls12-381",
  "ark-ff 0.3.0",
- "ark-mnt4-298",
- "ark-mnt6-298",
+ "ark-mnt4-298 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-mnt6-298 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ark-nonnative-field",
  "ark-r1cs-std 0.3.0",
  "ark-relations 0.3.0",
@@ -244,7 +233,7 @@ name = "ark-ed-on-bls12-377"
 version = "0.3.0"
 dependencies = [
  "ark-algebra-test-templates",
- "ark-bls12-377 0.3.0",
+ "ark-bls12-377",
  "ark-curve-constraint-tests",
  "ark-ec 0.3.0",
  "ark-ff 0.3.0",
@@ -349,15 +338,15 @@ dependencies = [
 name = "ark-groth16"
 version = "0.3.0"
 dependencies = [
- "ark-bls12-377 0.3.0",
+ "ark-bls12-377",
  "ark-bls12-381",
  "ark-cp6-782",
  "ark-crypto-primitives",
  "ark-ec 0.3.0",
  "ark-ff 0.3.0",
- "ark-mnt4-298",
- "ark-mnt4-753 0.3.0",
- "ark-mnt6-298",
+ "ark-mnt4-298 0.3.0",
+ "ark-mnt4-753",
+ "ark-mnt6-298 0.3.0",
  "ark-mnt6-753",
  "ark-poly",
  "ark-r1cs-std 0.3.0",
@@ -375,13 +364,13 @@ dependencies = [
 name = "ark-marlin"
 version = "0.3.0"
 dependencies = [
- "ark-bls12-377 0.3.0",
+ "ark-bls12-377",
  "ark-bls12-381",
  "ark-ec 0.3.0",
  "ark-ff 0.3.0",
- "ark-mnt4-298",
- "ark-mnt4-753 0.3.0",
- "ark-mnt6-298",
+ "ark-mnt4-298 0.3.0",
+ "ark-mnt4-753",
+ "ark-mnt6-298 0.3.0",
  "ark-mnt6-753",
  "ark-poly",
  "ark-poly-commit",
@@ -395,6 +384,20 @@ dependencies = [
  "mpc-trait",
  "rand_chacha",
  "rayon",
+]
+
+[[package]]
+name = "ark-mnt4-298"
+version = "0.3.0"
+dependencies = [
+ "ark-algebra-test-templates",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
 ]
 
 [[package]]
@@ -424,14 +427,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-mnt4-753"
+name = "ark-mnt6-298"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9ee523df86e85ee075f98f2f61998591d2d456487b32fefe228d2c5a22173c4"
 dependencies = [
- "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-algebra-test-templates",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-mnt4-298 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
 ]
 
 [[package]]
@@ -442,7 +449,7 @@ checksum = "82335122b96dd416b69ec209ae156fc5995d030b62e4cd829a266b1b460c5ac3"
 dependencies = [
  "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-mnt4-298",
+ "ark-mnt4-298 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ark-r1cs-std 0.3.1",
  "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -450,27 +457,29 @@ dependencies = [
 [[package]]
 name = "ark-mnt6-753"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fba0d19324bf7424512700ab4f1a9adbe990a6a0cc0bbce88f0868a045cacb7"
 dependencies = [
- "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-mnt4-753 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-r1cs-std 0.3.1",
- "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-algebra-test-templates",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-mnt4-753",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
 ]
 
 [[package]]
 name = "ark-nonnative-field"
 version = "0.3.0"
 dependencies = [
- "ark-bls12-377 0.3.0",
+ "ark-bls12-377",
  "ark-bls12-381",
  "ark-ec 0.3.0",
  "ark-ff 0.3.0",
- "ark-mnt4-298",
- "ark-mnt4-753 0.3.0",
- "ark-mnt6-298",
+ "ark-mnt4-298 0.3.0",
+ "ark-mnt4-753",
+ "ark-mnt6-298 0.3.0",
  "ark-mnt6-753",
  "ark-pallas",
  "ark-r1cs-std 0.3.0",
@@ -487,12 +496,15 @@ dependencies = [
 [[package]]
 name = "ark-pallas"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e945e1c8d86aa869853944ce6ecf072c2dac623b88c94e68792901b06190e53"
 dependencies = [
- "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-algebra-test-templates",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
 ]
 
 [[package]]
@@ -513,7 +525,7 @@ dependencies = [
 name = "ark-poly-commit"
 version = "0.3.0"
 dependencies = [
- "ark-bls12-377 0.3.0",
+ "ark-bls12-377",
  "ark-bls12-381",
  "ark-ec 0.3.0",
  "ark-ed-on-bls12-381",
@@ -1416,7 +1428,7 @@ dependencies = [
 name = "mpc-algebra"
 version = "0.1.0"
 dependencies = [
- "ark-bls12-377 0.3.0",
+ "ark-bls12-377",
  "ark-crypto-primitives",
  "ark-ec 0.3.0",
  "ark-ed-on-bls12-377",
@@ -2511,14 +2523,14 @@ dependencies = [
 name = "zk-mpc"
 version = "0.1.0"
 dependencies = [
- "ark-bls12-377 0.3.0",
+ "ark-bls12-377",
  "ark-crypto-primitives",
  "ark-ec 0.3.0",
  "ark-ed-on-bls12-377",
  "ark-ff 0.3.0",
  "ark-groth16",
  "ark-marlin",
- "ark-mnt4-753 0.3.0",
+ "ark-mnt4-753",
  "ark-poly",
  "ark-poly-commit",
  "ark-r1cs-std 0.3.0",
