@@ -19,6 +19,12 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0453232ace82dee0dd0b4c87a59bd90f7b53b314f3e0f61fe2ee7c8a16482289"
+
+[[package]]
+name = "ahash"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
@@ -112,43 +118,147 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-algebra-test-templates"
+version = "0.3.0"
+dependencies = [
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ark-algebra-test-templates"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3eef0b339ebc113d9bd3fb7cd666baf2cfe4e1024e0fac23e072d46598bbd0cd"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-serialize 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "ark-bls12-377"
 version = "0.3.0"
 dependencies = [
- "ark-ec",
- "ark-ff",
- "ark-r1cs-std",
- "ark-std",
+ "ark-algebra-test-templates 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+]
+
+[[package]]
+name = "ark-bls12-377"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc41c02c0d18a226947ee9ee023b1d957bdb6a68fc22ac296722935a9fef423c"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-r1cs-std 0.3.1",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ark-bls12-381"
+version = "0.3.0"
+dependencies = [
+ "ark-algebra-test-templates 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+]
+
+[[package]]
+name = "ark-bls12-381"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65be532f9dd1e98ad0150b037276cde464c6f371059e6dd02c0222395761f6aa"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ark-cp6-782"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb8b94a4e6f8912729377e6cbc67bee76315a3a696605f56fb4ace0a6479481d"
+dependencies = [
+ "ark-bls12-377 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "ark-crypto-primitives"
 version = "0.3.0"
 dependencies = [
- "ark-ec",
- "ark-ff",
+ "ark-bls12-377 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ec 0.3.0",
+ "ark-ed-on-bls12-381 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0",
+ "ark-mnt4-298",
+ "ark-mnt6-298",
  "ark-nonnative-field",
- "ark-r1cs-std",
- "ark-relations",
- "ark-serialize",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
  "ark-snark",
- "ark-std",
+ "ark-std 0.3.0",
  "blake2",
  "derivative",
  "digest",
  "mpc-trait",
+ "rayon",
  "tracing",
+]
+
+[[package]]
+name = "ark-curve-constraint-tests"
+version = "0.3.0"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-r1cs-std 0.3.1",
+ "ark-relations 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-serialize 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "ark-ec"
 version = "0.3.0"
 dependencies = [
- "ark-ff",
- "ark-serialize",
- "ark-std",
+ "ark-ff 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
  "derivative",
  "mpc-trait",
+ "num-traits",
+ "rayon",
+ "zeroize",
+]
+
+[[package]]
+name = "ark-ec"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dea978406c4b1ca13c2db2373b05cc55429c3575b8b21f1b9ee859aa5b03dd42"
+dependencies = [
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-serialize 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derivative",
  "num-traits",
  "zeroize",
 ]
@@ -157,23 +267,74 @@ dependencies = [
 name = "ark-ed-on-bls12-377"
 version = "0.3.0"
 dependencies = [
- "ark-bls12-377",
- "ark-ec",
- "ark-ff",
- "ark-r1cs-std",
- "ark-std",
+ "ark-algebra-test-templates 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-bls12-377 0.3.0",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-serialize 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0",
+]
+
+[[package]]
+name = "ark-ed-on-bls12-381"
+version = "0.3.0"
+dependencies = [
+ "ark-algebra-test-templates 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-bls12-381 0.3.0",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+]
+
+[[package]]
+name = "ark-ed-on-bls12-381"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43b7ada17db3854f5994e74e60b18e10e818594935ee7e1d329800c117b32970"
+dependencies = [
+ "ark-bls12-381 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-r1cs-std 0.3.1",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "ark-ff"
 version = "0.3.0"
 dependencies = [
- "ark-ff-asm",
- "ark-ff-macros",
- "ark-serialize",
- "ark-std",
+ "ark-ff-asm 0.3.0",
+ "ark-ff-macros 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
  "derivative",
  "mpc-trait",
+ "num-bigint",
+ "num-traits",
+ "paste",
+ "rayon",
+ "rustc_version",
+ "zeroize",
+]
+
+[[package]]
+name = "ark-ff"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b3235cc41ee7a12aaaf2c575a2ad7b46713a8a50bda2fc3b003a04845c05dd6"
+dependencies = [
+ "ark-ff-asm 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff-macros 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-serialize 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derivative",
  "num-bigint",
  "num-traits",
  "paste",
@@ -190,8 +351,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-ff-asm"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db02d390bf6643fb404d3d22d31aee1c4bc4459600aef9113833d17e786c6e44"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "ark-ff-macros"
 version = "0.3.0"
+dependencies = [
+ "num-bigint",
+ "num-traits",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "ark-ff-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db2fd794a08ccb318058009eefdf15bcaaaaf6f8161eb3345f907222bac38b20"
 dependencies = [
  "num-bigint",
  "num-traits",
@@ -203,88 +386,189 @@ dependencies = [
 name = "ark-groth16"
 version = "0.3.0"
 dependencies = [
+ "ark-bls12-377 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-bls12-381 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-cp6-782",
  "ark-crypto-primitives",
- "ark-ec",
- "ark-ff",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-mnt4-298",
+ "ark-mnt4-753 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-mnt6-298",
+ "ark-mnt6-753",
  "ark-poly",
- "ark-relations",
- "ark-serialize",
- "ark-std",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+ "csv",
+ "derivative",
  "mpc-algebra",
+ "rayon",
+ "tracing",
 ]
 
 [[package]]
 name = "ark-marlin"
 version = "0.3.0"
 dependencies = [
- "ark-bls12-377",
- "ark-ec",
- "ark-ff",
+ "ark-bls12-377 0.3.0",
+ "ark-bls12-381 0.3.0",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-mnt4-298",
+ "ark-mnt4-753 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-mnt6-298",
+ "ark-mnt6-753",
  "ark-poly",
  "ark-poly-commit",
- "ark-relations",
- "ark-serialize",
- "ark-std",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
  "blake2",
  "derivative",
  "digest",
  "mpc-algebra",
  "mpc-trait",
  "rand_chacha",
+ "rayon",
+]
+
+[[package]]
+name = "ark-mnt4-298"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad641dc1498d0dfe8d1af35bd773752fd85b9ca1ce4d5c652cc88ca1bc2c5df1"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-r1cs-std 0.3.1",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "ark-mnt4-753"
 version = "0.3.0"
 dependencies = [
- "ark-ec",
- "ark-ff",
- "ark-std",
+ "ark-algebra-test-templates 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+]
+
+[[package]]
+name = "ark-mnt4-753"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9ee523df86e85ee075f98f2f61998591d2d456487b32fefe228d2c5a22173c4"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-r1cs-std 0.3.1",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ark-mnt6-298"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82335122b96dd416b69ec209ae156fc5995d030b62e4cd829a266b1b460c5ac3"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-mnt4-298",
+ "ark-r1cs-std 0.3.1",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ark-mnt6-753"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fba0d19324bf7424512700ab4f1a9adbe990a6a0cc0bbce88f0868a045cacb7"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-mnt4-753 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-r1cs-std 0.3.1",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "ark-nonnative-field"
 version = "0.3.0"
 dependencies = [
- "ark-ec",
- "ark-ff",
- "ark-r1cs-std",
- "ark-relations",
- "ark-std",
+ "ark-bls12-377 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-bls12-381 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-mnt4-298",
+ "ark-mnt4-753 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-mnt6-298",
+ "ark-mnt6-753",
+ "ark-pallas",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-std 0.3.0",
  "derivative",
  "num-bigint",
  "num-integer",
  "num-traits",
+ "paste",
  "tracing",
+]
+
+[[package]]
+name = "ark-pallas"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e945e1c8d86aa869853944ce6ecf072c2dac623b88c94e68792901b06190e53"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "ark-poly"
 version = "0.3.0"
 dependencies = [
- "ark-ff",
- "ark-serialize",
- "ark-std",
+ "ark-ff 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+ "ark-test-curves 0.3.0",
  "derivative",
  "hashbrown 0.11.2",
  "mpc-trait",
+ "rayon",
 ]
 
 [[package]]
 name = "ark-poly-commit"
 version = "0.3.0"
 dependencies = [
- "ark-ec",
- "ark-ff",
+ "ark-bls12-377 0.3.0",
+ "ark-bls12-381 0.3.0",
+ "ark-ec 0.3.0",
+ "ark-ed-on-bls12-381 0.3.0",
+ "ark-ff 0.3.0",
  "ark-nonnative-field",
  "ark-poly",
- "ark-relations",
- "ark-serialize",
- "ark-std",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+ "blake2",
  "derivative",
  "digest",
+ "hashbrown 0.9.1",
  "mpc-algebra",
  "mpc-trait",
+ "rayon",
  "tracing",
 ]
 
@@ -292,10 +576,28 @@ dependencies = [
 name = "ark-r1cs-std"
 version = "0.3.0"
 dependencies = [
- "ark-ec",
- "ark-ff",
- "ark-relations",
- "ark-std",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-poly",
+ "ark-relations 0.3.0",
+ "ark-std 0.3.0",
+ "ark-test-curves 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derivative",
+ "num-bigint",
+ "num-traits",
+ "tracing",
+]
+
+[[package]]
+name = "ark-r1cs-std"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e8fdacb1931f238a0d866ced1e916a49d36de832fd8b83dc916b718ae72893"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-relations 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative",
  "num-bigint",
  "num-traits",
@@ -306,8 +608,21 @@ dependencies = [
 name = "ark-relations"
 version = "0.3.0"
 dependencies = [
- "ark-ff",
- "ark-std",
+ "ark-ff 0.3.0",
+ "ark-std 0.3.0",
+ "ark-test-curves 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "ark-relations"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cba4c1c99792a6834bd97f7fd76578ec2cd58d2afc5139a17e1d1bec65b38f6"
+dependencies = [
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
  "tracing-subscriber",
 ]
@@ -317,7 +632,20 @@ name = "ark-serialize"
 version = "0.3.0"
 dependencies = [
  "ark-serialize-derive",
- "ark-std",
+ "ark-std 0.3.0",
+ "blake2",
+ "digest",
+ "sha2",
+ "sha3",
+]
+
+[[package]]
+name = "ark-serialize"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d6c2b318ee6e10f8c2853e73a83adc0ccb88995aa978d8a3408d492ab2ee671"
+dependencies = [
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest",
 ]
 
@@ -334,9 +662,9 @@ dependencies = [
 name = "ark-snark"
 version = "0.3.0"
 dependencies = [
- "ark-ff",
- "ark-relations",
- "ark-std",
+ "ark-ff 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-std 0.3.0",
 ]
 
 [[package]]
@@ -347,6 +675,40 @@ dependencies = [
  "mpc-trait",
  "num-traits",
  "rand",
+ "rayon",
+]
+
+[[package]]
+name = "ark-std"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1df2c09229cbc5a028b1d70e00fdb2acee28b1055dfb5ca73eea49c5a25c4e7c"
+dependencies = [
+ "num-traits",
+ "rand",
+ "rayon",
+]
+
+[[package]]
+name = "ark-test-curves"
+version = "0.3.0"
+dependencies = [
+ "ark-algebra-test-templates 0.3.0",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ark-test-curves"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5926070605ae352a2399c792dddca438ab9de5f415c5a067049a61fb7736da59"
+dependencies = [
+ "ark-ec 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-ff 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ark-std 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -384,7 +746,7 @@ version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.1.19",
  "libc",
  "winapi",
 ]
@@ -450,8 +812,15 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
 dependencies = [
+ "block-padding",
  "generic-array",
 ]
+
+[[package]]
+name = "block-padding"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "bumpalo"
@@ -666,6 +1035,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "csv"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acdc4883a9c96732e4733212c01447ebd805833b7275a73ca3ee080fd77afdaf"
+dependencies = [
+ "csv-core",
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
+name = "csv-core"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d02f3b0da4c6504f86e9cd789d8dbafab48c2321be74e9987593de5a894d93d"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -709,6 +1099,19 @@ checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
 dependencies = [
  "atty",
  "humantime",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
+dependencies = [
+ "humantime",
+ "is-terminal",
  "log",
  "regex",
  "termcolor",
@@ -855,11 +1258,20 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
+dependencies = [
+ "ahash 0.4.8",
+]
+
+[[package]]
+name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
 ]
 
 [[package]]
@@ -887,6 +1299,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hermit-abi"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbd780fe5cc30f81464441920d82ac8740e2e46b29a6fad543ddd075229ce37e"
+
+[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -906,6 +1324,17 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
+]
+
+[[package]]
+name = "is-terminal"
+version = "0.4.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e04d7f318608d35d4b61ddd75cbdaee86b023ebe2bd5a66ee0915f0bf93095a9"
+dependencies = [
+ "hermit-abi 0.5.0",
+ "libc",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -945,6 +1374,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29c15563dc2726973df627357ce0c9ddddbea194836909d655df6a75d2cf296d"
 dependencies = [
  "wasm-bindgen",
+]
+
+[[package]]
+name = "keccak"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
+dependencies = [
+ "cpufeatures",
 ]
 
 [[package]]
@@ -1030,16 +1468,16 @@ dependencies = [
 name = "mpc-algebra"
 version = "0.1.0"
 dependencies = [
- "ark-bls12-377",
+ "ark-bls12-377 0.3.0",
  "ark-crypto-primitives",
- "ark-ec",
+ "ark-ec 0.3.0",
  "ark-ed-on-bls12-377",
- "ark-ff",
+ "ark-ff 0.3.0",
  "ark-poly",
- "ark-r1cs-std",
- "ark-relations",
- "ark-serialize",
- "ark-std",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
  "async-trait",
  "derivative",
  "env_logger 0.8.4",
@@ -1062,17 +1500,19 @@ dependencies = [
 name = "mpc-net"
 version = "0.1.0"
 dependencies = [
- "ark-std",
+ "ark-std 0.3.0",
  "async-trait",
  "async_smux",
  "auto_impl",
  "colored",
+ "env_logger 0.10.2",
  "futures",
  "lazy_static",
  "log",
  "parking_lot",
  "rayon",
  "serde",
+ "structopt",
  "tokio",
  "tokio-util",
 ]
@@ -1548,6 +1988,18 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+ "opaque-debug",
+]
+
+[[package]]
+name = "sha3"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f81199417d4e5de3f04b1e871023acea7389672c4135918f05aa9cbf2f2fa809"
+dependencies = [
+ "block-buffer",
+ "digest",
+ "keccak",
  "opaque-debug",
 ]
 
@@ -2156,21 +2608,21 @@ dependencies = [
 name = "zk-mpc"
 version = "0.1.0"
 dependencies = [
- "ark-bls12-377",
+ "ark-bls12-377 0.3.0",
  "ark-crypto-primitives",
- "ark-ec",
+ "ark-ec 0.3.0",
  "ark-ed-on-bls12-377",
- "ark-ff",
+ "ark-ff 0.3.0",
  "ark-groth16",
  "ark-marlin",
- "ark-mnt4-753",
+ "ark-mnt4-753 0.3.0",
  "ark-poly",
  "ark-poly-commit",
- "ark-r1cs-std",
- "ark-relations",
- "ark-serialize",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
  "ark-snark",
- "ark-std",
+ "ark-std 0.3.0",
  "blake2",
  "criterion",
  "derivative",
