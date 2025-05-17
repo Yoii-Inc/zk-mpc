@@ -145,12 +145,24 @@ impl<G: Group, S: GroupShare<G>> FromBytes for MpcGroup<G, S> {
 }
 
 impl<G: Group, S: GroupShare<G>> CanonicalSerialize for MpcGroup<G, S> {
-    fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
-        todo!()
+    fn serialize<W: Write>(&self, mut writer: W) -> Result<(), SerializationError> {
+        match self {
+            Self::Public(v) => {
+                writer.write_all(&[0])?;
+                v.serialize(writer)
+            }
+            Self::Shared(v) => {
+                writer.write_all(&[1])?;
+                v.serialize(writer)
+            }
+        }
     }
 
     fn serialized_size(&self) -> usize {
-        todo!()
+        match self {
+            Self::Public(v) => 1 + v.serialized_size(),
+            Self::Shared(v) => 1 + v.serialized_size(),
+        }
     }
 }
 
@@ -169,8 +181,15 @@ impl<G: Group, S: GroupShare<G>> CanonicalSerializeWithFlags for MpcGroup<G, S> 
 }
 
 impl<G: Group, S: GroupShare<G>> CanonicalDeserialize for MpcGroup<G, S> {
-    fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
-        todo!()
+    fn deserialize<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
+        let mut flag = [0u8; 1];
+        reader.read_exact(&mut flag)?;
+
+        match flag[0] {
+            0 => Ok(MpcGroup::Public(G::deserialize(reader)?)),
+            1 => Ok(MpcGroup::Shared(S::deserialize(reader)?)),
+            _ => Err(ark_serialize::SerializationError::InvalidData),
+        }
     }
 }
 

@@ -26,6 +26,12 @@ pub trait LessThan {
 
     async fn is_smaller_or_equal_than_mod_minus_one_div_two(&self) -> Self::Output;
     async fn is_smaller_than(&self, other: &Self) -> Self::Output;
+
+    fn sync_is_smaller_than(&self, other: &Self) -> Self::Output {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.is_smaller_than(other))
+        })
+    }
 }
 
 pub trait LogicalOperations {

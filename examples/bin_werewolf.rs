@@ -725,7 +725,6 @@ async fn voting(opt: &Opt) -> Result<(), std::io::Error> {
             vec![Fr::from(0), Fr::from(1), Fr::from(0)],
             vec![Fr::from(0), Fr::from(0), Fr::from(1)],
         ],
-        is_most_voted_id: Fr::from(1),
         pedersen_param: pedersen_param.clone(),
         player_randomness: player_randomness.clone(),
         player_commitment: player_commitment.clone(),
@@ -754,7 +753,6 @@ async fn voting(opt: &Opt) -> Result<(), std::io::Error> {
                 MFr::king_share(Fr::from(1), rng),
             ],
         ],
-        is_most_voted_id: MFr::king_share(Fr::from(1), rng),
         pedersen_param: mpc_pedersen_param,
         player_randomness: player_randomness
             .iter()
