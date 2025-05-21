@@ -168,9 +168,6 @@ impl<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> Serialize for Anonymo
         self.is_target_id
             .serialize_unchecked(&mut bytes)
             .map_err(serde::ser::Error::custom)?;
-        self.is_most_voted_id
-            .serialize_unchecked(&mut bytes)
-            .map_err(serde::ser::Error::custom)?;
 
         // Serialize Pedersen parameters
         self.pedersen_param
@@ -202,8 +199,6 @@ impl<'de, F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> Deserialize<'de>
         // Deserialize voting data
         let is_target_id =
             Vec::<Vec<F>>::deserialize_unchecked(&mut cursor).map_err(serde::de::Error::custom)?;
-        let is_most_voted_id =
-            F::deserialize_unchecked(&mut cursor).map_err(serde::de::Error::custom)?;
 
         // Deserialize Pedersen parameters
         let pedersen_param = F::PedersenParam::deserialize_unchecked(&mut cursor)
@@ -217,7 +212,6 @@ impl<'de, F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> Deserialize<'de>
 
         Ok(Self {
             is_target_id,
-            is_most_voted_id,
             pedersen_param,
             player_randomness,
             player_commitment,

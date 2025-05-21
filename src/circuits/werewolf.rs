@@ -21,8 +21,8 @@ use ark_std::{test_rng, One, Zero};
 use mpc_algebra::groups::MpcCurveVar;
 use mpc_algebra::mpc_fields::MpcFieldVar;
 use mpc_algebra::{
-    BitDecomposition, EqualityZero, MpcBoolean, MpcCondSelectGadget, MpcEqGadget, MpcFpVar,
-    MpcToBitsGadget, Reveal,
+    BitDecomposition, BooleanWire, EqualityZero, LessThan, MpcBoolean, MpcCondSelectGadget,
+    MpcEqGadget, MpcFpVar, MpcToBitsGadget, Reveal,
 };
 
 use nalgebra as na;
@@ -578,11 +578,63 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
 #[derive(Debug, Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct AnonymousVotingCircuit<F: PrimeField + LocalOrMPC<F>> {
     pub is_target_id: Vec<Vec<F>>,
-    pub is_most_voted_id: F,
 
     pub pedersen_param: F::PedersenParam,
     pub player_randomness: Vec<F>,
     pub player_commitment: Vec<F::PedersenCommitment>,
+}
+
+impl AnonymousVotingCircuit<Fr> {
+    pub fn calculate_output(&self) -> Fr {
+        let player_num = self.player_randomness.len();
+        let alive_player_num = self.is_target_id.len();
+
+        let mut num_voted = vec![Fr::zero(); player_num];
+
+        for i in 0..player_num {
+            for j in 0..alive_player_num {
+                num_voted[i] += self.is_target_id[j][i];
+            }
+        }
+
+        let mut most_voted_id = Fr::zero();
+        let mut max_votes = Fr::zero();
+
+        for i in 0..player_num {
+            if num_voted[i] > max_votes {
+                most_voted_id = Fr::from(i as u32);
+                max_votes = num_voted[i];
+            }
+        }
+        most_voted_id
+    }
+}
+
+impl AnonymousVotingCircuit<mm::MpcField<Fr>> {
+    pub fn calculate_output(&self) -> mm::MpcField<Fr> {
+        let player_num = self.player_randomness.len();
+        let alive_player_num = self.is_target_id.len();
+
+        let mut num_voted = vec![mm::MpcField::<Fr>::zero(); player_num];
+
+        for i in 0..player_num {
+            for j in 0..alive_player_num {
+                num_voted[i] += self.is_target_id[j][i];
+            }
+        }
+
+        let mut most_voted_id = mm::MpcField::<Fr>::zero();
+        let mut max_votes = mm::MpcField::<Fr>::zero();
+
+        for i in 0..player_num {
+            max_votes +=
+                (num_voted[i] - max_votes) * max_votes.sync_is_smaller_than(&num_voted[i]).field();
+
+            most_voted_id += (mm::MpcField::<Fr>::from(i as u32) - most_voted_id)
+                * max_votes.sync_is_smaller_than(&num_voted[i]).field();
+        }
+        most_voted_id
+    }
 }
 
 impl ConstraintSynthesizer<Fr> for AnonymousVotingCircuit<Fr> {
@@ -612,7 +664,7 @@ impl ConstraintSynthesizer<Fr> for AnonymousVotingCircuit<Fr> {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let is_most_voted_id_var = FpVar::new_input(cs.clone(), || Ok(self.is_most_voted_id))?;
+        let is_most_voted_id_var = FpVar::new_input(cs.clone(), || Ok(self.calculate_output()))?;
 
         // calculate
         let mut num_voted_var = Vec::new();
@@ -694,7 +746,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let is_most_voted_id_var = MpcFpVar::new_input(cs.clone(), || Ok(self.is_most_voted_id))?;
+        let is_most_voted_id_var = MpcFpVar::new_input(cs.clone(), || Ok(self.calculate_output()))?;
 
         // calculate
         let mut num_voted_var = Vec::new();

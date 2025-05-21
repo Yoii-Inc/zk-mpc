@@ -566,7 +566,6 @@ impl Game {
         // prove
         let local_voting_circuit = AnonymousVotingCircuit {
             is_target_id: vec![vec![Fr::default(); player_num]; alive_players_num],
-            is_most_voted_id: Fr::default(),
             pedersen_param: pedersen_param.clone(),
             player_randomness: player_randomness.clone(),
             player_commitment: player_commitment.clone(),
@@ -581,7 +580,6 @@ impl Game {
 
         let mpc_voting_circuit = AnonymousVotingCircuit {
             is_target_id: is_target_id_mpc.clone(),
-            is_most_voted_id: MFr::king_share(most_voted_id.clone(), rng),
             pedersen_param: mpc_pedersen_param,
             player_randomness: player_randomness
                 .iter()

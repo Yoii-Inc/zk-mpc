@@ -227,7 +227,7 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerialize for MpcGroupProjective<P, 
     }
 
     fn serialized_size(&self) -> usize {
-        unimplemented!()
+        self.val.serialized_size()
     }
 }
 
@@ -246,8 +246,9 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerializeWithFlags for MpcGroupProje
 }
 
 impl<P: Parameters, S: APShare<P>> CanonicalDeserialize for MpcGroupProjective<P, S> {
-    fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
-        unimplemented!()
+    fn deserialize<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
+        let val = MpcGroup::deserialize(&mut reader)?;
+        Ok(Self { val })
     }
 }
 
@@ -523,7 +524,7 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerialize for MpcGroupAffine<P, S> {
     }
 
     fn serialized_size(&self) -> usize {
-        unimplemented!()
+        self.val.serialized_size()
     }
 }
 
@@ -542,8 +543,9 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerializeWithFlags for MpcGroupAffin
 }
 
 impl<P: Parameters, S: APShare<P>> CanonicalDeserialize for MpcGroupAffine<P, S> {
-    fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
-        unimplemented!()
+    fn deserialize<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
+        let val = MpcGroup::deserialize(&mut reader)?;
+        Ok(Self { val })
     }
 }
 
