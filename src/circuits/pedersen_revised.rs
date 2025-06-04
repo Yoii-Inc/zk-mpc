@@ -27,7 +27,7 @@ use mpc_algebra::{
 };
 use mpc_algebra::{pedersen::Input, MpcEqGadget, Reveal};
 use mpc_trait::MpcWire;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::field::*;
 

@@ -25,7 +25,7 @@ use mpc_algebra::{
     MpcEqGadget, MpcFpVar, MpcToBitsGadget, Reveal,
 };
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 use nalgebra as na;
 

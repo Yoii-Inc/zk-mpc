@@ -158,15 +158,15 @@ async fn main() {
 
         let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
-        let deserialized_r0_angle_share: Fr = Fr::deserialize(reader).unwrap();
+        let deserialized_r0_angle_share: Fr = CanonicalDeserialize::deserialize(reader).unwrap();
 
         let reader: &[u8] = &hex::decode(remove_prefix_string1).unwrap();
 
-        let deserialized_r1_angle_share: Fr = Fr::deserialize(reader).unwrap();
+        let deserialized_r1_angle_share: Fr = CanonicalDeserialize::deserialize(reader).unwrap();
 
         let reader: &[u8] = &hex::decode(remove_prefix_string2).unwrap();
 
-        let deserialized_r2_angle_share: Fr = Fr::deserialize(reader).unwrap();
+        let deserialized_r2_angle_share: Fr = CanonicalDeserialize::deserialize(reader).unwrap();
 
         (
             deserialized_r0_angle_share,
