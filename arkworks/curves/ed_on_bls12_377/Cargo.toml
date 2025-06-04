@@ -19,6 +19,8 @@ ark-std = { path = "../../std", version = "^0.3.0", default-features = false }
 ark-r1cs-std = { path = "../../r1cs-std", version = "^0.3.0", default-features = false, optional = true }
 ark-bls12-377 = { version = "^0.3.0", path = "../bls12_377", default-features = false, features = [ "scalar_field" ] }
 
+serde = { version = "1.0", features = ["derive"] }
+
 [dev-dependencies]
 ark-relations = { path = "../../snark/relations", version = "^0.3.0", default-features = false }
 ark-serialize = { path = "../../algebra/serialize", version = "^0.3.0", default-features = false }

@@ -20,6 +20,8 @@ use rand::Rng;
 
 use mpc_algebra::commitment::pedersen::{Parameters, Randomness as MpcRandomness};
 use mpc_algebra::CommitmentScheme;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::field::*;
 
@@ -51,7 +53,7 @@ pub struct CommonInput<F: PrimeField + LocalOrMPC<F>> {
 }
 
 // A private value and its commitments
-#[derive(Clone, Default, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, Default, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct InputWithCommit<F: PrimeField + LocalOrMPC<F>> {
     pub allocation: usize,
     pub input: F,
@@ -102,7 +104,7 @@ impl InputWithCommit<MFr> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum InputMode {
     Init,
     PublicSet,
@@ -512,14 +514,16 @@ impl MpcInputTrait for WerewolfKeyInput<Fr> {
     }
 }
 
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct WerewolfMpcInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
+    #[serde(skip_serializing)]
     pub mode: InputMode,
+
     pub peculiar: Option<WerewolfPeculiarInput<F>>,
     pub common: Option<WerewolfCommonInput<F>>,
 }
 
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct WerewolfPeculiarInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
     pub is_werewolf: Vec<InputWithCommit<F>>,
     pub is_target: Vec<InputWithCommit<F>>,
@@ -528,7 +532,7 @@ pub struct WerewolfPeculiarInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrM
     pub randomness_bit: Vec<F>,
 }
 
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct WerewolfCommonInput<F: PrimeField + LocalOrMPC<F> + ElGamalLocalOrMPC<F>> {
     pub pedersen_param: F::PedersenParam,
     pub elgamal_param: F::ElGamalParam,

@@ -9,6 +9,7 @@ use ark_std::{cfg_chunks, end_timer, start_timer, One, Zero};
 use ark_std::{PubUniformRand, UniformRand};
 use derivative::Derivative;
 use mpc_trait::MpcWire;
+use serde::{Deserialize, Serialize};
 
 use crate::crh::{pedersen, pedersen::Window, CRH};
 use crate::wire::boolean_field::BooleanWire;
@@ -17,7 +18,7 @@ use crate::{BitDecomposition, CommitmentScheme, Reveal};
 // pub use ark_crypto_primitives::crh::pedersen::Window;
 // use ark_crypto_primitives::crh::{pedersen, CRH};
 
-#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct Parameters<C: ProjectiveCurve> {
     pub randomness_generator: Vec<C>,
     pub generators: Vec<Vec<C>>,
@@ -38,7 +39,7 @@ impl<C: ProjectiveCurve> Input<C> {
     }
 }
 
-#[derive(Derivative, CanonicalDeserialize, CanonicalSerialize)]
+#[derive(Derivative, CanonicalDeserialize, CanonicalSerialize, Serialize, Deserialize)]
 #[derivative(Clone, Copy, PartialEq, Debug, Eq, Default)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);
 

@@ -94,7 +94,7 @@ macro_rules! impl_Fp {
         /// This type can represent elements in any field of size at most
         #[doc = $field_size]
         /// bits.
-        #[derive(Derivative)]
+        #[derive(Derivative, Serialize, Deserialize)]
         #[derivative(
             Default(bound = ""),
             Hash(bound = ""),
@@ -370,7 +370,7 @@ macro_rules! impl_Fp {
                         }
                         *b &= m;
                     }
-                    Self::deserialize(&result_bytes[..($limbs * 8)])
+                    <Self as CanonicalDeserialize>::deserialize(&result_bytes[..($limbs * 8)])
                         .ok()
                         .and_then(|f| F::from_u8(flags).map(|flag| (f, flag)))
                 }

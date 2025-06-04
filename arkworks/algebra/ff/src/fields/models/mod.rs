@@ -9,6 +9,8 @@ use ark_std::{
 use mpc_trait::MpcWire;
 use num_traits::{One, Zero};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     biginteger::{
         arithmetic as fa, BigInteger as _BigInteger, BigInteger256, BigInteger320, BigInteger384,

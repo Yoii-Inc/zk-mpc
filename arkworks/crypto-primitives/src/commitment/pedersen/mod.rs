@@ -7,6 +7,7 @@ use ark_std::marker::PhantomData;
 use ark_std::rand::Rng;
 use ark_std::{PubUniformRand, UniformRand};
 use mpc_trait::MpcWire;
+use serde::{Deserialize, Serialize};
 
 use super::CommitmentScheme;
 
@@ -16,7 +17,7 @@ use crate::crh::{pedersen, CRH};
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct Parameters<C: ProjectiveCurve> {
     pub randomness_generator: Vec<C>,
     pub generators: Vec<Vec<C>>,
@@ -29,7 +30,7 @@ pub struct Commitment<C: ProjectiveCurve, W: Window> {
 
 #[derive(Derivative)]
 #[derivative(Clone, PartialEq, Debug, Eq, Default)]
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);
 
 impl<C: ProjectiveCurve> UniformRand for Randomness<C> {
