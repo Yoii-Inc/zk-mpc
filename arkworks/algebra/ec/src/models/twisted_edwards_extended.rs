@@ -18,6 +18,7 @@ use ark_std::{
     vec::Vec,
 };
 use num_traits::{One, Zero};
+use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use ark_ff::{
@@ -29,7 +30,7 @@ use ark_ff::{
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-#[derive(Derivative)]
+#[derive(Derivative, Serialize, Deserialize)]
 #[derivative(
     Copy(bound = "P: Parameters"),
     Clone(bound = "P: Parameters"),
@@ -302,7 +303,7 @@ mod group_impl {
 ///
 /// This implementation uses the unified addition formulae from that paper (see
 /// Section 3.1).
-#[derive(Derivative)]
+#[derive(Derivative, Serialize, Deserialize)]
 #[derivative(
     Copy(bound = "P: Parameters"),
     Clone(bound = "P: Parameters"),

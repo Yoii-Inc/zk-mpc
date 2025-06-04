@@ -25,6 +25,8 @@ use mpc_algebra::{
     MpcEqGadget, MpcFpVar, MpcToBitsGadget, Reveal,
 };
 
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
 use nalgebra as na;
 
 use mpc_algebra::malicious_majority as mm;
@@ -1252,10 +1254,22 @@ pub trait ElGamalLocalOrMPC<ConstraintF: PrimeField> {
         Plaintext = Self::ElGamalPlaintext,
         Ciphertext = Self::ElGamalCiphertext,
     >;
-    type ElGamalParam: Clone + CanonicalSerialize + CanonicalDeserialize;
-    type ElGamalPubKey: Clone + CanonicalSerialize + CanonicalDeserialize;
+    type ElGamalParam: Clone
+        + CanonicalSerialize
+        + CanonicalDeserialize
+        + Serialize
+        + DeserializeOwned;
+    type ElGamalPubKey: Clone
+        + CanonicalSerialize
+        + CanonicalDeserialize
+        + Serialize
+        + DeserializeOwned;
     type ElGamalSecretKey;
-    type ElGamalRandomness: Clone + CanonicalSerialize + CanonicalDeserialize;
+    type ElGamalRandomness: Clone
+        + CanonicalSerialize
+        + CanonicalDeserialize
+        + Serialize
+        + DeserializeOwned;
     type ElGamalPlaintext: Clone;
     type ElGamalCiphertext: Clone;
 

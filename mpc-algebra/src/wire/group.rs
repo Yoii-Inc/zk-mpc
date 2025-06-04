@@ -18,6 +18,8 @@ use mpc_net::{MpcMultiNet as Net, MpcNet};
 use mpc_trait::MpcWire;
 use tokio::task::block_in_place;
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use crate::share::group::GroupShare;
 use crate::{BeaverSource, Reveal};
 
@@ -452,5 +454,30 @@ impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
         } else {
             Ok(out_a)
         }
+    }
+}
+
+impl<G: Group, S: GroupShare<G>> Serialize for MpcGroup<G, S> {
+    fn serialize<Sr>(&self, serializer: Sr) -> Result<Sr::Ok, Sr::Error>
+    where
+        Sr: Serializer,
+    {
+        let mut bytes = Vec::new();
+        CanonicalSerialize::serialize(self, &mut bytes).map_err(serde::ser::Error::custom)?;
+
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<'de, G: Group, S: GroupShare<G>> Deserialize<'de> for MpcGroup<G, S> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes: Vec<u8> = serde::de::Deserialize::deserialize(deserializer)?;
+
+        let a: MpcGroup<G, S> = <Self as CanonicalDeserialize>::deserialize(&bytes[..])
+            .map_err(serde::de::Error::custom)?;
+        Ok(a)
     }
 }

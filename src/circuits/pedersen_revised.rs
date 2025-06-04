@@ -27,6 +27,7 @@ use mpc_algebra::{
 };
 use mpc_algebra::{pedersen::Input, MpcEqGadget, Reveal};
 use mpc_trait::MpcWire;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::field::*;
 
@@ -45,8 +46,14 @@ pub trait LocalOrMPC<ConstraintF: PrimeField> {
         + Hash
         + Debug
         + CanonicalSerialize
-        + CanonicalDeserialize;
-    type PedersenParam: Clone + CanonicalSerialize + CanonicalDeserialize;
+        + CanonicalDeserialize
+        + Serialize
+        + DeserializeOwned;
+    type PedersenParam: Clone
+        + CanonicalSerialize
+        + CanonicalDeserialize
+        + Serialize
+        + DeserializeOwned;
     type PedersenInput;
     type PedersenRandomness: Clone
         + PartialEq
@@ -54,7 +61,9 @@ pub trait LocalOrMPC<ConstraintF: PrimeField> {
         + Eq
         + Default
         + CanonicalSerialize
-        + CanonicalDeserialize;
+        + CanonicalDeserialize
+        + Serialize
+        + DeserializeOwned;
 
     type PedersenComSchemeVar: MpcCommitmentGadget<
         Self::PedersenComScheme,

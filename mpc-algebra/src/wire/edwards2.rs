@@ -28,6 +28,8 @@ use mpc_trait::MpcWire;
 use rand::Rng;
 use zeroize::Zeroize;
 
+use serde::{Deserialize, Serialize};
+
 use std::fmt::{self, Display};
 use std::io::{self, Read, Write};
 use std::iter::Sum;
@@ -59,7 +61,7 @@ pub type AdditiveMpcEdwardsVar = MpcAffineVar<EdwardsParameters, AdditiveFqVar>;
 type SpdzFqVar = MpcFpVar<malicious_majority::MpcField<ark_ed_on_bls12_377::Fq>>;
 pub type SpdzMpcEdwardsVar = MpcAffineVar<EdwardsParameters, SpdzFqVar>;
 
-#[derive(Derivative)]
+#[derive(Derivative, Serialize, Deserialize)]
 #[derivative(
     Clone(bound = "P:Parameters"),
     Copy(bound = "P: Parameters"),
@@ -72,7 +74,7 @@ pub struct MpcGroupAffine<P: Parameters, S: APShare<P>> {
     val: MpcGroup<GroupAffine<P>, S::AffineShare>,
 }
 
-#[derive(Derivative)]
+#[derive(Derivative, Serialize, Deserialize)]
 #[derivative(
     Clone(bound = "P: Parameters"),
     Copy(bound = "P: Parameters"),
@@ -223,7 +225,7 @@ impl<P: Parameters, S: APShare<P>> FromBytes for MpcGroupProjective<P, S> {
 
 impl<P: Parameters, S: APShare<P>> CanonicalSerialize for MpcGroupProjective<P, S> {
     fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
-        self.val.serialize(writer)
+        CanonicalSerialize::serialize(&self.val, writer)
     }
 
     fn serialized_size(&self) -> usize {
@@ -247,7 +249,7 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerializeWithFlags for MpcGroupProje
 
 impl<P: Parameters, S: APShare<P>> CanonicalDeserialize for MpcGroupProjective<P, S> {
     fn deserialize<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
-        let val = MpcGroup::deserialize(&mut reader)?;
+        let val = CanonicalDeserialize::deserialize(&mut reader)?;
         Ok(Self { val })
     }
 }
@@ -520,7 +522,7 @@ impl<P: Parameters, S: APShare<P>> FromBytes for MpcGroupAffine<P, S> {
 
 impl<P: Parameters, S: APShare<P>> CanonicalSerialize for MpcGroupAffine<P, S> {
     fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
-        self.val.serialize(writer)
+        CanonicalSerialize::serialize(&self.val, writer)
     }
 
     fn serialized_size(&self) -> usize {
@@ -544,7 +546,7 @@ impl<P: Parameters, S: APShare<P>> CanonicalSerializeWithFlags for MpcGroupAffin
 
 impl<P: Parameters, S: APShare<P>> CanonicalDeserialize for MpcGroupAffine<P, S> {
     fn deserialize<R: Read>(mut reader: R) -> Result<Self, SerializationError> {
-        let val = MpcGroup::deserialize(&mut reader)?;
+        let val = CanonicalDeserialize::deserialize(&mut reader)?;
         Ok(Self { val })
     }
 }

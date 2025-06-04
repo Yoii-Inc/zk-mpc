@@ -5,13 +5,15 @@ use ark_ec::{
 };
 use ark_ff::field_new;
 
+use serde::{Deserialize, Serialize};
+
 #[cfg(test)]
 mod tests;
 
 pub type EdwardsAffine = GroupAffine<EdwardsParameters>;
 pub type EdwardsProjective = GroupProjective<EdwardsParameters>;
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EdwardsParameters;
 
 impl ModelParameters for EdwardsParameters {

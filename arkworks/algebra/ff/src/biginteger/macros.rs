@@ -1,6 +1,8 @@
 macro_rules! bigint_impl {
     ($name:ident, $num_limbs:expr) => {
-        #[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Hash, Zeroize)]
+        #[derive(
+            Copy, Clone, PartialEq, Eq, Debug, Default, Hash, Zeroize, Serialize, Deserialize,
+        )]
         pub struct $name(pub [u64; $num_limbs]);
 
         impl $name {

@@ -185,6 +185,7 @@ dependencies = [
  "digest",
  "mpc-trait",
  "rayon",
+ "serde",
  "tracing",
 ]
 
@@ -211,6 +212,7 @@ dependencies = [
  "mpc-trait",
  "num-traits",
  "rayon",
+ "serde",
  "zeroize",
 ]
 
@@ -241,6 +243,7 @@ dependencies = [
  "ark-relations 0.3.0",
  "ark-serialize 0.3.0",
  "ark-std 0.3.0",
+ "serde",
 ]
 
 [[package]]
@@ -273,6 +276,7 @@ dependencies = [
  "paste",
  "rayon",
  "rustc_version",
+ "serde",
  "zeroize",
 ]
 

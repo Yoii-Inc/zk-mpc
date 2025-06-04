@@ -236,7 +236,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
     let deserialized_h_x: <Fr as LocalOrMPC<Fr>>::PedersenCommitment =
-        ark_ec::models::twisted_edwards_extended::GroupAffine::deserialize(reader).unwrap();
+        CanonicalDeserialize::deserialize(reader).unwrap();
 
     assert_eq!(h_x, deserialized_h_x);
 

@@ -6,11 +6,13 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, Serializatio
 use ark_std::marker::PhantomData;
 use ark_std::rand::Rng;
 
+use serde::{Deserialize, Serialize};
+
 pub struct ElGamal<C: ProjectiveCurve> {
     _group: PhantomData<C>,
 }
 
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct Parameters<C: ProjectiveCurve> {
     pub generator: C::Affine,
 }
@@ -31,7 +33,7 @@ impl<C: ProjectiveCurve> SecretKey<C> {
     }
 }
 
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct Randomness<C: ProjectiveCurve>(pub C::ScalarField);
 
 impl<C: ProjectiveCurve> UniformRand for Randomness<C> {

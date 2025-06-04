@@ -26,6 +26,7 @@ zeroize = { version = "1", default-features = false, features = ["zeroize_derive
 num-bigint = { version = "0.4.0", default-features = false }
 
 mpc-trait = { path ="../../../mpc-trait" }
+serde = { version = "1.0", features = ["derive"] }
 
 [build-dependencies]
 rustc_version = "0.3"
