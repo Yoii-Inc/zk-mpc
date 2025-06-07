@@ -69,8 +69,6 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Collect Workflow Telemetry
-        uses: runforesight/workflow-telemetry-action@v1 
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -133,9 +131,6 @@ jobs:
     name: Run Groth16 Binary
     runs-on: ubuntu-latest
     steps:
-      - name: Collect Workflow Telemetry
-        uses: runforesight/workflow-telemetry-action@v1 
-      
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -164,9 +159,6 @@ jobs:
     name: Run Marlin Binary
     runs-on: ubuntu-latest
     steps:
-      - name: Collect Workflow Telemetry
-        uses: runforesight/workflow-telemetry-action@v1 
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -195,9 +187,6 @@ jobs:
     name: Run Online Binary
     runs-on: ubuntu-latest
     steps:
-      - name: Collect Workflow Telemetry
-        uses: runforesight/workflow-telemetry-action@v1 
-      
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -237,9 +226,6 @@ jobs:
     name: Run Werewolf Binary
     runs-on: ubuntu-latest
     steps:
-      - name: Collect Workflow Telemetry
-        uses: runforesight/workflow-telemetry-action@v1 
-      
       - name: Checkout code
         uses: actions/checkout@v4
 
