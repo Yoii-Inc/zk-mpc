@@ -309,7 +309,7 @@ pub struct WerewolfKeyInput<F: PrimeField + LocalOrMPC<F>> {
     pub common: Option<CommonInput<F>>,
 }
 
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct WerewolfKeyPeculiarInput<F: PrimeField + LocalOrMPC<F>> {
     pub pub_key_or_dummy_x: Vec<InputWithCommit<F>>,
     pub pub_key_or_dummy_y: Vec<InputWithCommit<F>>,
