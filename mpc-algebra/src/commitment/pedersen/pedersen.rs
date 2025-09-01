@@ -224,8 +224,10 @@ where
         }
     }
 
-    fn from_add_shared(_b: Self::Base) -> Self {
-        unimplemented!()
+    fn from_add_shared(b: Self::Base) -> Self {
+        Self {
+            0: C::ScalarField::from_add_shared(b.0),
+        }
     }
 
     fn from_public(b: Self::Base) -> Self {
