@@ -35,6 +35,7 @@ impl RoleData {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct GroupingParameter(BTreeMap<Role, (usize, bool)>);
 
 impl GroupingParameter {
