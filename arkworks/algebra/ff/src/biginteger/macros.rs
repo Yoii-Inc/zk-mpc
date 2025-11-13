@@ -1,64 +1,13 @@
 macro_rules! bigint_impl {
     ($name:ident, $num_limbs:expr) => {
-        #[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Hash, Zeroize)]
+        #[derive(
+            Copy, Clone, PartialEq, Eq, Debug, Default, Hash, Zeroize, Serialize, Deserialize,
+        )]
         pub struct $name(pub [u64; $num_limbs]);
 
         impl $name {
             pub const fn new(value: [u64; $num_limbs]) -> Self {
                 $name(value)
-            }
-        }
-
-        impl serde::Serialize for $name {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: serde::Serializer,
-            {
-                use serde::ser::SerializeSeq;
-                let mut seq = serializer.serialize_seq(Some($num_limbs))?;
-                for limb in &self.0 {
-                    seq.serialize_element(&limb.to_string())?;
-                }
-                seq.end()
-            }
-        }
-
-        impl<'de> serde::Deserialize<'de> for $name {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct Visitor;
-
-                impl<'de> serde::de::Visitor<'de> for Visitor {
-                    type Value = $name;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                        write!(
-                            formatter,
-                            "an array of {} stringified u64 values",
-                            $num_limbs
-                        )
-                    }
-
-                    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                    where
-                        A: serde::de::SeqAccess<'de>,
-                    {
-                        let mut arr = [0u64; $num_limbs];
-                        for i in 0..$num_limbs {
-                            let s: String = seq
-                                .next_element()?
-                                .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
-                            arr[i] = s.parse().map_err(|e| {
-                                serde::de::Error::custom(format!("parse error: {}", e))
-                            })?;
-                        }
-                        Ok($name(arr))
-                    }
-                }
-
-                deserializer.deserialize_seq(Visitor)
             }
         }
 
