@@ -28,6 +28,7 @@ impl<C: ProjectiveCurve> Parameters<C> {
 
 pub type PublicKey<C> = <C as ProjectiveCurve>::Affine;
 
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize, Serialize, Deserialize)]
 pub struct SecretKey<C: ProjectiveCurve>(pub C::ScalarField);
 
 impl<C: ProjectiveCurve> SecretKey<C> {
