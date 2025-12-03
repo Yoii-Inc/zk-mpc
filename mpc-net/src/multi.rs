@@ -47,7 +47,7 @@ pub fn wrap_stream<T: AsyncRead + AsyncWrite>(stream: T) -> Framed<T, LengthDeli
 // #[derive(Debug)]
 struct Peer<IO: AsyncRead + AsyncWrite + Unpin> {
     id: u32,
-    listen_addr: SocketAddr,
+    listen_addr: String,
     streams: Option<Vec<TokioMutex<WrappedMuxStream<IO>>>>,
 }
 
@@ -65,7 +65,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Clone for Peer<IO> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
-            listen_addr: self.listen_addr,
+            listen_addr: self.listen_addr.clone(),
             streams: None,
         }
     }
@@ -132,12 +132,10 @@ impl MPCNetConnection<TcpStream> {
             let line = line.unwrap();
             let trimmed = line.trim();
             if trimmed.len() > 0 {
-                let addr: SocketAddr = trimmed
-                    .parse()
-                    .unwrap_or_else(|e| panic!("bad socket address: {}:\n{}", trimmed, e));
+                // DNS名もIPアドレスも文字列として保存し、bind/connect時に解決
                 let peer = Peer {
                     id: peer_id,
-                    listen_addr: addr,
+                    listen_addr: trimmed.to_string(),
                     streams: None,
                 };
                 this.peers.insert(peer_id, peer);
@@ -151,9 +149,9 @@ impl MPCNetConnection<TcpStream> {
     }
 
     pub async fn listen(&mut self) -> Result<(), MPCNetError> {
-        let listen_addr = self.peers.get(&self.id).unwrap().listen_addr;
+        let listen_addr = &self.peers.get(&self.id).unwrap().listen_addr;
         trace!("Listening on {listen_addr}");
-        self.listener = Some(TcpListener::bind(listen_addr).await.unwrap());
+        self.listener = Some(TcpListener::bind(listen_addr).await?);
         Ok(())
     }
 
@@ -164,7 +162,7 @@ impl MPCNetConnection<TcpStream> {
         let peer_addrs = self
             .peers
             .iter()
-            .map(|p| (*p.0, p.1.listen_addr))
+            .map(|p| (*p.0, p.1.listen_addr.clone()))
             .collect::<HashMap<_, _>>();
 
         let listener = self.listener.take().expect("TcpListener is None");
@@ -215,7 +213,7 @@ impl MPCNetConnection<TcpStream> {
                 let mut stream = {
                     let mut res = Err(io::Error::new(io::ErrorKind::Other, "Initial error"));
                     for _ in 0..30 {
-                        res = TcpStream::connect(peer_listen_addr).await;
+                        res = TcpStream::connect(peer_listen_addr.as_str()).await;
                         if res.is_ok() {
                             // trace!("Connected to peer {next_peer_to_connect_to}");
                             break;
@@ -311,7 +309,7 @@ impl LocalTestNet {
                     peer_id as u32,
                     Peer {
                         id: peer_id as u32,
-                        listen_addr: peer_addr,
+                        listen_addr: peer_addr.to_string(),
                         streams: None,
                     },
                 );
