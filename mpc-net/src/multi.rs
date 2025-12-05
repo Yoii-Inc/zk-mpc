@@ -9,7 +9,6 @@ use std::{
     fmt::Formatter,
     fs::File,
     io::{BufRead, BufReader},
-    net::SocketAddr,
     sync::Mutex,
 };
 
@@ -99,7 +98,10 @@ pub async fn multiplex_stream<T: AsyncRead + AsyncWrite + Unpin + Send + 'static
         tokio::spawn(worker);
         let mut ret = Vec::new();
         for _ in 0..channels {
-            ret.push(TokioMutex::new(wrap_stream(connector.connect()?)));
+            let stream = connector.connect().map_err(|e| {
+                MPCNetError::Generic(format!("Failed to connect mux stream: {:?}", e))
+            })?;
+            ret.push(TokioMutex::new(wrap_stream(stream)));
         }
 
         Ok(ret)
@@ -117,6 +119,72 @@ pub struct MPCNetConnection<IO: AsyncRead + AsyncWrite + Unpin> {
 }
 
 impl MPCNetConnection<TcpStream> {
+    /// Recommended: initialize directly from a vector of addresses
+    pub fn new(node_id: u32, addresses: Vec<String>) -> Result<Self, MPCNetError> {
+        if node_id >= addresses.len() as u32 {
+            return Err(MPCNetError::Generic(format!(
+                "Invalid node ID: {}. Available nodes: 0-{}",
+                node_id,
+                addresses.len() - 1
+            )));
+        }
+
+        let mut this = MPCNetConnection {
+            id: node_id,
+            listener: None,
+            peers: Default::default(),
+            n_parties: 0,
+            upload: AtomicUsize::new(0),
+            download: AtomicUsize::new(0),
+        };
+
+        for (peer_id, addr) in addresses.iter().enumerate() {
+            let peer = Peer {
+                id: peer_id as u32,
+                listen_addr: addr.clone(),
+                streams: None,
+            };
+            this.peers.insert(peer_id as u32, peer);
+        }
+
+        this.n_parties = addresses.len();
+        Ok(this)
+    }
+
+    /// Helper method to initialize from a file
+    pub fn from_file(node_id: u32, path: &PathBuf) -> Result<Self, MPCNetError> {
+        let addresses = Self::load_addresses_from_file(path)?;
+        Self::new(node_id, addresses)
+    }
+
+    /// Read address list from a file
+    fn load_addresses_from_file(path: &PathBuf) -> Result<Vec<String>, MPCNetError> {
+        let f = BufReader::new(
+            File::open(path)
+                .map_err(|e| MPCNetError::Generic(format!("Failed to open config file: {}", e)))?,
+        );
+
+        let mut addresses = Vec::new();
+        for line in f.lines() {
+            let line =
+                line.map_err(|e| MPCNetError::Generic(format!("Failed to read line: {}", e)))?;
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                addresses.push(trimmed.to_string());
+            }
+        }
+
+        if addresses.is_empty() {
+            return Err(MPCNetError::Generic(
+                "No addresses found in config file".to_string(),
+            ));
+        }
+
+        Ok(addresses)
+    }
+
+    /// Deprecated: kept for backward compatibility. Use `new()` or `from_file()` instead.
+    #[deprecated(note = "Use `new()` with addresses vector or `from_file()` instead")]
     pub fn init_from_path(path: &PathBuf, id: u32) -> Self {
         let mut this = MPCNetConnection {
             id: 0 as u32,
