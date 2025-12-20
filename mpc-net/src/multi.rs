@@ -218,8 +218,16 @@ impl MPCNetConnection<TcpStream> {
 
     pub async fn listen(&mut self) -> Result<(), MPCNetError> {
         let listen_addr = &self.peers.get(&self.id).unwrap().listen_addr;
-        trace!("Listening on {listen_addr}");
-        self.listener = Some(TcpListener::bind(listen_addr).await?);
+
+        // ポート番号を抽出して0.0.0.0:portでバインド
+        let socket_addr: std::net::SocketAddr = listen_addr
+            .parse()
+            .map_err(|e| MPCNetError::Generic(format!("Failed to parse listen_addr: {}", e)))?;
+        let port = socket_addr.port();
+        let bind_addr = format!("0.0.0.0:{}", port);
+
+        trace!("Listening on {bind_addr}");
+        self.listener = Some(TcpListener::bind(&bind_addr).await?);
         Ok(())
     }
 
