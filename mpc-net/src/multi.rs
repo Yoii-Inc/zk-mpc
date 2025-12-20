@@ -220,10 +220,12 @@ impl MPCNetConnection<TcpStream> {
         let listen_addr = &self.peers.get(&self.id).unwrap().listen_addr;
 
         // ポート番号を抽出して0.0.0.0:portでバインド
-        let socket_addr: std::net::SocketAddr = listen_addr
-            .parse()
-            .map_err(|e| MPCNetError::Generic(format!("Failed to parse listen_addr: {}", e)))?;
-        let port = socket_addr.port();
+        let port = listen_addr
+            .rsplit_once(':') // 最後の: で分割
+            .map(|(_, port_str)| port_str)
+            .and_then(|p| p.parse::<u16>().ok())
+            .ok_or_else(|| MPCNetError::Generic("Invalid address format or port".to_string()))?;
+
         let bind_addr = format!("0.0.0.0:{}", port);
 
         trace!("Listening on {bind_addr}");
