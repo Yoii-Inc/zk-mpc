@@ -14,7 +14,7 @@ use crate::{
     groups::{GroupOpsBounds, MpcCurveVar},
     mpc_fields::FieldOpsBounds,
     r1cs_helper::mpc_fields::MpcFieldVar,
-    FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget, Reveal,
+    APShare, FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget, Reveal,
 };
 
 use crate::MpcGroupProjectiveVariant;
@@ -26,17 +26,28 @@ use ark_r1cs_std::{prelude::*, ToConstraintFieldGadget};
 use ark_r1cs_std::fields::fp::FpVar;
 
 use core::{borrow::Borrow, marker::PhantomData};
+use std::ops::Add;
 
 use crate::wire::MpcGroupAffine as MpcTEAffine;
 use crate::wire::MpcGroupProjective as MpcTEProjective;
 
-// use crate::honest_but_curious::*;
-use crate::malicious_majority::*;
+use crate::share::pairing::AffProjShare;
+
+// use crate::field::*;
+use crate::honest_but_curious::AffProjShare as AdditiveAffProjShare;
+use crate::malicious_majority::AffProjShare as SpdzAffProjShare;
 
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
-type MpcBaseField<P: TEModelParameters> = MpcField<P::BaseField>;
-type MpcScalarField<P: TEModelParameters> = MpcField<P::ScalarField>;
+// type MpcBaseField<P: TEModelParameters> = MpcField<P::BaseField>;
+// type MpcScalarField<P: TEModelParameters> = MpcField<P::ScalarField>;
+
+type AdditiveMpcBaseField<P: TEModelParameters> = crate::honest_but_curious::MpcField<P::BaseField>;
+type AdditiveMpcScalarField<P: TEModelParameters> =
+    crate::honest_but_curious::MpcField<P::ScalarField>;
+
+type SpdzMpcBaseField<P: TEModelParameters> = crate::malicious_majority::MpcField<P::BaseField>;
+type SpdzMpcScalarField<P: TEModelParameters> = crate::malicious_majority::MpcField<P::ScalarField>;
 
 // /// An implementation of arithmetic for Montgomery curves that relies on
 // /// incomplete addition formulae for the affine model, as outlined in the
@@ -259,16 +270,16 @@ type MpcScalarField<P: TEModelParameters> = MpcField<P::ScalarField>;
 #[derive(Derivative)]
 #[derivative(Debug, Clone)]
 #[must_use]
-pub struct MpcAffineVar<
+pub struct AdditiveMpcAffineVar<
     P: TEModelParameters,
     F: MpcFieldVar<
-        <MpcBaseField<P> as Field>::BasePrimeField,
-        <MpcBaseField<P> as Field>::BasePrimeField,
+        <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+        <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
     >,
 > where
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
-    for<'a> &'a F: FieldOpsBounds<'a, MpcBaseField<P>, F>,
+    for<'a> &'a F: FieldOpsBounds<'a, AdditiveMpcBaseField<P>, F>,
 {
     /// The x-coordinate.
     pub x: F,
@@ -280,12 +291,12 @@ pub struct MpcAffineVar<
 
 impl<
         P: TEModelParameters,
-        F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>,
-    > MpcAffineVar<P, F>
+        F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
+    > AdditiveMpcAffineVar<P, F>
 where
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: ark_ff::SquareRootField,
-    for<'a> &'a F: FieldOpsBounds<'a, MpcBaseField<P>, F>,
+    for<'a> &'a F: FieldOpsBounds<'a, AdditiveMpcBaseField<P>, F>,
 {
     /// Constructs `Self` from an `(x, y)` coordinate triple.
     pub fn new(x: F, y: F) -> Self {
@@ -300,8 +311,8 @@ where
     /// useful if the variable is known to be on the curve (eg., if the point
     /// is a constant or is a public input).
     #[tracing::instrument(target = "r1cs", skip(cs, f))]
-    pub fn new_variable_omit_on_curve_check<T: Into<MpcTEAffine<P, AffProjShare<P>>>>(
-        cs: impl Into<Namespace<<MpcBaseField<P> as Field>::BasePrimeField>>,
+    pub fn new_variable_omit_on_curve_check<T: Into<MpcTEAffine<P, AdditiveAffProjShare<P>>>>(
+        cs: impl Into<Namespace<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -310,7 +321,7 @@ where
 
         let (x, y) = match f() {
             Ok(ge) => {
-                let ge: MpcTEAffine<P, AffProjShare<P>> = ge.into();
+                let ge: MpcTEAffine<P, AdditiveAffProjShare<P>> = ge.into();
 
                 // TODO: Remove reveal operation.
                 let revealed_ge = ge.sync_reveal();
@@ -322,8 +333,8 @@ where
             ),
         };
 
-        let wrapped_x = MpcBaseField::<P>::from_public(x.unwrap());
-        let wrapped_y = MpcBaseField::<P>::from_public(y.unwrap());
+        let wrapped_x = AdditiveMpcBaseField::<P>::from_public(x.unwrap());
+        let wrapped_y = AdditiveMpcBaseField::<P>::from_public(y.unwrap());
 
         let x = F::new_variable(ark_relations::ns!(cs, "x"), || Ok(wrapped_x), mode)?;
         let y = F::new_variable(ark_relations::ns!(cs, "y"), || Ok(wrapped_y), mode)?;
@@ -426,36 +437,43 @@ where
 //     }
 // }
 
-impl<P, F> R1CSVar<<MpcBaseField<P> as Field>::BasePrimeField> for MpcAffineVar<P, F>
+impl<P, F> R1CSVar<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>
+    for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
     P::BaseField: PrimeField,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>,
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
     <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
-    for<'a> &'a F: FieldOpsBounds<'a, MpcBaseField<P>, F>,
+    for<'a> &'a F: FieldOpsBounds<'a, AdditiveMpcBaseField<P>, F>,
 {
-    type Value = MpcTEProjective<P, AffProjShare<P>>;
+    type Value = MpcTEProjective<P, AdditiveAffProjShare<P>>;
 
-    fn cs(&self) -> ConstraintSystemRef<<MpcBaseField<P> as Field>::BasePrimeField> {
+    fn cs(&self) -> ConstraintSystemRef<<AdditiveMpcBaseField<P> as Field>::BasePrimeField> {
         self.x.cs().or(self.y.cs())
     }
 
     #[inline]
-    fn value(&self) -> Result<MpcTEProjective<P, AffProjShare<P>>, SynthesisError> {
+    fn value(&self) -> Result<MpcTEProjective<P, AdditiveAffProjShare<P>>, SynthesisError> {
         let (x, y) = (self.x.value()?, self.y.value()?);
 
         let proj_variant = if x.is_shared() {
-            let t = MpcBaseField::<P>::king_share(P::BaseField::zero(), &mut ark_std::test_rng());
-            let z = MpcBaseField::<P>::king_share(P::BaseField::one(), &mut ark_std::test_rng());
-            MpcGroupProjectiveVariant::<P, AffProjShare<P>>::new(x, y, t, z)
+            let t = AdditiveMpcBaseField::<P>::king_share(
+                P::BaseField::zero(),
+                &mut ark_std::test_rng(),
+            );
+            let z = AdditiveMpcBaseField::<P>::king_share(
+                P::BaseField::one(),
+                &mut ark_std::test_rng(),
+            );
+            MpcGroupProjectiveVariant::<P, AdditiveAffProjShare<P>>::new(x, y, t, z)
         } else {
-            let t = MpcBaseField::<P>::zero();
-            let z = MpcBaseField::<P>::one();
-            MpcGroupProjectiveVariant::<P, AffProjShare<P>>::new(x, y, t, z)
+            let t = AdditiveMpcBaseField::<P>::zero();
+            let z = AdditiveMpcBaseField::<P>::one();
+            MpcGroupProjectiveVariant::<P, AdditiveAffProjShare<P>>::new(x, y, t, z)
         };
 
         // step1: generate random rsuv
-        let rsuv = MpcTEProjective::<P, AffProjShare<P>>::rand(&mut ark_std::test_rng());
+        let rsuv = MpcTEProjective::<P, AdditiveAffProjShare<P>>::rand(&mut ark_std::test_rng());
 
         // step2: convert rstu to variant
         let rsuv_variant = rsuv.convert_xytz();
@@ -478,20 +496,22 @@ where
 }
 
 impl<P, F>
-    MpcCurveVar<MpcTEProjective<P, AffProjShare<P>>, <MpcBaseField<P> as Field>::BasePrimeField>
-    for MpcAffineVar<P, F>
+    MpcCurveVar<
+        MpcTEProjective<P, AdditiveAffProjShare<P>>,
+        <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+    > for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
     P::BaseField: PrimeField,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>
         + MpcTwoBitLookupGadget<
-            <MpcBaseField<P> as Field>::BasePrimeField,
-            TableConstant = MpcBaseField<P>,
+            <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = AdditiveMpcBaseField<P>,
         >,
     <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
-    for<'a> &'a F: FieldOpsBounds<'a, MpcBaseField<P>, F>,
+    for<'a> &'a F: FieldOpsBounds<'a, AdditiveMpcBaseField<P>, F>,
 {
-    fn constant(g: MpcTEProjective<P, AffProjShare<P>>) -> Self {
+    fn constant(g: MpcTEProjective<P, AdditiveAffProjShare<P>>) -> Self {
         let cs = ConstraintSystemRef::None;
         Self::new_variable_omit_on_curve_check(cs, || Ok(g), AllocationMode::Constant).unwrap()
     }
@@ -502,14 +522,15 @@ where
 
     fn is_zero(
         &self,
-    ) -> Result<MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>, SynthesisError> {
+    ) -> Result<MpcBoolean<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>, SynthesisError>
+    {
         self.x.is_zero()?.and(&self.x.is_one()?)
     }
 
     #[tracing::instrument(target = "r1cs", skip(cs, f))]
     fn new_variable_omit_prime_order_check(
-        cs: impl Into<Namespace<<MpcBaseField<P> as Field>::BasePrimeField>>,
-        f: impl FnOnce() -> Result<MpcTEProjective<P, AffProjShare<P>>, SynthesisError>,
+        cs: impl Into<Namespace<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>,
+        f: impl FnOnce() -> Result<MpcTEProjective<P, AdditiveAffProjShare<P>>, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let ns = cs.into();
@@ -518,14 +539,14 @@ where
         let g = Self::new_variable_omit_on_curve_check(cs, f, mode)?;
 
         if mode != AllocationMode::Constant {
-            let d = MpcBaseField::<P>::from_public(P::COEFF_D);
-            let a = MpcBaseField::<P>::from_public(P::COEFF_A);
+            let d = AdditiveMpcBaseField::<P>::from_public(P::COEFF_D);
+            let a = AdditiveMpcBaseField::<P>::from_public(P::COEFF_A);
             // Check that ax^2 + y^2 = 1 + dx^2y^2
             // We do this by checking that ax^2 - 1 = y^2 * (dx^2 - 1)
             let x2 = g.x.square()?;
             let y2 = g.y.square()?;
 
-            let one = MpcBaseField::<P>::one();
+            let one = AdditiveMpcBaseField::<P>::one();
             let d_x2_minus_one = &x2 * d - one;
             let a_x2_minus_one = &x2 * a - one;
 
@@ -564,7 +585,7 @@ where
             *self = Self::constant(value.double());
         } else {
             let cs = self.cs();
-            let a = MpcBaseField::<P>::from_public(P::COEFF_A);
+            let a = AdditiveMpcBaseField::<P>::from_public(P::COEFF_A);
 
             // xy
             let xy = &self.x * &self.y;
@@ -585,7 +606,7 @@ where
             x3.mul_equals(&a_x2_plus_y2, &two_xy)?;
 
             // Compute y3 = (y^2 - ax^2) / (2 - ax^2 - y^2)
-            let two = MpcBaseField::<P>::one().double();
+            let two = AdditiveMpcBaseField::<P>::one().double();
             let y3 = F::new_witness(ark_relations::ns!(cs, "y3"), || {
                 let a_x2 = a * &x2.value()?;
                 let t0 = y2.value()? - &a_x2;
@@ -613,13 +634,13 @@ where
         scalar_bits_with_base_multiples: I,
     ) -> Result<(), SynthesisError>
     where
-        I: Iterator<Item = (B, &'a MpcTEProjective<P, AffProjShare<P>>)>,
-        B: Borrow<MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>>,
+        I: Iterator<Item = (B, &'a MpcTEProjective<P, AdditiveAffProjShare<P>>)>,
+        B: Borrow<MpcBoolean<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>,
     {
         let (bits, multiples): (Vec<_>, Vec<_>) = scalar_bits_with_base_multiples
             .map(|(bit, base)| (bit.borrow().clone(), *base))
             .unzip();
-        let proj_zero: MpcTEProjective<P, AffProjShare<P>> = MpcTEProjective::zero();
+        let proj_zero: MpcTEProjective<P, AdditiveAffProjShare<P>> = MpcTEProjective::zero();
         for (bits, multiples) in bits.chunks(2).zip(multiples.chunks(2)) {
             if bits.len() == 2 {
                 let table = [multiples[0], multiples[1], multiples[0] + multiples[1]]
@@ -627,8 +648,10 @@ where
                     .map(|&g| g.convert_xytz())
                     .collect::<Vec<_>>();
 
-                let normalized_table = MpcGroupProjectiveVariant::batch_normalization(&table);
-
+                let normalized_table =
+                    MpcGroupProjectiveVariant::<P, AdditiveAffProjShare<P>>::batch_normalization(
+                        &table,
+                    );
                 let zero_xy = proj_zero.convert_xytz();
                 let x_s = [
                     zero_xy.x,
@@ -657,22 +680,25 @@ where
     }
 }
 
-impl<P, F> AllocVar<MpcTEProjective<P, AffProjShare<P>>, <MpcBaseField<P> as Field>::BasePrimeField>
-    for MpcAffineVar<P, F>
+impl<P, F>
+    AllocVar<
+        MpcTEProjective<P, AdditiveAffProjShare<P>>,
+        <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+    > for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
     P::BaseField: PrimeField,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>
         + MpcTwoBitLookupGadget<
-            <MpcBaseField<P> as Field>::BasePrimeField,
-            TableConstant = MpcBaseField<P>,
+            <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = AdditiveMpcBaseField<P>,
         >,
     <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
-    for<'a> &'a F: FieldOpsBounds<'a, MpcBaseField<P>, F>,
+    for<'a> &'a F: FieldOpsBounds<'a, AdditiveMpcBaseField<P>, F>,
 {
     #[tracing::instrument(target = "r1cs", skip(cs, f))]
-    fn new_variable<Point: Borrow<MpcTEProjective<P, AffProjShare<P>>>>(
-        cs: impl Into<Namespace<<MpcBaseField<P> as Field>::BasePrimeField>>,
+    fn new_variable<Point: Borrow<MpcTEProjective<P, AdditiveAffProjShare<P>>>>(
+        cs: impl Into<Namespace<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>,
         f: impl FnOnce() -> Result<Point, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -764,22 +790,25 @@ where
     }
 }
 
-impl<P, F> AllocVar<MpcTEAffine<P, AffProjShare<P>>, <MpcBaseField<P> as Field>::BasePrimeField>
-    for MpcAffineVar<P, F>
+impl<P, F>
+    AllocVar<
+        MpcTEAffine<P, AdditiveAffProjShare<P>>,
+        <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+    > for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>
         + MpcTwoBitLookupGadget<
-            <MpcBaseField<P> as Field>::BasePrimeField,
-            TableConstant = MpcBaseField<P>,
+            <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = AdditiveMpcBaseField<P>,
         >,
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
-    for<'a> &'a F: FieldOpsBounds<'a, MpcBaseField<P>, F>,
+    for<'a> &'a F: FieldOpsBounds<'a, AdditiveMpcBaseField<P>, F>,
 {
     #[tracing::instrument(target = "r1cs", skip(cs, f))]
-    fn new_variable<Point: Borrow<MpcTEAffine<P, AffProjShare<P>>>>(
-        cs: impl Into<Namespace<<MpcBaseField<P> as Field>::BasePrimeField>>,
+    fn new_variable<Point: Borrow<MpcTEAffine<P, AdditiveAffProjShare<P>>>>(
+        cs: impl Into<Namespace<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>,
         f: impl FnOnce() -> Result<Point, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -787,19 +816,20 @@ where
     }
 }
 
-impl<P, F> ToConstraintFieldGadget<<MpcBaseField<P> as Field>::BasePrimeField>
-    for MpcAffineVar<P, F>
+impl<P, F> ToConstraintFieldGadget<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>
+    for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>,
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for<'a> &'a F: FieldOpsBounds<'a, MpcBaseField<P>, F>,
-    F: ToConstraintFieldGadget<<MpcBaseField<P> as Field>::BasePrimeField>,
+    for<'a> &'a F: FieldOpsBounds<'a, AdditiveMpcBaseField<P>, F>,
+    F: ToConstraintFieldGadget<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
 {
     fn to_constraint_field(
         &self,
-    ) -> Result<Vec<FpVar<<MpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError> {
+    ) -> Result<Vec<FpVar<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError>
+    {
         let mut res = Vec::new();
 
         res.extend_from_slice(&self.x.to_constraint_field()?);
@@ -821,21 +851,21 @@ fn div2(limbs: &mut [u64]) {
 }
 
 impl_bounded_ops!(
-    MpcAffineVar<P, F>,
-    MpcTEProjective<P, AffProjShare<P>>,
+    AdditiveMpcAffineVar<P, F>,
+    MpcTEProjective<P, AdditiveAffProjShare<P>>,
     Add,
     add,
     AddAssign,
     add_assign,
-    |this: &'a MpcAffineVar<P, F>, other: &'a MpcAffineVar<P, F>| {
+    |this: &'a AdditiveMpcAffineVar<P, F>, other: &'a AdditiveMpcAffineVar<P, F>| {
 
         if [this, other].is_constant() {
             assert!(this.is_constant() && other.is_constant());
-            MpcAffineVar::constant(this.value().unwrap() + &other.value().unwrap())
+            AdditiveMpcAffineVar::constant(this.value().unwrap() + &other.value().unwrap())
         } else {
             let cs = [this, other].cs();
-            let a = MpcBaseField::<P>::from_public(P::COEFF_A);
-            let d = MpcBaseField::<P>::from_public(P::COEFF_D);
+            let a = AdditiveMpcBaseField::<P>::from_public(P::COEFF_A);
+            let d = AdditiveMpcBaseField::<P>::from_public(P::COEFF_D);
 
             // Compute U = (x1 + y1) * (x2 + y2)
             let u1 = (&this.x * -a) + &this.y;
@@ -855,102 +885,105 @@ impl_bounded_ops!(
             // Compute x3 = (v0 + v1) / (1 + v2)
             let x3 = F::new_witness(ark_relations::ns!(cs, "x3"), || {
                 let t0 = v0.value()? + &v1.value()?;
-                let t1 = MpcBaseField::<P>::one() + &v2.value()?;
+                let t1 = AdditiveMpcBaseField::<P>::one() + &v2.value()?;
                 Ok(t0 * &t1.inverse().ok_or(SynthesisError::DivisionByZero)?)
             }).unwrap();
 
-            let v2_plus_one = &v2 + MpcBaseField::<P>::one();
+            let v2_plus_one = &v2 + AdditiveMpcBaseField::<P>::one();
             let v0_plus_v1 = &v0 + &v1;
             x3.mul_equals(&v2_plus_one, &v0_plus_v1).unwrap();
 
             // Compute y3 = (U + a * v0 - v1) / (1 - v2)
             let y3 = F::new_witness(ark_relations::ns!(cs, "y3"), || {
                 let t0 = u.value()? + &(a * &v0.value()?) - &v1.value()?;
-                let t1 = MpcBaseField::<P>::one() - &v2.value()?;
+                let t1 = AdditiveMpcBaseField::<P>::one() - &v2.value()?;
                 Ok(t0 * &t1.inverse().ok_or(SynthesisError::DivisionByZero)?)
             }).unwrap();
 
-            let one_minus_v2 = (&v2 - MpcBaseField::<P>::one()).negate().unwrap();
+            let one_minus_v2 = (&v2 - AdditiveMpcBaseField::<P>::one()).negate().unwrap();
             let a_v0 = &v0 * a;
             let u_plus_a_v0_minus_v1 = &u + &a_v0 - &v1;
 
             y3.mul_equals(&one_minus_v2, &u_plus_a_v0_minus_v1).unwrap();
 
-            MpcAffineVar::new(x3, y3)
+            AdditiveMpcAffineVar::new(x3, y3)
         }
     },
-    |this: &'a MpcAffineVar<P, F>, other: MpcTEProjective<P, AffProjShare<P>>| this + MpcAffineVar::constant(other),
+    |this: &'a AdditiveMpcAffineVar<P, F>, other: MpcTEProjective<P, AdditiveAffProjShare<P>>| this + AdditiveMpcAffineVar::constant(other),
     (
-        F :MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>
-            + MpcTwoBitLookupGadget<<MpcBaseField<P> as Field>::BasePrimeField,TableConstant = MpcBaseField<P>>,
+        F :MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>
+            + MpcTwoBitLookupGadget<<AdditiveMpcBaseField<P> as Field>::BasePrimeField,TableConstant = AdditiveMpcBaseField<P>>,
         P: TEModelParameters,
     ),
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for <'b> &'b F: FieldOpsBounds<'b, MpcBaseField<P>, F>,
+    for <'b> &'b F: FieldOpsBounds<'b, AdditiveMpcBaseField<P>, F>,
 );
 
 impl_bounded_ops!(
-    MpcAffineVar<P, F>,
-    MpcTEProjective<P, AffProjShare<P>>,
+    AdditiveMpcAffineVar<P, F>,
+    MpcTEProjective<P, AdditiveAffProjShare<P>>,
     Sub,
     sub,
     SubAssign,
     sub_assign,
-    |this: &'a MpcAffineVar<P, F>, other: &'a MpcAffineVar<P, F>| this + other.negate().unwrap(),
-    |this: &'a MpcAffineVar<P, F>, other: MpcTEProjective<P, AffProjShare<P>>| this - MpcAffineVar::constant(other),
+    |this: &'a AdditiveMpcAffineVar<P, F>, other: &'a AdditiveMpcAffineVar<P, F>| this + other.negate().unwrap(),
+    |this: &'a AdditiveMpcAffineVar<P, F>, other: MpcTEProjective<P, AdditiveAffProjShare<P>>| this - AdditiveMpcAffineVar::constant(other),
     (
-        F :MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>
-            + MpcTwoBitLookupGadget<<MpcBaseField<P> as Field>::BasePrimeField,TableConstant = MpcBaseField<P>>,
+        F :MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>
+            + MpcTwoBitLookupGadget<<AdditiveMpcBaseField<P> as Field>::BasePrimeField,TableConstant = AdditiveMpcBaseField<P>>,
         P: TEModelParameters,
     ),
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for <'b> &'b F: FieldOpsBounds<'b, MpcBaseField<P>, F>
+    for <'b> &'b F: FieldOpsBounds<'b, AdditiveMpcBaseField<P>, F>
 );
 
-impl<'a, P, F> GroupOpsBounds<'a, MpcTEProjective<P, AffProjShare<P>>, MpcAffineVar<P, F>>
-    for MpcAffineVar<P, F>
+impl<'a, P, F>
+    GroupOpsBounds<'a, MpcTEProjective<P, AdditiveAffProjShare<P>>, AdditiveMpcAffineVar<P, F>>
+    for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>
         + MpcTwoBitLookupGadget<
-            <MpcBaseField<P> as Field>::BasePrimeField,
-            TableConstant = MpcBaseField<P>,
+            <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = AdditiveMpcBaseField<P>,
         >,
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for<'b> &'b F: FieldOpsBounds<'b, MpcBaseField<P>, F>,
+    for<'b> &'b F: FieldOpsBounds<'b, AdditiveMpcBaseField<P>, F>,
 {
 }
 
-impl<'a, P, F> GroupOpsBounds<'a, MpcTEProjective<P, AffProjShare<P>>, MpcAffineVar<P, F>>
-    for &'a MpcAffineVar<P, F>
+impl<'a, P, F>
+    GroupOpsBounds<'a, MpcTEProjective<P, AdditiveAffProjShare<P>>, AdditiveMpcAffineVar<P, F>>
+    for &'a AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>
         + MpcTwoBitLookupGadget<
-            <MpcBaseField<P> as Field>::BasePrimeField,
-            TableConstant = MpcBaseField<P>,
+            <AdditiveMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = AdditiveMpcBaseField<P>,
         >,
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for<'b> &'b F: FieldOpsBounds<'b, MpcBaseField<P>, F>,
+    for<'b> &'b F: FieldOpsBounds<'b, AdditiveMpcBaseField<P>, F>,
 {
 }
 
-impl<P, F> MpcCondSelectGadget<<MpcBaseField<P> as Field>::BasePrimeField> for MpcAffineVar<P, F>
+impl<P, F> MpcCondSelectGadget<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>
+    for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>,
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for<'b> &'b F: FieldOpsBounds<'b, MpcBaseField<P>, F>,
+    for<'b> &'b F: FieldOpsBounds<'b, AdditiveMpcBaseField<P>, F>,
 {
     #[inline]
     #[tracing::instrument(target = "r1cs")]
     fn conditionally_select(
-        cond: &MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>,
+        cond: &MpcBoolean<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -961,19 +994,21 @@ where
     }
 }
 
-impl<P, F> MpcEqGadget<<MpcBaseField<P> as Field>::BasePrimeField> for MpcAffineVar<P, F>
+impl<P, F> MpcEqGadget<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>
+    for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>,
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for<'b> &'b F: FieldOpsBounds<'b, MpcBaseField<P>, F>,
+    for<'b> &'b F: FieldOpsBounds<'b, AdditiveMpcBaseField<P>, F>,
 {
     #[tracing::instrument(target = "r1cs")]
     fn is_eq(
         &self,
         other: &Self,
-    ) -> Result<MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>, SynthesisError> {
+    ) -> Result<MpcBoolean<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>, SynthesisError>
+    {
         let x_equal = self.x.clone().sub(&other.x).is_zero()?;
         let y_equal = self.y.clone().sub(&other.y).is_zero()?;
         x_equal.and(&y_equal)
@@ -984,7 +1019,7 @@ where
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        condition: &MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>,
+        condition: &MpcBoolean<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
     ) -> Result<(), SynthesisError> {
         self.x.conditional_enforce_equal(&other.x, condition)?;
         self.y.conditional_enforce_equal(&other.y, condition)?;
@@ -996,7 +1031,7 @@ where
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        condition: &MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>,
+        condition: &MpcBoolean<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
     ) -> Result<(), SynthesisError> {
         self.is_eq(other)?
             .and(condition)?
@@ -1004,18 +1039,20 @@ where
     }
 }
 
-impl<P, F> MpcToBitsGadget<<MpcBaseField<P> as Field>::BasePrimeField> for MpcAffineVar<P, F>
+impl<P, F> MpcToBitsGadget<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>
+    for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>,
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for<'b> &'b F: FieldOpsBounds<'b, MpcBaseField<P>, F>,
+    for<'b> &'b F: FieldOpsBounds<'b, AdditiveMpcBaseField<P>, F>,
 {
     #[tracing::instrument(target = "r1cs")]
     fn to_bits_le(
         &self,
-    ) -> Result<Vec<MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError> {
+    ) -> Result<Vec<MpcBoolean<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError>
+    {
         let mut x_bits = self.x.to_bits_le()?;
         let y_bits = self.y.to_bits_le()?;
         x_bits.extend_from_slice(&y_bits);
@@ -1025,7 +1062,8 @@ where
     #[tracing::instrument(target = "r1cs")]
     fn to_non_unique_bits_le(
         &self,
-    ) -> Result<Vec<MpcBoolean<<MpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError> {
+    ) -> Result<Vec<MpcBoolean<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError>
+    {
         let mut x_bits = self.x.to_non_unique_bits_le()?;
         let y_bits = self.y.to_non_unique_bits_le()?;
         x_bits.extend_from_slice(&y_bits);
@@ -1034,18 +1072,20 @@ where
     }
 }
 
-impl<P, F> ToBytesGadget<<MpcBaseField<P> as Field>::BasePrimeField> for MpcAffineVar<P, F>
+impl<P, F> ToBytesGadget<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>
+    for AdditiveMpcAffineVar<P, F>
 where
     P: TEModelParameters,
-    F: MpcFieldVar<MpcBaseField<P>, <MpcBaseField<P> as Field>::BasePrimeField>,
+    F: MpcFieldVar<AdditiveMpcBaseField<P>, <AdditiveMpcBaseField<P> as Field>::BasePrimeField>,
     P::BaseField: PrimeField,
     <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
-    for<'b> &'b F: FieldOpsBounds<'b, MpcBaseField<P>, F>,
+    for<'b> &'b F: FieldOpsBounds<'b, AdditiveMpcBaseField<P>, F>,
 {
     #[tracing::instrument(target = "r1cs")]
     fn to_bytes(
         &self,
-    ) -> Result<Vec<UInt8<<MpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError> {
+    ) -> Result<Vec<UInt8<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError>
+    {
         // let mut x_bytes = self.x.to_bytes()?;
         // let y_bytes = self.y.to_bytes()?;
         // x_bytes.extend_from_slice(&y_bytes);
@@ -1056,7 +1096,821 @@ where
     #[tracing::instrument(target = "r1cs")]
     fn to_non_unique_bytes(
         &self,
-    ) -> Result<Vec<UInt8<<MpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError> {
+    ) -> Result<Vec<UInt8<<AdditiveMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError>
+    {
+        // let mut x_bytes = self.x.to_non_unique_bytes()?;
+        // let y_bytes = self.y.to_non_unique_bytes()?;
+        // x_bytes.extend_from_slice(&y_bytes);
+
+        // Ok(x_bytes)
+        unimplemented!()
+    }
+}
+
+/// An implementation of arithmetic for Twisted Edwards curves that relies on
+/// the complete formulae for the affine model, as outlined in the
+/// [EFD](https://www.hyperelliptic.org/EFD/g1p/auto-twisted.html).
+#[derive(Derivative)]
+#[derivative(Debug, Clone)]
+#[must_use]
+pub struct SpdzMpcAffineVar<
+    P: TEModelParameters,
+    F: MpcFieldVar<
+        <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+        <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+    >,
+> where
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
+    for<'a> &'a F: FieldOpsBounds<'a, SpdzMpcBaseField<P>, F>,
+{
+    /// The x-coordinate.
+    pub x: F,
+    /// The y-coordinate.
+    pub y: F,
+    #[derivative(Debug = "ignore")]
+    _params: PhantomData<P>,
+}
+
+impl<
+        P: TEModelParameters,
+        F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    > SpdzMpcAffineVar<P, F>
+where
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: ark_ff::SquareRootField,
+    for<'a> &'a F: FieldOpsBounds<'a, SpdzMpcBaseField<P>, F>,
+{
+    /// Constructs `Self` from an `(x, y)` coordinate triple.
+    pub fn new(x: F, y: F) -> Self {
+        Self {
+            x,
+            y,
+            _params: PhantomData,
+        }
+    }
+
+    /// Allocates a new variable without performing an on-curve check, which is
+    /// useful if the variable is known to be on the curve (eg., if the point
+    /// is a constant or is a public input).
+    #[tracing::instrument(target = "r1cs", skip(cs, f))]
+    pub fn new_variable_omit_on_curve_check<T: Into<MpcTEAffine<P, SpdzAffProjShare<P>>>>(
+        cs: impl Into<Namespace<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+
+        let (x, y) = match f() {
+            Ok(ge) => {
+                let ge: MpcTEAffine<P, SpdzAffProjShare<P>> = ge.into();
+
+                // TODO: Remove reveal operation.
+                let revealed_ge = ge.sync_reveal();
+                (Ok(revealed_ge.x), Ok(revealed_ge.y))
+            }
+            _ => (
+                Err(SynthesisError::AssignmentMissing),
+                Err(SynthesisError::AssignmentMissing),
+            ),
+        };
+
+        let wrapped_x = SpdzMpcBaseField::<P>::from_public(x.unwrap());
+        let wrapped_y = SpdzMpcBaseField::<P>::from_public(y.unwrap());
+
+        let x = F::new_variable(ark_relations::ns!(cs, "x"), || Ok(wrapped_x), mode)?;
+        let y = F::new_variable(ark_relations::ns!(cs, "y"), || Ok(wrapped_y), mode)?;
+
+        Ok(Self::new(x, y))
+    }
+}
+
+// impl<P: TEModelParameters, F: FieldVar<P::BaseField, <P::BaseField as Field>::BasePrimeField>>
+//     AffineVar<P, F>
+// where
+//     P: TEModelParameters,
+//     F: FieldVar<P::BaseField, <P::BaseField as Field>::BasePrimeField>
+//         + TwoBitLookupGadget<<P::BaseField as Field>::BasePrimeField, TableConstant = P::BaseField>
+//         + ThreeBitCondNegLookupGadget<
+//             <P::BaseField as Field>::BasePrimeField,
+//             TableConstant = P::BaseField,
+//         >,
+//     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
+// {
+//     /// Compute a scalar multiplication of `bases` with respect to `scalars`,
+//     /// where the elements of `scalars` are length-three slices of bits, and
+//     /// which such that the first two bits are use to select one of the
+//     /// bases, while the third bit is used to conditionally negate the
+//     /// selection.
+//     #[tracing::instrument(target = "r1cs", skip(bases, scalars))]
+//     pub fn precomputed_base_3_bit_signed_digit_scalar_mul<J>(
+//         bases: &[impl Borrow<[TEProjective<P>]>],
+//         scalars: &[impl Borrow<[J]>],
+//     ) -> Result<Self, SynthesisError>
+//     where
+//         J: Borrow<[Boolean<<P::BaseField as Field>::BasePrimeField>]>,
+//     {
+//         const CHUNK_SIZE: usize = 3;
+//         let mut ed_result: Option<AffineVar<P, F>> = None;
+//         let mut result: Option<MontgomeryAffineVar<P, F>> = None;
+
+//         let mut process_segment_result = |result: &MontgomeryAffineVar<P, F>| {
+//             let sgmt_result = result.into_edwards()?;
+//             ed_result = match ed_result.as_ref() {
+//                 None => Some(sgmt_result),
+//                 Some(r) => Some(sgmt_result + r),
+//             };
+//             Ok::<(), SynthesisError>(())
+//         };
+
+//         // Compute ∏(h_i^{m_i}) for all i.
+//         for (segment_bits_chunks, segment_powers) in scalars.iter().zip(bases) {
+//             for (bits, base_power) in segment_bits_chunks
+//                 .borrow()
+//                 .iter()
+//                 .zip(segment_powers.borrow())
+//             {
+//                 let base_power = base_power;
+//                 let mut acc_power = *base_power;
+//                 let mut coords = vec![];
+//                 for _ in 0..4 {
+//                     coords.push(acc_power);
+//                     acc_power += base_power;
+//                 }
+
+//                 let bits = bits.borrow().to_bits_le()?;
+//                 if bits.len() != CHUNK_SIZE {
+//                     return Err(SynthesisError::Unsatisfiable);
+//                 }
+
+//                 let coords = coords
+//                     .iter()
+//                     .map(|p| MontgomeryAffineVar::from_edwards_to_coords(&p.into_affine()))
+//                     .collect::<Result<Vec<_>, _>>()?;
+
+//                 let x_coeffs = coords.iter().map(|p| p.0).collect::<Vec<_>>();
+//                 let y_coeffs = coords.iter().map(|p| p.1).collect::<Vec<_>>();
+
+//                 let precomp = bits[0].and(&bits[1])?;
+
+//                 let x = F::zero()
+//                     + x_coeffs[0]
+//                     + F::from(bits[0].clone()) * (x_coeffs[1] - &x_coeffs[0])
+//                     + F::from(bits[1].clone()) * (x_coeffs[2] - &x_coeffs[0])
+//                     + F::from(precomp.clone())
+//                         * (x_coeffs[3] - &x_coeffs[2] - &x_coeffs[1] + &x_coeffs[0]);
+
+//                 let y = F::three_bit_cond_neg_lookup(&bits, &precomp, &y_coeffs)?;
+
+//                 let tmp = MontgomeryAffineVar::new(x, y);
+//                 result = match result.as_ref() {
+//                     None => Some(tmp),
+//                     Some(r) => Some(tmp + r),
+//                 };
+//             }
+
+//             process_segment_result(&result.unwrap())?;
+//             result = None;
+//         }
+//         if result.is_some() {
+//             process_segment_result(&result.unwrap())?;
+//         }
+//         Ok(ed_result.unwrap())
+//     }
+// }
+
+impl<P, F> R1CSVar<<SpdzMpcBaseField<P> as Field>::BasePrimeField> for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    P::BaseField: PrimeField,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
+    for<'a> &'a F: FieldOpsBounds<'a, SpdzMpcBaseField<P>, F>,
+{
+    type Value = MpcTEProjective<P, SpdzAffProjShare<P>>;
+
+    fn cs(&self) -> ConstraintSystemRef<<SpdzMpcBaseField<P> as Field>::BasePrimeField> {
+        self.x.cs().or(self.y.cs())
+    }
+
+    #[inline]
+    fn value(&self) -> Result<MpcTEProjective<P, SpdzAffProjShare<P>>, SynthesisError> {
+        let (x, y) = (self.x.value()?, self.y.value()?);
+
+        let proj_variant = if x.is_shared() {
+            let t =
+                SpdzMpcBaseField::<P>::king_share(P::BaseField::zero(), &mut ark_std::test_rng());
+            let z =
+                SpdzMpcBaseField::<P>::king_share(P::BaseField::one(), &mut ark_std::test_rng());
+            MpcGroupProjectiveVariant::<P, SpdzAffProjShare<P>>::new(x, y, t, z)
+        } else {
+            let t = SpdzMpcBaseField::<P>::zero();
+            let z = SpdzMpcBaseField::<P>::one();
+            MpcGroupProjectiveVariant::<P, SpdzAffProjShare<P>>::new(x, y, t, z)
+        };
+
+        // step1: generate random rsuv
+        let rsuv = MpcTEProjective::<P, SpdzAffProjShare<P>>::rand(&mut ark_std::test_rng());
+        // step2: convert rstu to variant
+        let rsuv_variant = rsuv.convert_xytz();
+
+        // step3: calculate (x,y,t,z) + (r,s,u,v)
+        let xytzrsuv = rsuv_variant + proj_variant;
+
+        // step4: reveal
+        let revealed_xr = xytzrsuv.sync_reveal();
+
+        // step5: allocate share
+        let share = if Net.is_leader() {
+            MpcTEProjective::from_public(revealed_xr) - rsuv
+        } else {
+            -rsuv
+        };
+
+        Ok(share)
+    }
+}
+
+impl<P, F>
+    MpcCurveVar<
+        MpcTEProjective<P, SpdzAffProjShare<P>>,
+        <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+    > for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    P::BaseField: PrimeField,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>
+        + MpcTwoBitLookupGadget<
+            <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = SpdzMpcBaseField<P>,
+        >,
+    <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
+    for<'a> &'a F: FieldOpsBounds<'a, SpdzMpcBaseField<P>, F>,
+{
+    fn constant(g: MpcTEProjective<P, SpdzAffProjShare<P>>) -> Self {
+        let cs = ConstraintSystemRef::None;
+        Self::new_variable_omit_on_curve_check(cs, || Ok(g), AllocationMode::Constant).unwrap()
+    }
+
+    fn zero() -> Self {
+        Self::new(F::zero(), F::one())
+    }
+
+    fn is_zero(
+        &self,
+    ) -> Result<MpcBoolean<<SpdzMpcBaseField<P> as Field>::BasePrimeField>, SynthesisError> {
+        self.x.is_zero()?.and(&self.x.is_one()?)
+    }
+
+    #[tracing::instrument(target = "r1cs", skip(cs, f))]
+    fn new_variable_omit_prime_order_check(
+        cs: impl Into<Namespace<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>,
+        f: impl FnOnce() -> Result<MpcTEProjective<P, SpdzAffProjShare<P>>, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+
+        let g = Self::new_variable_omit_on_curve_check(cs, f, mode)?;
+
+        if mode != AllocationMode::Constant {
+            let d = SpdzMpcBaseField::<P>::from_public(P::COEFF_D);
+            let a = SpdzMpcBaseField::<P>::from_public(P::COEFF_A);
+            // Check that ax^2 + y^2 = 1 + dx^2y^2
+            // We do this by checking that ax^2 - 1 = y^2 * (dx^2 - 1)
+            let x2 = g.x.square()?;
+            let y2 = g.y.square()?;
+
+            let one = SpdzMpcBaseField::<P>::one();
+            let d_x2_minus_one = &x2 * d - one;
+            let a_x2_minus_one = &x2 * a - one;
+
+            d_x2_minus_one.mul_equals(&y2, &a_x2_minus_one)?;
+        }
+        Ok(g)
+    }
+
+    /// Enforce that `self` is in the prime-order subgroup.
+    ///
+    /// Does so by multiplying by the prime order, and checking that the result
+    /// is unchanged.
+    #[tracing::instrument(target = "r1cs")]
+    fn enforce_prime_order(&self) -> Result<(), SynthesisError> {
+        // let r_minus_1 = (-hbc_ScalarField::one()).into_repr();
+
+        // let mut result = Self::zero();
+        // for b in BitIteratorBE::without_leading_zeros(r_minus_1) {
+        //     result.double_in_place()?;
+
+        //     if b {
+        //         result += self;
+        //     }
+        // }
+        // self.negate()?.enforce_equal(&result)?;
+
+        unimplemented!();
+        Ok(())
+    }
+
+    #[inline]
+    #[tracing::instrument(target = "r1cs")]
+    fn double_in_place(&mut self) -> Result<(), SynthesisError> {
+        if self.is_constant() {
+            let value = self.value()?;
+            *self = Self::constant(value.double());
+        } else {
+            let cs = self.cs();
+            let a = SpdzMpcBaseField::<P>::from_public(P::COEFF_A);
+
+            // xy
+            let xy = &self.x * &self.y;
+            let x2 = self.x.square()?;
+            let y2 = self.y.square()?;
+
+            let a_x2 = &x2 * a;
+
+            // Compute x3 = (2xy) / (ax^2 + y^2)
+            let x3 = F::new_witness(ark_relations::ns!(cs, "x3"), || {
+                let t0 = xy.value()?.double();
+                let t1 = a * &x2.value()? + &y2.value()?;
+                Ok(t0 * &t1.inverse().ok_or(SynthesisError::DivisionByZero)?)
+            })?;
+
+            let a_x2_plus_y2 = &a_x2 + &y2;
+            let two_xy = xy.double()?;
+            x3.mul_equals(&a_x2_plus_y2, &two_xy)?;
+
+            // Compute y3 = (y^2 - ax^2) / (2 - ax^2 - y^2)
+            let two = SpdzMpcBaseField::<P>::one().double();
+            let y3 = F::new_witness(ark_relations::ns!(cs, "y3"), || {
+                let a_x2 = a * &x2.value()?;
+                let t0 = y2.value()? - &a_x2;
+                let t1 = two - &a_x2 - &y2.value()?;
+                Ok(t0 * &t1.inverse().ok_or(SynthesisError::DivisionByZero)?)
+            })?;
+            let y2_minus_a_x2 = &y2 - &a_x2;
+            let two_minus_ax2_minus_y2 = (&a_x2 + &y2).negate()? + two;
+
+            y3.mul_equals(&two_minus_ax2_minus_y2, &y2_minus_a_x2)?;
+            self.x = x3;
+            self.y = y3;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(target = "r1cs")]
+    fn negate(&self) -> Result<Self, SynthesisError> {
+        Ok(Self::new(self.x.negate()?, self.y.clone()))
+    }
+
+    #[tracing::instrument(target = "r1cs", skip(scalar_bits_with_base_multiples))]
+    fn precomputed_base_scalar_mul_le<'a, I, B>(
+        &mut self,
+        scalar_bits_with_base_multiples: I,
+    ) -> Result<(), SynthesisError>
+    where
+        I: Iterator<Item = (B, &'a MpcTEProjective<P, SpdzAffProjShare<P>>)>,
+        B: Borrow<MpcBoolean<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>,
+    {
+        let (bits, multiples): (Vec<_>, Vec<_>) = scalar_bits_with_base_multiples
+            .map(|(bit, base)| (bit.borrow().clone(), *base))
+            .unzip();
+        let proj_zero: MpcTEProjective<P, SpdzAffProjShare<P>> = MpcTEProjective::zero();
+        for (bits, multiples) in bits.chunks(2).zip(multiples.chunks(2)) {
+            if bits.len() == 2 {
+                let table = [multiples[0], multiples[1], multiples[0] + multiples[1]]
+                    .iter()
+                    .map(|&g| g.convert_xytz())
+                    .collect::<Vec<_>>();
+
+                let normalized_table = MpcGroupProjectiveVariant::batch_normalization(&table);
+
+                let zero_xy = proj_zero.convert_xytz();
+                let x_s = [
+                    zero_xy.x,
+                    normalized_table[0].x,
+                    normalized_table[1].x,
+                    normalized_table[2].x,
+                ];
+                let y_s = [
+                    zero_xy.y,
+                    normalized_table[0].y,
+                    normalized_table[1].y,
+                    normalized_table[2].y,
+                ];
+
+                let x = F::two_bit_lookup(&bits, &x_s)?;
+                let y = F::two_bit_lookup(&bits, &y_s)?;
+                *self += Self::new(x, y);
+            } else if bits.len() == 1 {
+                let bit = &bits[0];
+                let tmp = &*self + multiples[0];
+                *self = bit.select(&tmp, &*self)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<P, F>
+    AllocVar<
+        MpcTEProjective<P, SpdzAffProjShare<P>>,
+        <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+    > for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    P::BaseField: PrimeField,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>
+        + MpcTwoBitLookupGadget<
+            <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = SpdzMpcBaseField<P>,
+        >,
+    <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
+    for<'a> &'a F: FieldOpsBounds<'a, SpdzMpcBaseField<P>, F>,
+{
+    #[tracing::instrument(target = "r1cs", skip(cs, f))]
+    fn new_variable<Point: Borrow<MpcTEProjective<P, SpdzAffProjShare<P>>>>(
+        cs: impl Into<Namespace<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>,
+        f: impl FnOnce() -> Result<Point, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+        let f = || Ok(*f()?.borrow());
+        match mode {
+            AllocationMode::Constant => Self::new_variable_omit_prime_order_check(cs, f, mode),
+            AllocationMode::Input => Self::new_variable_omit_prime_order_check(cs, f, mode),
+            AllocationMode::Witness => {
+                // if cofactor.is_even():
+                //   divide until you've removed all even factors
+                // else:
+                //   just directly use double and add.
+                let mut power_of_2: u32 = 0;
+                let mut cofactor = P::COFACTOR.to_vec();
+                while cofactor[0] % 2 == 0 {
+                    div2(&mut cofactor);
+                    power_of_2 += 1;
+                }
+
+                let cofactor_weight = BitIteratorBE::new(cofactor.as_slice())
+                    .filter(|b| *b)
+                    .count();
+                let modulus_minus_1 = (-P::ScalarField::one()).into_repr(); // r - 1
+                let modulus_minus_1_weight =
+                    BitIteratorBE::new(modulus_minus_1).filter(|b| *b).count();
+
+                // We pick the most efficient method of performing the prime order check:
+                // If the cofactor has lower hamming weight than the scalar field's modulus,
+                // we first multiply by the inverse of the cofactor, and then, after allocating,
+                // multiply by the cofactor. This ensures the resulting point has no cofactors
+                //
+                // Else, we multiply by the scalar field's modulus and ensure that the result
+                // equals the identity.
+
+                let (mut ge, iter) = if cofactor_weight < modulus_minus_1_weight {
+                    let ge = Self::new_variable_omit_prime_order_check(
+                        ark_relations::ns!(cs, "Witness without subgroup check with cofactor mul"),
+                        || f().map(|g| g.borrow().into_affine().mul_by_cofactor_inv().into()),
+                        mode,
+                    )?;
+                    (
+                        ge,
+                        BitIteratorBE::without_leading_zeros(cofactor.as_slice()),
+                    )
+                } else {
+                    let ge = Self::new_variable_omit_prime_order_check(
+                        ark_relations::ns!(cs, "Witness without subgroup check with `r` check"),
+                        || {
+                            f().map(|g| {
+                                let g = g.into_affine();
+                                let mut power_of_two = P::ScalarField::one().into_repr();
+                                power_of_two.muln(power_of_2);
+                                let power_of_two_inv = P::ScalarField::from_repr(power_of_two)
+                                    .and_then(|n| n.inverse())
+                                    .unwrap();
+                                g.mul(power_of_two_inv)
+                            })
+                        },
+                        mode,
+                    )?;
+
+                    (
+                        ge,
+                        BitIteratorBE::without_leading_zeros(modulus_minus_1.as_ref()),
+                    )
+                };
+                // Remove the even part of the cofactor
+                for _ in 0..power_of_2 {
+                    ge.double_in_place()?;
+                }
+
+                let mut result = Self::zero();
+                for b in iter {
+                    result.double_in_place()?;
+                    if b {
+                        result += &ge;
+                    }
+                }
+                if cofactor_weight < modulus_minus_1_weight {
+                    Ok(result)
+                } else {
+                    ge.enforce_equal(&ge)?;
+                    Ok(ge)
+                }
+            }
+        }
+    }
+}
+
+impl<P, F>
+    AllocVar<MpcTEAffine<P, SpdzAffProjShare<P>>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>
+    for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>
+        + MpcTwoBitLookupGadget<
+            <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = SpdzMpcBaseField<P>,
+        >,
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as ark_ff::Field>::BasePrimeField: ark_ff::SquareRootField,
+    for<'a> &'a F: FieldOpsBounds<'a, SpdzMpcBaseField<P>, F>,
+{
+    #[tracing::instrument(target = "r1cs", skip(cs, f))]
+    fn new_variable<Point: Borrow<MpcTEAffine<P, SpdzAffProjShare<P>>>>(
+        cs: impl Into<Namespace<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>,
+        f: impl FnOnce() -> Result<Point, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        Self::new_variable(cs, || f().map(|b| b.borrow().into_projective()), mode)
+    }
+}
+
+impl<P, F> ToConstraintFieldGadget<<SpdzMpcBaseField<P> as Field>::BasePrimeField>
+    for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for<'a> &'a F: FieldOpsBounds<'a, SpdzMpcBaseField<P>, F>,
+    F: ToConstraintFieldGadget<<SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+{
+    fn to_constraint_field(
+        &self,
+    ) -> Result<Vec<FpVar<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError> {
+        let mut res = Vec::new();
+
+        res.extend_from_slice(&self.x.to_constraint_field()?);
+        res.extend_from_slice(&self.y.to_constraint_field()?);
+
+        Ok(res)
+    }
+}
+
+impl_bounded_ops!(
+    SpdzMpcAffineVar<P, F>,
+    MpcTEProjective<P, SpdzAffProjShare<P>>,
+    Add,
+    add,
+    AddAssign,
+    add_assign,
+    |this: &'a SpdzMpcAffineVar<P, F>, other: &'a SpdzMpcAffineVar<P, F>| {
+
+        if [this, other].is_constant() {
+            assert!(this.is_constant() && other.is_constant());
+            SpdzMpcAffineVar::constant(this.value().unwrap() + &other.value().unwrap())
+        } else {
+            let cs = [this, other].cs();
+            let a = SpdzMpcBaseField::<P>::from_public(P::COEFF_A);
+            let d = SpdzMpcBaseField::<P>::from_public(P::COEFF_D);
+
+            // Compute U = (x1 + y1) * (x2 + y2)
+            let u1 = (&this.x * -a) + &this.y;
+            let u2 = &other.x + &other.y;
+
+            let u = u1 *  &u2;
+
+            // Compute v0 = x1 * y2
+            let v0 = &other.y * &this.x;
+
+            // Compute v1 = x2 * y1
+            let v1 = &other.x * &this.y;
+
+            // Compute C = d*v0*v1
+            let v2 = &v0 * &v1 * d;
+
+            // Compute x3 = (v0 + v1) / (1 + v2)
+            let x3 = F::new_witness(ark_relations::ns!(cs, "x3"), || {
+                let t0 = v0.value()? + &v1.value()?;
+                let t1 = SpdzMpcBaseField::<P>::one() + &v2.value()?;
+                Ok(t0 * &t1.inverse().ok_or(SynthesisError::DivisionByZero)?)
+            }).unwrap();
+
+            let v2_plus_one = &v2 + SpdzMpcBaseField::<P>::one();
+            let v0_plus_v1 = &v0 + &v1;
+            x3.mul_equals(&v2_plus_one, &v0_plus_v1).unwrap();
+
+            // Compute y3 = (U + a * v0 - v1) / (1 - v2)
+            let y3 = F::new_witness(ark_relations::ns!(cs, "y3"), || {
+                let t0 = u.value()? + &(a * &v0.value()?) - &v1.value()?;
+                let t1 = SpdzMpcBaseField::<P>::one() - &v2.value()?;
+                Ok(t0 * &t1.inverse().ok_or(SynthesisError::DivisionByZero)?)
+            }).unwrap();
+
+            let one_minus_v2 = (&v2 - SpdzMpcBaseField::<P>::one()).negate().unwrap();
+            let a_v0 = &v0 * a;
+            let u_plus_a_v0_minus_v1 = &u + &a_v0 - &v1;
+
+            y3.mul_equals(&one_minus_v2, &u_plus_a_v0_minus_v1).unwrap();
+
+            SpdzMpcAffineVar::new(x3, y3)
+        }
+    },
+    |this: &'a SpdzMpcAffineVar<P, F>, other: MpcTEProjective<P, SpdzAffProjShare<P>>| this + SpdzMpcAffineVar::constant(other),
+    (
+        F :MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>
+            + MpcTwoBitLookupGadget<<SpdzMpcBaseField<P> as Field>::BasePrimeField,TableConstant = SpdzMpcBaseField<P>>,
+        P: TEModelParameters,
+    ),
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for <'b> &'b F: FieldOpsBounds<'b, SpdzMpcBaseField<P>, F>,
+);
+
+impl_bounded_ops!(
+    SpdzMpcAffineVar<P, F>,
+    MpcTEProjective<P, SpdzAffProjShare<P>>,
+    Sub,
+    sub,
+    SubAssign,
+    sub_assign,
+    |this: &'a SpdzMpcAffineVar<P, F>, other: &'a SpdzMpcAffineVar<P, F>| this + other.negate().unwrap(),
+    |this: &'a SpdzMpcAffineVar<P, F>, other: MpcTEProjective<P, SpdzAffProjShare<P>>| this - SpdzMpcAffineVar::constant(other),
+    (
+        F :MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>
+            + MpcTwoBitLookupGadget<<SpdzMpcBaseField<P> as Field>::BasePrimeField,TableConstant = SpdzMpcBaseField<P>>,
+        P: TEModelParameters,
+    ),
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for <'b> &'b F: FieldOpsBounds<'b, SpdzMpcBaseField<P>, F>
+);
+
+impl<'a, P, F> GroupOpsBounds<'a, MpcTEProjective<P, SpdzAffProjShare<P>>, SpdzMpcAffineVar<P, F>>
+    for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>
+        + MpcTwoBitLookupGadget<
+            <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = SpdzMpcBaseField<P>,
+        >,
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for<'b> &'b F: FieldOpsBounds<'b, SpdzMpcBaseField<P>, F>,
+{
+}
+
+impl<'a, P, F> GroupOpsBounds<'a, MpcTEProjective<P, SpdzAffProjShare<P>>, SpdzMpcAffineVar<P, F>>
+    for &'a SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>
+        + MpcTwoBitLookupGadget<
+            <SpdzMpcBaseField<P> as Field>::BasePrimeField,
+            TableConstant = SpdzMpcBaseField<P>,
+        >,
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for<'b> &'b F: FieldOpsBounds<'b, SpdzMpcBaseField<P>, F>,
+{
+}
+
+impl<P, F> MpcCondSelectGadget<<SpdzMpcBaseField<P> as Field>::BasePrimeField>
+    for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for<'b> &'b F: FieldOpsBounds<'b, SpdzMpcBaseField<P>, F>,
+{
+    #[inline]
+    #[tracing::instrument(target = "r1cs")]
+    fn conditionally_select(
+        cond: &MpcBoolean<<SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+        true_value: &Self,
+        false_value: &Self,
+    ) -> Result<Self, SynthesisError> {
+        let x = cond.select(&true_value.x, &false_value.x)?;
+        let y = cond.select(&true_value.y, &false_value.y)?;
+
+        Ok(Self::new(x, y))
+    }
+}
+
+impl<P, F> MpcEqGadget<<SpdzMpcBaseField<P> as Field>::BasePrimeField> for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for<'b> &'b F: FieldOpsBounds<'b, SpdzMpcBaseField<P>, F>,
+{
+    #[tracing::instrument(target = "r1cs")]
+    fn is_eq(
+        &self,
+        other: &Self,
+    ) -> Result<MpcBoolean<<SpdzMpcBaseField<P> as Field>::BasePrimeField>, SynthesisError> {
+        let x_equal = self.x.clone().sub(&other.x).is_zero()?;
+        let y_equal = self.y.clone().sub(&other.y).is_zero()?;
+        x_equal.and(&y_equal)
+    }
+
+    #[inline]
+    #[tracing::instrument(target = "r1cs")]
+    fn conditional_enforce_equal(
+        &self,
+        other: &Self,
+        condition: &MpcBoolean<<SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    ) -> Result<(), SynthesisError> {
+        self.x.conditional_enforce_equal(&other.x, condition)?;
+        self.y.conditional_enforce_equal(&other.y, condition)?;
+        Ok(())
+    }
+
+    #[inline]
+    #[tracing::instrument(target = "r1cs")]
+    fn conditional_enforce_not_equal(
+        &self,
+        other: &Self,
+        condition: &MpcBoolean<<SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    ) -> Result<(), SynthesisError> {
+        self.is_eq(other)?
+            .and(condition)?
+            .enforce_equal(&MpcBoolean::Constant(false))
+    }
+}
+
+impl<P, F> MpcToBitsGadget<<SpdzMpcBaseField<P> as Field>::BasePrimeField>
+    for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for<'b> &'b F: FieldOpsBounds<'b, SpdzMpcBaseField<P>, F>,
+{
+    #[tracing::instrument(target = "r1cs")]
+    fn to_bits_le(
+        &self,
+    ) -> Result<Vec<MpcBoolean<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError>
+    {
+        let mut x_bits = self.x.to_bits_le()?;
+        let y_bits = self.y.to_bits_le()?;
+        x_bits.extend_from_slice(&y_bits);
+        Ok(x_bits)
+    }
+
+    #[tracing::instrument(target = "r1cs")]
+    fn to_non_unique_bits_le(
+        &self,
+    ) -> Result<Vec<MpcBoolean<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError>
+    {
+        let mut x_bits = self.x.to_non_unique_bits_le()?;
+        let y_bits = self.y.to_non_unique_bits_le()?;
+        x_bits.extend_from_slice(&y_bits);
+
+        Ok(x_bits)
+    }
+}
+
+impl<P, F> ToBytesGadget<<SpdzMpcBaseField<P> as Field>::BasePrimeField> for SpdzMpcAffineVar<P, F>
+where
+    P: TEModelParameters,
+    F: MpcFieldVar<SpdzMpcBaseField<P>, <SpdzMpcBaseField<P> as Field>::BasePrimeField>,
+    P::BaseField: PrimeField,
+    <<P as ModelParameters>::BaseField as Field>::BasePrimeField: SquareRootField,
+    for<'b> &'b F: FieldOpsBounds<'b, SpdzMpcBaseField<P>, F>,
+{
+    #[tracing::instrument(target = "r1cs")]
+    fn to_bytes(
+        &self,
+    ) -> Result<Vec<UInt8<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError> {
+        // let mut x_bytes = self.x.to_bytes()?;
+        // let y_bytes = self.y.to_bytes()?;
+        // x_bytes.extend_from_slice(&y_bytes);
+        // Ok(x_bytes)
+        unimplemented!()
+    }
+
+    #[tracing::instrument(target = "r1cs")]
+    fn to_non_unique_bytes(
+        &self,
+    ) -> Result<Vec<UInt8<<SpdzMpcBaseField<P> as Field>::BasePrimeField>>, SynthesisError> {
         // let mut x_bytes = self.x.to_non_unique_bytes()?;
         // let y_bytes = self.y.to_non_unique_bytes()?;
         // x_bytes.extend_from_slice(&y_bytes);

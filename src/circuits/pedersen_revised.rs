@@ -126,7 +126,7 @@ impl LocalOrMPC<Fr> for Fr {
 }
 
 impl LocalOrMPC<MpcField<Fr>> for MpcField<Fr> {
-    type JubJub = mpc_algebra::edwards2::SpdzMpcEdwardsProjective;
+    type JubJub = MpcEdwardsProjective;
 
     type PedersenComScheme = MpcCommitment<Self::JubJub, Window>;
     type PedersenCommitment = <Self::PedersenComScheme as MpcCommitmentScheme>::Output;
@@ -134,7 +134,7 @@ impl LocalOrMPC<MpcField<Fr>> for MpcField<Fr> {
     type PedersenInput = Input<Self::JubJub>;
     type PedersenRandomness = MpcRandomness<Self::JubJub>;
 
-    type PedersenComSchemeVar = MpcCommGadget<Self::JubJub, mpc_algebra::SpdzMpcEdwardsVar, Window>;
+    type PedersenComSchemeVar = MpcCommGadget<Self::JubJub, MpcEdwardsVar, Window>;
     type PedersenParamVar = <Self::PedersenComSchemeVar as MpcCommitmentGadget<
         Self::PedersenComScheme,
         MpcField<Fr>,
