@@ -477,8 +477,8 @@ macro_rules! impl_group_basics {
             }
         }
         impl<T: $bound, M> UniformRand for $share<T, M> {
-            fn rand<R: Rng + ?Sized>(_rng: &mut R) -> Self {
-                todo!()
+            fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+                Self::from_add_shared(T::rand(rng))
             }
         }
     };
