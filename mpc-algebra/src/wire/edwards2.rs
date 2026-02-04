@@ -36,7 +36,7 @@ use std::iter::Sum;
 use std::marker::PhantomData;
 use std::ops::*;
 
-use crate::groups::curves::twisted_edwards::MpcAffineVar;
+use crate::groups::curves::twisted_edwards::{AdditiveMpcAffineVar, SpdzMpcAffineVar};
 use crate::*;
 
 pub trait APShare<P: Parameters>:
@@ -56,10 +56,10 @@ pub type SpdzMpcEdwardsAffine =
     MpcGroupAffine<EdwardsParameters, SpdzAffProjShare<EdwardsParameters>>;
 
 type AdditiveFqVar = MpcFpVar<honest_but_curious::MpcField<ark_ed_on_bls12_377::Fq>>;
-pub type AdditiveMpcEdwardsVar = MpcAffineVar<EdwardsParameters, AdditiveFqVar>;
+pub type AdditiveMpcEdwardsVar = AdditiveMpcAffineVar<EdwardsParameters, AdditiveFqVar>;
 
 type SpdzFqVar = MpcFpVar<malicious_majority::MpcField<ark_ed_on_bls12_377::Fq>>;
-pub type SpdzMpcEdwardsVar = MpcAffineVar<EdwardsParameters, SpdzFqVar>;
+pub type SpdzMpcEdwardsVar = SpdzMpcAffineVar<EdwardsParameters, SpdzFqVar>;
 
 #[derive(Derivative, Serialize, Deserialize)]
 #[derivative(

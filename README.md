@@ -74,6 +74,29 @@ and build:
 cargo build
 ```
 
+### Feature flags
+
+This crate provides two mutually exclusive MPC backend features: `honest` (the default) and `malicious`.
+
+When another crate depends on `zk-mpc`, specify exactly one backend in the dependency entry. Two common `Cargo.toml` styles:
+
+- Keep the default (`honest`) — no special settings needed:
+
+```toml
+[dependencies]
+zk-mpc = { path = "../zk-mpc" }
+```
+
+- Disable defaults and enable `malicious` explicitly:
+
+```toml
+[dependencies]
+zk-mpc = { path = "../zk-mpc", default-features = false, features = ["malicious"] }
+```
+
+Enabling both `honest` and `malicious` at the same time is not supported and will cause a compile-time error.
+
+
 setup input file
 
 ```bash

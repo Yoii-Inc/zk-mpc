@@ -13,7 +13,6 @@ use ark_std::UniformRand;
 use ark_std::{One, Zero};
 use core::panic;
 use mpc_algebra::encryption::elgamal::elgamal::Parameters;
-use mpc_algebra::malicious_majority::*;
 use mpc_algebra::BooleanWire;
 use mpc_algebra::CommitmentScheme;
 use mpc_algebra::EqualityZero;
@@ -32,6 +31,7 @@ use zk_mpc::circuits::{
     AnonymousVotingCircuit, DivinationCircuit, ElGamalLocalOrMPC, KeyPublicizeCircuit,
     RoleAssignmentCircuit, WinningJudgeCircuit,
 };
+use zk_mpc::field::*;
 use zk_mpc::input::InputWithCommit;
 use zk_mpc::input::MpcInputTrait;
 use zk_mpc::input::WerewolfKeyInput;

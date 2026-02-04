@@ -25,11 +25,11 @@ use mpc_algebra::{
     MpcEqGadget, MpcFpVar, MpcToBitsGadget, Reveal,
 };
 
+use crate::field::*;
+
 use serde::{de::DeserializeOwned, Serialize};
 
 use nalgebra as na;
-
-use mpc_algebra::malicious_majority as mm;
 
 use mpc_algebra::encryption::constraints::AsymmetricEncryptionGadget;
 use mpc_algebra::encryption::elgamal::{
@@ -438,10 +438,10 @@ impl ConstraintSynthesizer<Fr> for DivinationCircuit<Fr> {
 //     }
 // }
 
-impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<Fr>> {
+impl ConstraintSynthesizer<MpcField<Fr>> for DivinationCircuit<MpcField<Fr>> {
     fn generate_constraints(
         self,
-        cs: ConstraintSystemRef<mm::MpcField<Fr>>,
+        cs: ConstraintSystemRef<MpcField<Fr>>,
     ) -> Result<(), SynthesisError> {
         let common_input = self.clone().mpc_input.common.unwrap();
         let peculiar_input = self.clone().mpc_input.peculiar.unwrap();
@@ -474,34 +474,33 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
 
         let is_target_werewolf_bit = MpcBoolean::kary_or(is_wt.as_slice())?;
 
-        let one_point =
-            <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::EdwardsVar::new_witness(
-                ark_relations::ns!(cs, "gadget_randomness"),
-                || {
-                    Ok(<mm::MpcField<Fr> as ElGamalLocalOrMPC<
-                        mm::MpcField<Fr>,
+        let one_point = <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::EdwardsVar::new_witness(
+            ark_relations::ns!(cs, "gadget_randomness"),
+            || {
+                Ok(<MpcField<Fr> as ElGamalLocalOrMPC<
+                        MpcField<Fr>,
                     >>::ElGamalPlaintext::prime_subgroup_generator(
                     ))
-                },
-            )?;
+            },
+        )?;
 
         let zero_point =
-            <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::EdwardsVar::new_witness(
+            <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::EdwardsVar::new_witness(
                 ark_relations::ns!(cs, "gadget_randomness"),
                 || {
-                    Ok(<mm::MpcField<Fr> as ElGamalLocalOrMPC<
-                        mm::MpcField<Fr>,
+                    Ok(<MpcField<Fr> as ElGamalLocalOrMPC<
+                        MpcField<Fr>,
                     >>::ElGamalPlaintext::default())
                 },
             )?;
 
         let is_target_werewolf =
-            mm::MpcField::<Fr>::select(&is_target_werewolf_bit, &one_point, &zero_point)?;
+            MpcField::<Fr>::select(&is_target_werewolf_bit, &one_point, &zero_point)?;
 
         // elgamal encryption
 
         let param_var =
-            <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalParamVar::new_input(
+            <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::ElGamalParamVar::new_input(
                 ark_relations::ns!(cs, "gadget_parameters"),
                 || Ok(common_input.elgamal_param.clone()),
             )?;
@@ -510,10 +509,11 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
             MpcBoolean::new_witness_vec(cs.clone(), &peculiar_input.randomness_bit)?;
 
         // allocate public key
-        let pub_key_var = <mm::MpcField<Fr>as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalPublicKeyVar::new_input(
-            ark_relations::ns!(cs, "gadget_public_key"),
-            || Ok(common_input.pub_key),
-        )?;
+        let pub_key_var =
+            <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::ElGamalPublicKeyVar::new_input(
+                ark_relations::ns!(cs, "gadget_public_key"),
+                || Ok(common_input.pub_key),
+            )?;
 
         // allocate the output
         let enc_result_var = {
@@ -521,51 +521,51 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for DivinationCircuit<mm::MpcField<
             let randomness = randomness_bits_var;
 
             // compute s = randomness*pk
-            let s = mm::MpcField::<Fr>::get_public_key(&pub_key_var)
+            let s = MpcField::<Fr>::get_public_key(&pub_key_var)
                 .clone()
                 .scalar_mul_le(randomness.iter())?;
 
             // compute c1 = randomness*generator
-            let c1 = mm::MpcField::<Fr>::get_generator(&param_var)
+            let c1 = MpcField::<Fr>::get_generator(&param_var)
                 .clone()
                 .scalar_mul_le(randomness.iter())?;
 
             // compute c2 = m + s
             let c2 = is_target_werewolf.clone() + s;
 
-            <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalCiphertextVar::new(
-                c1, c2,
-            )
+            <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::ElGamalCiphertextVar::new(c1, c2)
         };
 
         // compare
-        let enc_result_var2 = <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalCiphertextVar::new_input(
-            ark_relations::ns!(cs, "gadget_commitment"),
-            || {
-                let is_werewolf: mm::MpcField<Fr> = peculiar_input
-                    .is_werewolf
-                    .iter()
-                    .zip(peculiar_input.is_target.iter())
-                    .map(|(x, y)| x.input * y.input)
-                    .sum();
+        let enc_result_var2 =
+            <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::ElGamalCiphertextVar::new_input(
+                ark_relations::ns!(cs, "gadget_commitment"),
+                || {
+                    let is_werewolf: MpcField<Fr> = peculiar_input
+                        .is_werewolf
+                        .iter()
+                        .zip(peculiar_input.is_target.iter())
+                        .map(|(x, y)| x.input * y.input)
+                        .sum();
 
-                let message = match is_werewolf.clone().sync_reveal().is_one() {
+                    let message = match is_werewolf.clone().sync_reveal().is_one() {
                     true => {
-                        <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalPlaintext::prime_subgroup_generator(
+                        <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::ElGamalPlaintext::prime_subgroup_generator(
                         )
                     }
-                    false => <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalPlaintext::default(),
+                    false => <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::ElGamalPlaintext::default(),
                 };
-                let enc_result = <mm::MpcField<Fr> as ElGamalLocalOrMPC<mm::MpcField<Fr>>>::ElGamalScheme::encrypt(
-                    &common_input.elgamal_param,
-                    &common_input.pub_key,
-                    &message,
-                    &peculiar_input.randomness,
-                )
-                .unwrap();
-                Ok(enc_result)
-            },
-        )?;
+                    let enc_result =
+                        <MpcField<Fr> as ElGamalLocalOrMPC<MpcField<Fr>>>::ElGamalScheme::encrypt(
+                            &common_input.elgamal_param,
+                            &common_input.pub_key,
+                            &message,
+                            &peculiar_input.randomness,
+                        )
+                        .unwrap();
+                    Ok(enc_result)
+                },
+            )?;
 
         enc_result_var.enforce_equal(&enc_result_var2)?;
 
@@ -612,12 +612,12 @@ impl AnonymousVotingCircuit<Fr> {
     }
 }
 
-impl AnonymousVotingCircuit<mm::MpcField<Fr>> {
-    pub fn calculate_output(&self) -> mm::MpcField<Fr> {
+impl AnonymousVotingCircuit<MpcField<Fr>> {
+    pub fn calculate_output(&self) -> MpcField<Fr> {
         let player_num = self.player_randomness.len();
         let alive_player_num = self.is_target_id.len();
 
-        let mut num_voted = vec![mm::MpcField::<Fr>::zero(); player_num];
+        let mut num_voted = vec![MpcField::<Fr>::zero(); player_num];
 
         for i in 0..player_num {
             for j in 0..alive_player_num {
@@ -625,14 +625,14 @@ impl AnonymousVotingCircuit<mm::MpcField<Fr>> {
             }
         }
 
-        let mut most_voted_id = mm::MpcField::<Fr>::zero();
-        let mut max_votes = mm::MpcField::<Fr>::zero();
+        let mut most_voted_id = MpcField::<Fr>::zero();
+        let mut max_votes = MpcField::<Fr>::zero();
 
         for i in 0..player_num {
             max_votes +=
                 (num_voted[i] - max_votes) * max_votes.sync_is_smaller_than(&num_voted[i]).field();
 
-            most_voted_id += (mm::MpcField::<Fr>::from(i as u32) - most_voted_id)
+            most_voted_id += (MpcField::<Fr>::from(i as u32) - most_voted_id)
                 * max_votes.sync_is_smaller_than(&num_voted[i]).field();
         }
         most_voted_id
@@ -716,10 +716,10 @@ impl ConstraintSynthesizer<Fr> for AnonymousVotingCircuit<Fr> {
     }
 }
 
-impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcField<Fr>> {
+impl ConstraintSynthesizer<MpcField<Fr>> for AnonymousVotingCircuit<MpcField<Fr>> {
     fn generate_constraints(
         self,
-        cs: ConstraintSystemRef<mm::MpcField<Fr>>,
+        cs: ConstraintSystemRef<MpcField<Fr>>,
     ) -> ark_relations::r1cs::Result<()> {
         // initialize
         let player_num = self.player_randomness.len();
@@ -730,9 +730,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
             let pedersen_circuit = PedersenComCircuit {
                 param: Some(self.pedersen_param.clone()),
                 input: self.player_randomness[i],
-                open:
-                    <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::PedersenRandomness::default(
-                    ),
+                open: <MpcField<Fr> as LocalOrMPC<MpcField<Fr>>>::PedersenRandomness::default(),
                 commit: self.player_commitment[i],
             };
             pedersen_circuit.generate_constraints(cs.clone())?;
@@ -754,10 +752,8 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
         let mut num_voted_var = Vec::new();
 
         for i in 0..player_num {
-            let mut each_num_voted = <MpcFpVar<mm::MpcField<Fr>> as MpcFieldVar<
-                mm::MpcField<Fr>,
-                mm::MpcField<Fr>,
-            >>::zero();
+            let mut each_num_voted =
+                <MpcFpVar<MpcField<Fr>> as MpcFieldVar<MpcField<Fr>, MpcField<Fr>>>::zero();
 
             for j in 0..alive_player_num {
                 each_num_voted += is_target_id_var[j][i].clone();
@@ -768,7 +764,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
 
         let constant = (0..4)
             .map(|i| {
-                MpcFpVar::Constant(mm::MpcField::<Fr>::king_share(
+                MpcFpVar::Constant(MpcField::<Fr>::king_share(
                     Fr::from(i as i32),
                     &mut test_rng(),
                 ))
@@ -776,9 +772,8 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
             .collect::<Vec<_>>();
 
         let mut calced_is_most_voted_id = MpcFpVar::new_witness(cs.clone(), || {
-            Ok(mm::MpcField::<Fr>::king_share(Fr::zero(), &mut test_rng()))
+            Ok(MpcField::<Fr>::king_share(Fr::zero(), &mut test_rng()))
         })?;
-
         for i in 0..player_num {
             let a_now = MpcFpVar::conditionally_select_power_of_two_vector(
                 &calced_is_most_voted_id.to_bits_le().unwrap()[..2],
@@ -794,7 +789,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for AnonymousVotingCircuit<mm::MpcF
             )?;
 
             let false_value = MpcFpVar::new_witness(cs.clone(), || {
-                Ok(mm::MpcField::<Fr>::king_share(
+                Ok(MpcField::<Fr>::king_share(
                     Fr::from(i as i32),
                     &mut test_rng(),
                 ))
@@ -893,11 +888,11 @@ impl ConstraintSynthesizer<Fr> for WinningJudgeCircuit<Fr> {
     }
 }
 
-impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcField<Fr>> {
+impl ConstraintSynthesizer<MpcField<Fr>> for WinningJudgeCircuit<MpcField<Fr>> {
     fn generate_constraints(
         self,
 
-        cs: ConstraintSystemRef<mm::MpcField<Fr>>,
+        cs: ConstraintSystemRef<MpcField<Fr>>,
     ) -> ark_relations::r1cs::Result<()> {
         // check player commitment
         let player_num = self.player_randomness.len();
@@ -905,9 +900,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
             let pedersen_circuit = PedersenComCircuit {
                 param: Some(self.pedersen_param.clone()),
                 input: self.player_randomness[i],
-                open:
-                    <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::PedersenRandomness::default(
-                    ),
+                open: <MpcField<Fr> as LocalOrMPC<MpcField<Fr>>>::PedersenRandomness::default(),
                 commit: self.player_commitment[i],
             };
             pedersen_circuit.generate_constraints(cs.clone())?;
@@ -925,23 +918,23 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for WinningJudgeCircuit<mm::MpcFiel
         let game_state_var = MpcFpVar::new_input(cs.clone(), || Ok(self.game_state))?;
 
         // calculate
-        let num_werewolf_var = am_werewolf_var.iter().fold(
-            <MpcFpVar<mm::MpcField<Fr>> as Zero>::zero(),
-            |mut acc, x| {
-                acc += x;
-                acc
-            },
-        );
+        let num_werewolf_var =
+            am_werewolf_var
+                .iter()
+                .fold(<MpcFpVar<MpcField<Fr>> as Zero>::zero(), |mut acc, x| {
+                    acc += x;
+                    acc
+                });
 
         let num_citizen_var = num_alive_var - &num_werewolf_var;
 
         let calced_game_state_var = MpcFpVar::conditionally_select(
             &num_werewolf_var.is_zero()?,
-            &MpcFpVar::constant(mm::MpcField::<Fr>::from(2_u32)), // villager win
+            &MpcFpVar::constant(MpcField::<Fr>::from(2_u32)), // villager win
             &MpcFpVar::conditionally_select(
                 &num_werewolf_var.is_cmp(&num_citizen_var, std::cmp::Ordering::Less, false)?,
-                &MpcFpVar::constant(mm::MpcField::<Fr>::from(3_u32)), // game continues
-                &MpcFpVar::constant(mm::MpcField::<Fr>::from(1_u32)), //werewol fwin
+                &MpcFpVar::constant(MpcField::<Fr>::from(3_u32)), // game continues
+                &MpcFpVar::constant(MpcField::<Fr>::from(1_u32)), //werewol fwin
             )?,
         )?;
 
@@ -1110,10 +1103,10 @@ impl ConstraintSynthesizer<Fr> for RoleAssignmentCircuit<Fr> {
     }
 }
 
-impl ConstraintSynthesizer<mm::MpcField<Fr>> for RoleAssignmentCircuit<mm::MpcField<Fr>> {
+impl ConstraintSynthesizer<MpcField<Fr>> for RoleAssignmentCircuit<MpcField<Fr>> {
     fn generate_constraints(
         self,
-        cs: ConstraintSystemRef<mm::MpcField<Fr>>,
+        cs: ConstraintSystemRef<MpcField<Fr>>,
     ) -> ark_relations::r1cs::Result<()> {
         // check player commitment
         assert_eq!(self.num_players, self.player_randomness.len());
@@ -1122,9 +1115,7 @@ impl ConstraintSynthesizer<mm::MpcField<Fr>> for RoleAssignmentCircuit<mm::MpcFi
             let pedersen_circuit = PedersenComCircuit {
                 param: Some(self.pedersen_param.clone()),
                 input: self.player_randomness[i],
-                open:
-                    <mm::MpcField<Fr> as LocalOrMPC<mm::MpcField<Fr>>>::PedersenRandomness::default(
-                    ),
+                open: <MpcField<Fr> as LocalOrMPC<MpcField<Fr>>>::PedersenRandomness::default(),
                 commit: self.player_commitment[i],
             };
             pedersen_circuit.generate_constraints(cs.clone())?;
@@ -1426,10 +1417,10 @@ impl ElGamalLocalOrMPC<Fr> for Fr {
 //     }
 // }
 
-impl ElGamalLocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
-    type JubJub = mm::MpcEdwardsProjective;
+impl ElGamalLocalOrMPC<MpcField<Fr>> for MpcField<Fr> {
+    type JubJub = MpcEdwardsProjective;
 
-    type ElGamalScheme = MpcElGamal<mm::MpcEdwardsProjective>;
+    type ElGamalScheme = MpcElGamal<MpcEdwardsProjective>;
     type ElGamalParam = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Parameters;
     type ElGamalPubKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::PublicKey;
     type ElGamalSecretKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::SecretKey;
@@ -1437,29 +1428,28 @@ impl ElGamalLocalOrMPC<mm::MpcField<Fr>> for mm::MpcField<Fr> {
     type ElGamalPlaintext = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Plaintext;
     type ElGamalCiphertext = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Ciphertext;
 
-    type EdwardsVar = mm::MpcEdwardsVar;
-    type BooleanVar = MpcBoolean<mm::MpcField<Fr>>;
-
-    type ElGamalGadget = MpcElGamalEncGadget<mm::MpcEdwardsProjective, mm::MpcEdwardsVar>;
+    type EdwardsVar = MpcEdwardsVar;
+    type BooleanVar = MpcBoolean<MpcField<Fr>>;
+    type ElGamalGadget = MpcElGamalEncGadget<MpcEdwardsProjective, MpcEdwardsVar>;
     type ElGamalParamVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        mm::MpcField<Fr>,
+        MpcField<Fr>,
     >>::ParametersVar;
     type ElGamalRandomnessVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        mm::MpcField<Fr>,
+        MpcField<Fr>,
     >>::RandomnessVar;
     type ElGamalPublicKeyVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        mm::MpcField<Fr>,
+        MpcField<Fr>,
     >>::PublicKeyVar;
     type ElGamalPlaintextVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        mm::MpcField<Fr>,
+        MpcField<Fr>,
     >>::PlaintextVar;
     type ElGamalCiphertextVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        mm::MpcField<Fr>,
+        MpcField<Fr>,
     >>::OutputVar;
 
     fn get_generator(a: &Self::ElGamalParamVar) -> Self::EdwardsVar {

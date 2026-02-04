@@ -1,18 +1,6 @@
 #![allow(dead_code)]
 
-mod algebra;
-mod circuits;
-// mod groth16;
-mod input;
-// mod marlin;
-mod preprocessing;
-mod serialize;
-mod she;
-
-pub mod field {
-    // pub use mpc_algebra::honest_but_curious::*;
-    pub use mpc_algebra::malicious_majority::*;
-}
+use zk_mpc::field::*;
 
 use ark_bls12_377::{Bls12_377, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;
@@ -32,8 +20,8 @@ use std::io::Write as Otherwrite;
 
 use structopt::StructOpt;
 
-use crate::circuits::*;
-use crate::serialize::{write_r, write_to_file};
+use zk_mpc::circuits::*;
+use zk_mpc::serialize::{write_r, write_to_file};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
@@ -108,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // preprocessing
     let mut rng = rand::thread_rng();
     // // initialize phase
-    let zkpopk_parameters = preprocessing::zkpopk::Parameters::new(
+    let zkpopk_parameters = zk_mpc::preprocessing::zkpopk::Parameters::new(
         1,
         3,
         std::convert::Into::<num_bigint::BigUint>::into(FrParameters::MODULUS) / 2_u32,
@@ -117,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         2,
     );
 
-    let she_parameters = she::SHEParameters::new(
+    let she_parameters = zk_mpc::she::SHEParameters::new(
         zkpopk_parameters.get_n(),
         zkpopk_parameters.get_n(),
         FrParameters::MODULUS.into(),
@@ -125,20 +113,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         3.2,
     );
 
-    let _bracket_diag_alpha = preprocessing::initialize(&zkpopk_parameters, &she_parameters);
+    let _bracket_diag_alpha =
+        zk_mpc::preprocessing::initialize(&zkpopk_parameters, &she_parameters);
 
     // // pair phase
-    let sk = she::SecretKey::generate(&she_parameters, &mut rng);
+    let sk = zk_mpc::she::SecretKey::generate(&she_parameters, &mut rng);
     let pk = sk.public_key_gen(&she_parameters, &mut rng);
 
-    let e_alpha = she::Ciphertext::rand(&pk, &mut rng, &she_parameters);
+    let e_alpha = zk_mpc::she::Ciphertext::rand(&pk, &mut rng, &she_parameters);
 
     let (r_bracket, r_angle) =
-        preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
+        zk_mpc::preprocessing::pair(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
     // // triple phase
     let (_a_angle, _b_angle, _c_angle) =
-        preprocessing::triple(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
+        zk_mpc::preprocessing::triple(&e_alpha, &pk, &sk, &zkpopk_parameters, &she_parameters);
 
     // make share, prove and verify
     // // generate the setup parameters
