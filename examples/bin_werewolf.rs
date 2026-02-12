@@ -1068,14 +1068,15 @@ mod tests {
 
         let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
-        let deserialized_sk = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
-            <<ark_ec::twisted_edwards_extended::GroupProjective<
-                ark_ed_on_bn254::EdwardsParameters,
-            > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
-                reader,
-            )
-            .unwrap(),
-        );
+        let deserialized_sk =
+            <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
+                <<ark_ec::twisted_edwards_extended::GroupProjective<
+                    ark_ed_on_bn254::EdwardsParameters,
+                > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
+                    reader,
+                )
+                .unwrap(),
+            );
 
         // loading elgamal param
         let file_path = format!("./werewolf_game/elgamal_param.json");

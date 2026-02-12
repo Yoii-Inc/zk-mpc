@@ -13,8 +13,7 @@ use mpc_trait::MpcWire;
 use crate::{
     groups::{GroupOpsBounds, MpcCurveVar},
     mpc_fields::FieldOpsBounds,
-    r1cs_helper::mpc_fields::MpcFieldVar,
-    APShare, FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget, Reveal,
+    r1cs_helper::mpc_fields::MpcFieldVar, FieldShare, MpcBoolean, MpcCondSelectGadget, MpcTwoBitLookupGadget, Reveal,
 };
 
 use crate::MpcGroupProjectiveVariant;
@@ -26,12 +25,10 @@ use ark_r1cs_std::{prelude::*, ToConstraintFieldGadget};
 use ark_r1cs_std::fields::fp::FpVar;
 
 use core::{borrow::Borrow, marker::PhantomData};
-use std::ops::Add;
 
 use crate::wire::MpcGroupAffine as MpcTEAffine;
 use crate::wire::MpcGroupProjective as MpcTEProjective;
 
-use crate::share::pairing::AffProjShare;
 
 // use crate::field::*;
 use crate::honest_but_curious::AffProjShare as AdditiveAffProjShare;
