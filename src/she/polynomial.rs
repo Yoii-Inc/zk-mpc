@@ -177,7 +177,7 @@ mod tests {
 
     use super::*;
     use crate::she::SHEParameters;
-    use ark_bls12_377::{Fr, FrParameters};
+    use ark_bn254::{Fr, FrParameters};
     use ark_mnt4_753::FqParameters;
 
     #[test]

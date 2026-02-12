@@ -153,6 +153,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-bn254"
+version = "0.3.0"
+dependencies = [
+ "ark-algebra-test-templates",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+]
+
+[[package]]
 name = "ark-cp6-782"
 version = "0.3.0"
 dependencies = [
@@ -231,22 +245,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-ed-on-bls12-377"
-version = "0.3.0"
-dependencies = [
- "ark-algebra-test-templates",
- "ark-bls12-377",
- "ark-curve-constraint-tests",
- "ark-ec 0.3.0",
- "ark-ff 0.3.0",
- "ark-r1cs-std 0.3.0",
- "ark-relations 0.3.0",
- "ark-serialize 0.3.0",
- "ark-std 0.3.0",
- "serde",
-]
-
-[[package]]
 name = "ark-ed-on-bls12-381"
 version = "0.3.0"
 dependencies = [
@@ -259,6 +257,22 @@ dependencies = [
  "ark-relations 0.3.0",
  "ark-serialize 0.3.0",
  "ark-std 0.3.0",
+]
+
+[[package]]
+name = "ark-ed-on-bn254"
+version = "0.3.0"
+dependencies = [
+ "ark-algebra-test-templates",
+ "ark-bn254",
+ "ark-curve-constraint-tests",
+ "ark-ec 0.3.0",
+ "ark-ff 0.3.0",
+ "ark-r1cs-std 0.3.0",
+ "ark-relations 0.3.0",
+ "ark-serialize 0.3.0",
+ "ark-std 0.3.0",
+ "serde",
 ]
 
 [[package]]
@@ -1432,10 +1446,10 @@ dependencies = [
 name = "mpc-algebra"
 version = "0.1.0"
 dependencies = [
- "ark-bls12-377",
+ "ark-bn254",
  "ark-crypto-primitives",
  "ark-ec 0.3.0",
- "ark-ed-on-bls12-377",
+ "ark-ed-on-bn254",
  "ark-ff 0.3.0",
  "ark-poly",
  "ark-r1cs-std 0.3.0",
@@ -2527,10 +2541,10 @@ dependencies = [
 name = "zk-mpc"
 version = "0.1.0"
 dependencies = [
- "ark-bls12-377",
+ "ark-bn254",
  "ark-crypto-primitives",
  "ark-ec 0.3.0",
- "ark-ed-on-bls12-377",
+ "ark-ed-on-bn254",
  "ark-ff 0.3.0",
  "ark-groth16",
  "ark-marlin",

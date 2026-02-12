@@ -1,4 +1,4 @@
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use ark_std::test_rng;
 use rand::thread_rng;
 use rand::{rngs::StdRng, seq::SliceRandom};

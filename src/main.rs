@@ -2,7 +2,7 @@
 
 use zk_mpc::field::*;
 
-use ark_bls12_377::{Bls12_377, Fr, FrParameters};
+use ark_bn254::{Bn254, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;
 use ark_ff::{BigInteger, FpParameters, PrimeField};
 use ark_groth16::Groth16;
@@ -45,7 +45,7 @@ enum ZkSnark {
     Marlin,
 }
 
-pub type MarlinLocal = Marlin<Fr, MarlinKZG10<Bls12_377, DensePolynomial<Fr>>, Blake2s>;
+pub type MarlinLocal = Marlin<Fr, MarlinKZG10<Bn254, DensePolynomial<Fr>>, Blake2s>;
 
 fn which_zksnark(zksnark: &str) -> Result<ZkSnark, std::io::Error> {
     match zksnark {
@@ -167,13 +167,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match zksnark {
         ZkSnark::Groth16 => {
             let (circuit_pk, circuit_vk) =
-                Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
+                Groth16::<Bn254>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
 
             // // calculate the proof by passing witness variable value
-            let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit, &mut rng).unwrap();
+            let proof = Groth16::<Bn254>::prove(&circuit_pk, circuit, &mut rng).unwrap();
 
             // // validate the proof
-            assert!(Groth16::<Bls12_377>::verify(
+            assert!(Groth16::<Bn254>::verify(
                 &circuit_vk,
                 &[lower_bound, upper_bound, h_x.x, h_x.y],
                 &proof

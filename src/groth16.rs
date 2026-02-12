@@ -340,7 +340,7 @@ pub async fn mpc_test_prove_and_verify<E: PairingEngine, S: PairingShare<E>>(n_i
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_377::{Bls12_377, Fr};
+    use ark_bn254::{Bn254, Fr};
     use ark_groth16::Groth16;
     use ark_snark::SNARK;
     use ark_std::UniformRand;
@@ -367,12 +367,12 @@ mod tests {
         };
 
         let (circuit_pk, circuit_vk) =
-            Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
+            Groth16::<Bn254>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
 
-        let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit.clone(), &mut rng).unwrap();
+        let proof = Groth16::<Bn254>::prove(&circuit_pk, circuit.clone(), &mut rng).unwrap();
 
-        assert!(Groth16::<Bls12_377>::verify(&circuit_vk, &[c], &proof).unwrap());
-        assert!(!Groth16::<Bls12_377>::verify(&circuit_vk, &[a], &proof).unwrap());
+        assert!(Groth16::<Bn254>::verify(&circuit_vk, &[c], &proof).unwrap());
+        assert!(!Groth16::<Bn254>::verify(&circuit_vk, &[a], &proof).unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -383,8 +383,8 @@ mod tests {
         testnet
             .simulate_network_round((), |_, _| async move {
                 mpc_test_prove_and_verify::<
-                    ark_bls12_377::Bls12_377,
-                    mpc_algebra::AdditivePairingShare<ark_bls12_377::Bls12_377>,
+                    ark_bn254::Bn254,
+                    mpc_algebra::AdditivePairingShare<ark_bn254::Bn254>,
                 >(1)
                 .await
             })

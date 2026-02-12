@@ -2,7 +2,7 @@ use ark_ec::{
     twisted_edwards_extended::{GroupAffine, GroupProjective},
     ModelParameters, MontgomeryModelParameters, TEModelParameters,
 };
-use ark_ed_on_bls12_377::{EdwardsParameters, EdwardsProjective};
+use ark_ed_on_bn254::{EdwardsParameters, EdwardsProjective};
 use ark_ff::{field_new, BigInteger256, Field};
 use ark_r1cs_std::{fields::fp::FpVar, groups::curves::twisted_edwards::AffineVar};
 
@@ -16,11 +16,11 @@ use mpc_trait::MpcWire;
 use crate::{channel::MpcSerNet, SpdzFieldShare};
 use crate::{AdditiveFieldShare, MpcField, Reveal};
 
-type AdditiveFq = MpcField<ark_bls12_377::Fr, AdditiveFieldShare<ark_bls12_377::Fr>>;
-type AdditiveFr = MpcField<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>;
+type AdditiveFq = MpcField<ark_bn254::Fr, AdditiveFieldShare<ark_bn254::Fr>>;
+type AdditiveFr = MpcField<ark_ed_on_bn254::Fr, AdditiveFieldShare<ark_ed_on_bn254::Fr>>;
 
-type SpdzFq = MpcField<ark_bls12_377::Fr, SpdzFieldShare<ark_bls12_377::Fr>>;
-type SpdzFr = MpcField<ark_ed_on_bls12_377::Fr, SpdzFieldShare<ark_ed_on_bls12_377::Fr>>;
+type SpdzFq = MpcField<ark_bn254::Fr, SpdzFieldShare<ark_bn254::Fr>>;
+type SpdzFr = MpcField<ark_ed_on_bn254::Fr, SpdzFieldShare<ark_ed_on_bn254::Fr>>;
 
 impl From<AdditiveFr> for BigInteger256 {
     fn from(f: AdditiveFr) -> Self {
@@ -118,7 +118,7 @@ impl AdditiveFr {
         modulus: BigInteger256,
         inv: u64,
     ) -> Self {
-        let val = ark_ed_on_bls12_377::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
+        let val = ark_ed_on_bn254::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
         Self::Public(val)
     }
 }
@@ -136,7 +136,7 @@ impl AdditiveFq {
         modulus: BigInteger256,
         inv: u64,
     ) -> Self {
-        let val = ark_bls12_377::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
+        let val = ark_bn254::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
         Self::Public(val)
     }
 }
@@ -213,7 +213,7 @@ impl SpdzFr {
         modulus: BigInteger256,
         inv: u64,
     ) -> Self {
-        let val = ark_ed_on_bls12_377::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
+        let val = ark_ed_on_bn254::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
         Self::Public(val)
     }
 }
@@ -231,7 +231,7 @@ impl SpdzFq {
         modulus: BigInteger256,
         inv: u64,
     ) -> Self {
-        let val = ark_bls12_377::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
+        let val = ark_bn254::Fr::const_from_str(limbs, is_positive, r2, modulus, inv);
         Self::Public(val)
     }
 }
@@ -259,8 +259,8 @@ pub trait FromLocal {
 macro_rules! impl_edwards_related {
     ($param:ident) => {
         impl ToLocal for GroupProjective<$param> {
-            type Local = GroupProjective<ark_ed_on_bls12_377::EdwardsParameters>;
-            fn to_local(&self) -> GroupProjective<ark_ed_on_bls12_377::EdwardsParameters> {
+            type Local = GroupProjective<ark_ed_on_bn254::EdwardsParameters>;
+            fn to_local(&self) -> GroupProjective<ark_ed_on_bn254::EdwardsParameters> {
                 let x = self.x.unwrap_as_public();
                 let y = self.y.unwrap_as_public();
                 let t = self.t.unwrap_as_public();
@@ -270,7 +270,7 @@ macro_rules! impl_edwards_related {
         }
 
         impl ToLocal for Parameters<GroupProjective<$param>> {
-            type Local = Parameters<ark_ed_on_bls12_377::EdwardsProjective>;
+            type Local = Parameters<ark_ed_on_bn254::EdwardsProjective>;
 
             fn to_local(&self) -> Self::Local {
                 let randomness_generator = self

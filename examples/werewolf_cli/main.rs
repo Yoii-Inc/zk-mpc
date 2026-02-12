@@ -1,4 +1,4 @@
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use ark_std::test_rng;
 use game::{player::Player, Game, GameRules};
 use mpc_algebra::channel::MpcSerNet;

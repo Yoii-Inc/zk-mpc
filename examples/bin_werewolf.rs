@@ -1,4 +1,4 @@
-use ark_bls12_377::{Fr, FrParameters};
+use ark_bn254::{Fr, FrParameters};
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;
 use ark_ec::AffineCurve;
 use ark_ff::BigInteger;
@@ -661,7 +661,7 @@ async fn multi_divination() -> Result<(), std::io::Error> {
     let deserialized_sk =
         <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
             <<ark_ec::twisted_edwards_extended::GroupProjective<
-                ark_ed_on_bls12_377::EdwardsParameters,
+                ark_ed_on_bn254::EdwardsParameters,
             > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
                 reader,
             )
@@ -919,7 +919,7 @@ async fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
 
 #[derive(Debug, Deserialize)]
 struct ElGamalPubKey {
-    // public_key: GroupAffine<ark_ed_on_bls12_377::EdwardsParameters>,
+    // public_key: GroupAffine<ark_ed_on_bn254::EdwardsParameters>,
     public_key: String,
 }
 
@@ -956,7 +956,7 @@ fn get_elgamal_param_pubkey() -> (
     let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
     let deserialized_pk = <ark_ec::twisted_edwards_extended::GroupAffine<
-        ark_ed_on_bls12_377::EdwardsParameters,
+        ark_ed_on_bn254::EdwardsParameters,
     > as CanonicalDeserialize>::deserialize(reader)
     .unwrap();
 
@@ -982,7 +982,7 @@ fn get_elgamal_param_pubkey() -> (
     let _deserialized_sk =
         <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
             <<ark_ec::twisted_edwards_extended::GroupProjective<
-                ark_ed_on_bls12_377::EdwardsParameters,
+                ark_ed_on_bn254::EdwardsParameters,
             > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
                 reader,
             )
@@ -1007,7 +1007,7 @@ fn get_elgamal_param_pubkey() -> (
     let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
     let deserialized_elgamal_param = <ark_ec::twisted_edwards_extended::GroupAffine<
-        ark_ed_on_bls12_377::EdwardsParameters,
+        ark_ed_on_bn254::EdwardsParameters,
     > as CanonicalDeserialize>::deserialize(reader)
     .unwrap();
 
@@ -1045,7 +1045,7 @@ mod tests {
         let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
         let deserialized_pk = <ark_ec::twisted_edwards_extended::GroupAffine<
-            ark_ed_on_bls12_377::EdwardsParameters,
+            ark_ed_on_bn254::EdwardsParameters,
         > as CanonicalDeserialize>::deserialize(reader)
         .unwrap();
 
@@ -1070,7 +1070,7 @@ mod tests {
 
         let deserialized_sk = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalSecretKey::new(
             <<ark_ec::twisted_edwards_extended::GroupProjective<
-                ark_ed_on_bls12_377::EdwardsParameters,
+                ark_ed_on_bn254::EdwardsParameters,
             > as ark_ec::ProjectiveCurve>::ScalarField as CanonicalDeserialize>::deserialize(
                 reader,
             )
@@ -1095,7 +1095,7 @@ mod tests {
         let reader: &[u8] = &hex::decode(remove_prefix_string).unwrap();
 
         let deserialized_elgamal_param = <ark_ec::twisted_edwards_extended::GroupAffine<
-            ark_ed_on_bls12_377::EdwardsParameters,
+            ark_ed_on_bn254::EdwardsParameters,
         > as CanonicalDeserialize>::deserialize(reader)
         .unwrap();
 
@@ -1104,7 +1104,7 @@ mod tests {
 
         let rng = &mut test_rng();
 
-        let a = GroupAffine::<ark_ed_on_bls12_377::EdwardsParameters>::rand(rng);
+        let a = GroupAffine::<ark_ed_on_bn254::EdwardsParameters>::rand(rng);
 
         let randomness = <Fr as ElGamalLocalOrMPC<Fr>>::ElGamalRandomness::rand(rng);
 

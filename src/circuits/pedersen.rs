@@ -1,4 +1,4 @@
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use ark_crypto_primitives::{
     commitment::{
         pedersen::{constraints::CommGadget, Commitment, Parameters, Randomness},
@@ -8,7 +8,7 @@ use ark_crypto_primitives::{
     CommitmentScheme,
 };
 use ark_ec::ProjectiveCurve;
-use ark_ed_on_bls12_377::{constraints::EdwardsVar, EdwardsParameters};
+use ark_ed_on_bn254::{constraints::EdwardsVar, EdwardsParameters};
 use ark_ff::bytes::ToBytes;
 use ark_ff::PrimeField;
 use ark_r1cs_std::boolean::AllocatedBool;
@@ -52,7 +52,7 @@ pub trait LocalOrMPC<ConstraintF: PrimeField> {
 }
 
 impl LocalOrMPC<Fr> for Fr {
-    type JubJub = ark_ed_on_bls12_377::EdwardsProjective;
+    type JubJub = ark_ed_on_bn254::EdwardsProjective;
 
     type PedersenComScheme = Commitment<Self::JubJub, Window>;
     type PedersenCommitment = <Self::PedersenComScheme as CommitmentScheme>::Output;

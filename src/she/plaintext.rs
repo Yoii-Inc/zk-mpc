@@ -32,7 +32,7 @@ impl Plaintexts {
         // TODO: make this more general
         // currently:
         // Lower Bound > maximum value of possible secret input (approximately 10,000 in this case) * number of participants
-        // Upper Bound * number of participants < period of the ScalarField of edwards_bls12_377 (≒10^75)
+        // Upper Bound * number of participants < period of the ScalarField of edwards_bn254 (≒10^75)
         let upper_bound = 1000000000;
         let lower_bound = 100000;
 

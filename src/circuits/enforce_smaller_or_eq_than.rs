@@ -6,7 +6,7 @@ use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisE
 use crate::field::*;
 use mpc_algebra::MpcBoolean;
 
-type Fr = ark_bls12_377::Fr;
+type Fr = ark_bn254::Fr;
 type MFr = MpcField<Fr>;
 
 pub struct SmallerEqThanCircuit<F: PrimeField> {

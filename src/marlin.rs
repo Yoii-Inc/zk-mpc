@@ -60,8 +60,8 @@ pub async fn prove_and_verify<C: ConstraintSynthesizer<MFr>>(
 }
 
 async fn prover_message_publicize(
-    p: ProverMsg<MpcField<ark_bls12_377::Fr>>,
-) -> ProverMsg<ark_bls12_377::Fr> {
+    p: ProverMsg<MpcField<ark_bn254::Fr>>,
+) -> ProverMsg<ark_bn254::Fr> {
     match p {
         ProverMsg::EmptyMessage => ProverMsg::EmptyMessage,
         ProverMsg::FieldElements(d) => {
@@ -85,14 +85,14 @@ async fn comm_publicize(
 }
 
 async fn commit_from_mpc<'a>(
-    p: ark_poly_commit::kzg10::Commitment<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
-) -> ark_poly_commit::kzg10::Commitment<ark_bls12_377::Bls12_377> {
+    p: ark_poly_commit::kzg10::Commitment<MpcPairingEngine<ark_bn254::Bn254>>,
+) -> ark_poly_commit::kzg10::Commitment<ark_bn254::Bn254> {
     ark_poly_commit::kzg10::Commitment(p.0.reveal().await)
 }
 
 async fn pf_from_mpc<'a>(
-    pf: ark_poly_commit::kzg10::Proof<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
-) -> ark_poly_commit::kzg10::Proof<ark_bls12_377::Bls12_377> {
+    pf: ark_poly_commit::kzg10::Proof<MpcPairingEngine<ark_bn254::Bn254>>,
+) -> ark_poly_commit::kzg10::Proof<ark_bn254::Bn254> {
     ark_poly_commit::kzg10::Proof {
         w: pf.w.reveal().await,
         // random_v: pf.random_v.map(MpcField::reveal).await,
@@ -120,10 +120,10 @@ async fn batch_pf_publicize(
 }
 
 pub async fn pf_publicize(
-    k: Proof<MpcField<ark_bls12_377::Fr>, MpcMarlinKZG10>,
-) -> Proof<ark_bls12_377::Fr, LocalMarlinKZG10> {
+    k: Proof<MpcField<ark_bn254::Fr>, MpcMarlinKZG10>,
+) -> Proof<ark_bn254::Fr, LocalMarlinKZG10> {
     let pf_timer = start_timer!(|| "publicize proof");
-    let r = Proof::<ark_bls12_377::Fr, LocalMarlinKZG10> {
+    let r = Proof::<ark_bn254::Fr, LocalMarlinKZG10> {
         // commitments: k
         //     .commitments
         //     .into_iter()
@@ -151,11 +151,11 @@ pub async fn pf_publicize(
     r
 }
 
-type Fr = ark_bls12_377::Fr;
+type Fr = ark_bn254::Fr;
 pub type MFr = MpcField<Fr>;
 
-type E = ark_bls12_377::Bls12_377;
-type ME = MpcPairingEngine<ark_bls12_377::Bls12_377>;
+type E = ark_bn254::Bn254;
+type ME = MpcPairingEngine<ark_bn254::Bn254>;
 
 pub type LocalMarlinKZG10 = MarlinKZG10<E, DensePolynomial<Fr>>;
 pub type MpcMarlinKZG10 = MarlinKZG10<ME, DensePolynomial<MFr>>;
@@ -379,7 +379,7 @@ fn save_srs_to_file(srs: &UniversalSRS<Fr, LocalMarlinKZG10>, filename: &str) {
 mod tests {
 
     // use crate::{AdditiveFieldShare, Reveal};
-    // use ark_bls12_377::Fr;
+    // use ark_bn254::Fr;
     // use ark_ff::{PrimeField, UniformRand};
     // use mpc_net::{LocalTestNet, MpcMultiNet as Net, MpcNet};
     // use rand::{rngs::StdRng, Rng, SeedableRng};

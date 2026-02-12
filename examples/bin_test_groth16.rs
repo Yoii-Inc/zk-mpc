@@ -25,8 +25,8 @@ async fn main() {
 
     Net::simulate(net_arc, (), |_, _| async {
         zk_mpc::groth16::mpc_test_prove_and_verify::<
-            ark_bls12_377::Bls12_377,
-            mpc_algebra::AdditivePairingShare<ark_bls12_377::Bls12_377>,
+            ark_bn254::Bn254,
+            mpc_algebra::AdditivePairingShare<ark_bn254::Bn254>,
         >(1)
         .await;
     })

@@ -371,7 +371,7 @@ pub mod zkpopk {
 
     #[cfg(test)]
     mod tests {
-        use ark_bls12_377::{FqParameters, Fr, FrParameters};
+        use ark_bn254::{FqParameters, Fr, FrParameters};
         use ark_ff::FpParameters;
         use num_bigint::BigUint;
 
@@ -452,7 +452,7 @@ use super::she::{
     get_gaussian, Ciphertext, Encodedtext, Plaintext, Plaintexts, PublicKey, SHEParameters,
     SecretKey,
 };
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use ark_mnt4_753::Fq;
 use ark_std::UniformRand;
 use num_traits::Zero;
@@ -975,7 +975,7 @@ pub fn triple(
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_377::FrParameters;
+    use ark_bn254::FrParameters;
     use ark_ff::FpParameters;
     use ark_mnt4_753::FqParameters;
 

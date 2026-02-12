@@ -12,7 +12,7 @@ use mpc_algebra::{MpcBoolean, MpcEqGadget, MpcFpVar};
 
 use crate::field::*;
 
-type Fr = ark_bls12_377::Fr;
+type Fr = ark_bn254::Fr;
 type MFr = MpcField<Fr>;
 
 /// This circuit checks if a value is smaller than another value.
