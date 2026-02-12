@@ -34,7 +34,7 @@ struct Opt {
     input: PathBuf,
 }
 
-type F = ark_bls12_377::Fr;
+type F = ark_bn254::Fr;
 type S = AdditiveFieldShare<F>;
 type MF = MpcField<F, S>;
 type MBF = MpcBooleanField<F, S>;
@@ -122,7 +122,7 @@ async fn test_rand_number_bitwise() {
 
         assert!(
             a_as_bigint
-                < <ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params::MODULUS
+                < <ark_ff::Fp256<ark_bn254::FrParameters> as ark_ff::PrimeField>::Params::MODULUS
         );
 
         let a_as_field = F::from_repr(a_as_bigint).unwrap();
@@ -133,7 +133,7 @@ async fn test_rand_number_bitwise() {
 
 async fn test_bitwise_lt() {
     let modulus_size =
-        <ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params::MODULUS_BITS;
+        <ark_ff::Fp256<ark_bn254::FrParameters> as ark_ff::PrimeField>::Params::MODULUS_BITS;
 
     let rng = &mut StdRng::from_entropy();
 
@@ -164,7 +164,7 @@ async fn test_bitwise_lt() {
 async fn test_interval_test_half_modulus() {
     let rng = &mut StdRng::from_entropy();
     let half_modulus =
-        <<ark_ff::Fp256<ark_bls12_377::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS_MINUS_ONE_DIV_TWO;
+        <<ark_ff::Fp256<ark_bn254::FrParameters> as ark_ff::PrimeField>::Params>::MODULUS_MINUS_ONE_DIV_TWO;
 
     let n = 10;
     let timer = start_timer!(|| format!("interval_test_half_modulus test x {}", n));
@@ -420,7 +420,7 @@ impl mpc_algebra::crh::pedersen::Window for Window {
 }
 
 type LocalPed = ark_crypto_primitives::commitment::pedersen::Commitment<
-    ark_ed_on_bls12_377::EdwardsProjective,
+    ark_ed_on_bn254::EdwardsProjective,
     Window,
 >;
 type MpcPed = mpc_algebra::commitment::pedersen::Commitment<MpcEdwardsProjective, Window>;
@@ -428,8 +428,9 @@ type MpcPed = mpc_algebra::commitment::pedersen::Commitment<MpcEdwardsProjective
 async fn test_pedersen_commitment() {
     let rng = &mut ark_std::test_rng();
 
-    let x = ark_ed_on_bls12_377::Fr::rand(rng);
-    let mpc_x = MpcField::<ark_ed_on_bls12_377::Fr, AdditiveFieldShare<ark_ed_on_bls12_377::Fr>>::from_public(x);
+    let x = ark_ed_on_bn254::Fr::rand(rng);
+    let mpc_x =
+        MpcField::<ark_ed_on_bn254::Fr, AdditiveFieldShare<ark_ed_on_bn254::Fr>>::from_public(x);
 
     let x_bytes = x.into_repr().to_bytes_le();
 

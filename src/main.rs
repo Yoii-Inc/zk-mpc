@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use zk_mpc::field::*;
-
 use ark_bn254::{Bn254, Fr, FrParameters};
 use ark_crypto_primitives::CommitmentScheme;
 use ark_ff::{BigInteger, FpParameters, PrimeField};
