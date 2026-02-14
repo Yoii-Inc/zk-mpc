@@ -3,7 +3,7 @@ use std::io::Read;
 use super::types::{GroupingParameter, Role};
 use crate::{circuits::LocalOrMPC, serialize::write_to_file};
 
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use ark_ff::PrimeField;
 use ark_ff::UniformRand;
 use ark_serialize::CanonicalDeserialize;

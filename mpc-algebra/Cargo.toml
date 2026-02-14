@@ -15,8 +15,8 @@ ark-r1cs-std = { path = "../arkworks/r1cs-std", version = "0.3.0", default-featu
 ark-crypto-primitives = { path = "../arkworks/crypto-primitives", version = "0.3.0", features = ["r1cs"] }
 ark-relations = { path = "../arkworks/snark/relations", version = "^0.3.0", default-features = false }
 
-ark-bls12-377 = { path = "../arkworks/curves/bls12_377", version = "0.3.0" }
-ark-ed-on-bls12-377 = { path = "../arkworks/curves/ed_on_bls12_377", version = "0.3.0" }
+ark-bn254 = { path = "../arkworks/curves/bn254", version = "0.3.0" }
+ark-ed-on-bn254 = { path = "../arkworks/curves/ed_on_bn254", version = "0.3.0" }
 
 rand = "0.8.5"
 num-bigint = { version = "0.4.3", features = ["rand"] }

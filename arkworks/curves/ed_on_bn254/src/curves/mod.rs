@@ -5,6 +5,8 @@ use ark_ec::{
 };
 use ark_ff::field_new;
 
+use serde::{Deserialize, Serialize};
+
 #[cfg(test)]
 mod tests;
 
@@ -19,7 +21,7 @@ pub type EdwardsProjective = GroupProjective<EdwardsParameters>;
 ///
 /// q = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 ///
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EdwardsParameters;
 
 impl ModelParameters for EdwardsParameters {

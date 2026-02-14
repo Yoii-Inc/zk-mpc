@@ -17,8 +17,6 @@ use ark_std::{
 use num_bigint::BigUint;
 use zeroize::Zeroize;
 
-use serde::{Deserialize, Serialize};
-
 #[macro_use]
 pub mod arithmetic;
 #[macro_use]

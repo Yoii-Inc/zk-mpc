@@ -83,7 +83,7 @@ impl<F: PrimeField + LocalOrMPC<F>> ConstraintSynthesizer<F> for MySecretInputCi
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_377::Bls12_377;
+    use ark_bn254::Bn254;
     use ark_crypto_primitives::CommitmentScheme;
     use ark_ff::{BigInteger, PrimeField};
     use ark_groth16::Groth16;
@@ -126,13 +126,13 @@ mod tests {
         };
 
         let (circuit_pk, circuit_vk) =
-            Groth16::<Bls12_377>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
+            Groth16::<Bn254>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
 
         // calculate the proof by passing witness variable value
-        let proof = Groth16::<Bls12_377>::prove(&circuit_pk, circuit.clone(), &mut rng).unwrap();
+        let proof = Groth16::<Bn254>::prove(&circuit_pk, circuit.clone(), &mut rng).unwrap();
 
         // validate the proof
-        assert!(Groth16::<Bls12_377>::verify(
+        assert!(Groth16::<Bn254>::verify(
             &circuit_vk,
             &[lower_bound, upper_bound, h_x.x, h_x.y],
             &proof
@@ -140,7 +140,7 @@ mod tests {
         .unwrap());
 
         // expected to fail
-        assert!(!Groth16::<Bls12_377>::verify(
+        assert!(!Groth16::<Bn254>::verify(
             &circuit_vk,
             &[lower_bound, upper_bound, h_x.y, h_x.x],
             &proof
@@ -148,8 +148,8 @@ mod tests {
         .unwrap());
     }
 
-    type Fr = ark_bls12_377::Fr;
-    type E = ark_bls12_377::Bls12_377;
+    type Fr = ark_bn254::Fr;
+    type E = ark_bn254::Bn254;
 
     type MarlinLocal = Marlin<Fr, MarlinKZG10<E, DensePolynomial<Fr>>, Blake2s>;
 

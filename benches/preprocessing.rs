@@ -1,4 +1,4 @@
-use ark_bls12_377::FrParameters;
+use ark_bn254::FrParameters;
 use ark_ff::FpParameters;
 use ark_mnt4_753::FqParameters;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};

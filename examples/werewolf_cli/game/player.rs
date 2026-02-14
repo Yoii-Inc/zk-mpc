@@ -1,4 +1,4 @@
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use mpc_algebra::{AdditiveFieldShare, BooleanWire, MpcBooleanField};
 use zk_mpc::werewolf::types::Role;
 

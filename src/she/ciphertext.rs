@@ -145,7 +145,7 @@ impl Sum for Ciphertext {
 #[cfg(test)]
 mod tests {
     use super::super::FpParameters;
-    use ark_bls12_377::FrParameters;
+    use ark_bn254::FrParameters;
     use ark_mnt4_753::{Fq, FqParameters};
     use rand::thread_rng;
 

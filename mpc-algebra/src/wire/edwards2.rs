@@ -3,8 +3,8 @@ use ark_ec::models::TEModelParameters as Parameters;
 use ark_ec::twisted_edwards_extended::GroupAffine;
 use ark_ec::twisted_edwards_extended::GroupProjective;
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ed_on_bls12_377::EdwardsParameters;
-use ark_ed_on_bls12_377::EdwardsProjective;
+use ark_ed_on_bn254::EdwardsParameters;
+use ark_ed_on_bn254::EdwardsProjective;
 use ark_ff::BitIteratorBE;
 use ark_ff::{Field, FromBytes, One, PrimeField, PubUniformRand, ToBytes, UniformRand, Zero};
 use ark_serialize::{
@@ -55,10 +55,10 @@ pub type SpdzMpcEdwardsProjective =
 pub type SpdzMpcEdwardsAffine =
     MpcGroupAffine<EdwardsParameters, SpdzAffProjShare<EdwardsParameters>>;
 
-type AdditiveFqVar = MpcFpVar<honest_but_curious::MpcField<ark_ed_on_bls12_377::Fq>>;
+type AdditiveFqVar = MpcFpVar<honest_but_curious::MpcField<ark_ed_on_bn254::Fq>>;
 pub type AdditiveMpcEdwardsVar = AdditiveMpcAffineVar<EdwardsParameters, AdditiveFqVar>;
 
-type SpdzFqVar = MpcFpVar<malicious_majority::MpcField<ark_ed_on_bls12_377::Fq>>;
+type SpdzFqVar = MpcFpVar<malicious_majority::MpcField<ark_ed_on_bn254::Fq>>;
 pub type SpdzMpcEdwardsVar = SpdzMpcAffineVar<EdwardsParameters, SpdzFqVar>;
 
 #[derive(Derivative, Serialize, Deserialize)]
@@ -1169,14 +1169,14 @@ pub trait FromLocal {
 macro_rules! impl_edwards_related {
     ($curve:ident, $affine:ident) => {
         impl ToLocal for $curve {
-            type Local = GroupProjective<ark_ed_on_bls12_377::EdwardsParameters>;
-            fn to_local(&self) -> GroupProjective<ark_ed_on_bls12_377::EdwardsParameters> {
+            type Local = GroupProjective<ark_ed_on_bn254::EdwardsParameters>;
+            fn to_local(&self) -> GroupProjective<ark_ed_on_bn254::EdwardsParameters> {
                 self.val.unwrap_as_public()
             }
         }
 
         impl ToLocal for PedersenParameters<$curve> {
-            type Local = LocalPedersenParameters<ark_ed_on_bls12_377::EdwardsProjective>;
+            type Local = LocalPedersenParameters<ark_ed_on_bn254::EdwardsProjective>;
 
             fn to_local(&self) -> Self::Local {
                 let randomness_generator = self

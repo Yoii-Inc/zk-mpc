@@ -151,7 +151,7 @@ mod tests {
     use crate::{preprocessing, she};
 
     use super::*;
-    use ark_bls12_377::{Fr, FrParameters};
+    use ark_bn254::{Fr, FrParameters};
     use ark_ff::FpParameters;
     use ark_mnt4_753::FqParameters;
     #[test]

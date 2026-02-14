@@ -9,8 +9,8 @@ members = [
     "arkworks/algebra/poly",
     "arkworks/algebra/serialize",
     "arkworks/crypto-primitives",
-    "arkworks/curves/bls12_377",
-    "arkworks/curves/ed_on_bls12_377",
+    "arkworks/curves/bn254",
+    "arkworks/curves/ed_on_bn254",
     "arkworks/curves/mnt4_753",
     "arkworks/groth16",
     "arkworks/marlin",
@@ -61,8 +61,8 @@ ark-serialize = { path = "arkworks/algebra/serialize", version = "0.3.0" }
 
 ark-crypto-primitives = { path = "arkworks/crypto-primitives", version = "0.3.0", features = ["r1cs"] }
 
-ark-bls12-377 = { path = "arkworks/curves/bls12_377", version = "0.3.0", features = ["r1cs", "curve"] }
-ark-ed-on-bls12-377 = { path = "arkworks/curves/ed_on_bls12_377", version = "0.3.0", features = ["r1cs"] }
+ark-bn254 = { path = "arkworks/curves/bn254", version = "0.3.0", features = ["curve"] }
+ark-ed-on-bn254 = { path = "arkworks/curves/ed_on_bn254", version = "0.3.0", features = ["r1cs"] }
 ark-mnt4-753 = { path = "arkworks/curves/mnt4_753", version = "0.3.0" }
 
 ark-groth16 = { path = "arkworks/groth16", version = "0.3.0" }

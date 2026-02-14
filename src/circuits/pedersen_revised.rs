@@ -1,4 +1,4 @@
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use ark_crypto_primitives::{
     commitment::{
         pedersen::{constraints::CommGadget, Commitment, Randomness},
@@ -8,7 +8,7 @@ use ark_crypto_primitives::{
     CommitmentScheme,
 };
 use ark_ec::ProjectiveCurve;
-use ark_ed_on_bls12_377::constraints::EdwardsVar;
+use ark_ed_on_bn254::constraints::EdwardsVar;
 use ark_ff::bytes::ToBytes;
 use ark_ff::BigInteger;
 use ark_ff::PrimeField;
@@ -92,7 +92,7 @@ pub trait LocalOrMPC<ConstraintF: PrimeField> {
 }
 
 impl LocalOrMPC<Fr> for Fr {
-    type JubJub = ark_ed_on_bls12_377::EdwardsProjective;
+    type JubJub = ark_ed_on_bn254::EdwardsProjective;
 
     type PedersenComScheme = Commitment<Self::JubJub, Window>;
     type PedersenCommitment = <Self::PedersenComScheme as MpcCommitmentScheme>::Output;
@@ -153,14 +153,14 @@ impl LocalOrMPC<MpcField<Fr>> for MpcField<Fr> {
         if self.is_shared() {
             Self::PedersenInput::new(
                 <Self::JubJub as ProjectiveCurve>::ScalarField::from_add_shared(
-                    ark_ed_on_bls12_377::Fr::from_le_bytes_mod_order(
+                    ark_ed_on_bn254::Fr::from_le_bytes_mod_order(
                         &self.unwrap_as_public().into_repr().to_bytes_le(),
                     ),
                 ),
             )
         } else {
             Self::PedersenInput::new(<Self::JubJub as ProjectiveCurve>::ScalarField::from_public(
-                ark_ed_on_bls12_377::Fr::from_le_bytes_mod_order(
+                ark_ed_on_bn254::Fr::from_le_bytes_mod_order(
                     &self.unwrap_as_public().into_repr().to_bytes_le(),
                 ),
             ))

@@ -1,9 +1,9 @@
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use ark_crypto_primitives::encryption::elgamal::{constraints::ElGamalEncGadget, ElGamal};
 use ark_crypto_primitives::encryption::*;
 use ark_ec::AffineCurve;
 use ark_ec::ProjectiveCurve;
-use ark_ed_on_bls12_377::constraints::EdwardsVar;
+use ark_ed_on_bn254::constraints::EdwardsVar;
 use ark_ff::{PrimeField, SquareRootField};
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::boolean::Boolean;
@@ -1298,9 +1298,9 @@ pub trait ElGamalLocalOrMPC<ConstraintF: PrimeField> {
 }
 
 impl ElGamalLocalOrMPC<Fr> for Fr {
-    type JubJub = ark_ed_on_bls12_377::EdwardsProjective;
+    type JubJub = ark_ed_on_bn254::EdwardsProjective;
 
-    type ElGamalScheme = ElGamal<ark_ed_on_bls12_377::EdwardsProjective>;
+    type ElGamalScheme = ElGamal<ark_ed_on_bn254::EdwardsProjective>;
     type ElGamalParam = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::Parameters;
     type ElGamalPubKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::PublicKey;
     type ElGamalSecretKey = <Self::ElGamalScheme as AsymmetricEncryptionScheme>::SecretKey;
@@ -1311,26 +1311,26 @@ impl ElGamalLocalOrMPC<Fr> for Fr {
     type EdwardsVar = EdwardsVar;
     type BooleanVar = Boolean<Fr>;
 
-    type ElGamalGadget = ElGamalEncGadget<ark_ed_on_bls12_377::EdwardsProjective, EdwardsVar>;
+    type ElGamalGadget = ElGamalEncGadget<ark_ed_on_bn254::EdwardsProjective, EdwardsVar>;
     type ElGamalParamVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        ark_bls12_377::Fr,
+        ark_bn254::Fr,
     >>::ParametersVar;
     type ElGamalRandomnessVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        ark_bls12_377::Fr,
+        ark_bn254::Fr,
     >>::RandomnessVar;
     type ElGamalPublicKeyVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        ark_bls12_377::Fr,
+        ark_bn254::Fr,
     >>::PublicKeyVar;
     type ElGamalPlaintextVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        ark_bls12_377::Fr,
+        ark_bn254::Fr,
     >>::PlaintextVar;
     type ElGamalCiphertextVar = <Self::ElGamalGadget as AsymmetricEncryptionGadget<
         Self::ElGamalScheme,
-        ark_bls12_377::Fr,
+        ark_bn254::Fr,
     >>::OutputVar;
 
     fn get_generator(a: &Self::ElGamalParamVar) -> Self::EdwardsVar {

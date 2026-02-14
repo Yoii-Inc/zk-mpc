@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use ark_bls12_377::Fr;
+use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 
 use ark_crypto_primitives::encryption::AsymmetricEncryptionScheme;

@@ -13,7 +13,7 @@ use crate::field::*;
 use mpc_algebra::{BooleanWire, EqualityZero};
 use tokio::task;
 
-type Fr = ark_bls12_377::Fr;
+type Fr = ark_bn254::Fr;
 type MFr = MpcField<Fr>;
 
 pub struct EqualityZeroCircuit<F: PrimeField> {

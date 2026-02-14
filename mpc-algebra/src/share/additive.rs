@@ -592,7 +592,7 @@ impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
 mod tests {
 
     use crate::{AdditiveFieldShare, Reveal};
-    use ark_bls12_377::Fr;
+    use ark_bn254::Fr;
 
     use mpc_net::{LocalTestNet, MpcMultiNet as Net, MpcNet};
     use rand::{rngs::StdRng, SeedableRng};

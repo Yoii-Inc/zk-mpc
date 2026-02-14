@@ -1215,7 +1215,7 @@ mod poly_impl {
 mod tests {
 
     use crate::{AdditiveFieldShare, Reveal, SpdzFieldShare};
-    use ark_bls12_377::Fr;
+    use ark_bn254::Fr;
     use ark_ff::{PubUniformRand, UniformRand};
     use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
     use mpc_net::LocalTestNet;

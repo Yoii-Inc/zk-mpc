@@ -5,7 +5,7 @@ use mpc_algebra::{MpcFpVar, MpcToBitsGadget};
 
 use crate::field::*;
 
-type Fr = ark_bls12_377::Fr;
+type Fr = ark_bn254::Fr;
 type MFr = MpcField<Fr>;
 
 pub struct BitDecompositionCircuit<F: PrimeField> {
