@@ -303,7 +303,9 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcBooleanField<F, S> {
     }
 
     async fn rand_bits_batched_internal<R: rand::Rng + ?Sized>(rng: &mut R, n: usize) -> Vec<Self> {
-        let mut rs = (0..n).map(|_| MpcField::<F, S>::rand(rng)).collect::<Vec<_>>();
+        let mut rs = (0..n)
+            .map(|_| MpcField::<F, S>::rand(rng))
+            .collect::<Vec<_>>();
         let mut squares = rs.clone();
         <MpcField<F, S> as Field>::batch_product_in_place(&mut squares, &rs);
         let opened_squares = S::batch_open(
