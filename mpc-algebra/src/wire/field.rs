@@ -306,7 +306,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
     }
 }
 
-impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcBooleanField<F, S>> {
+impl<F: PrimeField, S: FieldShare<F>> LogicalOperations for Vec<MpcBooleanField<F, S>> {
     type Output = MpcBooleanField<F, S>;
     // TODO: Implement kary_nand
 

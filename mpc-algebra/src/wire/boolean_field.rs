@@ -335,7 +335,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcBooleanField<F, S> {
     }
 }
 
-impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
+impl<F: PrimeField, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
     type Output = Self;
 
     fn carries(&self, other: &Self) -> Self::Output {
