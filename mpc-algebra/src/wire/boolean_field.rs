@@ -147,7 +147,7 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcBooleanField<F,
             })
             .collect::<Vec<MpcField<F, S>>>();
 
-        let mut prod = e.clone();
+        let mut prod = e;
         let other_fields = other.iter().map(|b| b.field()).collect::<Vec<_>>();
         <MpcField<F, S> as Field>::batch_product_in_place(&mut prod, &other_fields);
         Self::Output::from(prod.into_iter().sum::<MpcField<F, S>>())
@@ -335,7 +335,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcBooleanField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
+impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
     type Output = Self;
 
     fn carries(&self, other: &Self) -> Self::Output {
