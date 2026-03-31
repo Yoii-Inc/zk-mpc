@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 
 # Execute cargo build command
 cargo build --example algebra --release
-BIN="$(pwd)/target/release/examples/algebra"
+BIN="$(pwd)/../target/release/examples/algebra"
 
 PROCS=()
 

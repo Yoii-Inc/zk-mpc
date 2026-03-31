@@ -828,12 +828,12 @@ async fn winning_judgment(opt: &Opt) -> Result<(), std::io::Error> {
         .fold(MFr::zero(), |acc, x| acc + x.input);
     let num_citizen = MFr::from_public(num_alive) - num_werewolf;
     let exists_werewolf = num_werewolf.is_zero_shared().await;
+    let werewolf_lt_citizen = num_werewolf.is_smaller_than(&num_citizen).await;
 
     let game_state = exists_werewolf.field() * MFr::from(2_u32)
         + (!exists_werewolf).field()
-            * (num_werewolf.is_smaller_than(&num_citizen).await.field() * MFr::from(3_u32)
-                + (MFr::one() - (num_werewolf.is_smaller_than(&num_citizen).await).field())
-                    * MFr::from(1_u32));
+            * (werewolf_lt_citizen.field() * MFr::from(3_u32)
+                + (MFr::one() - werewolf_lt_citizen.field()) * MFr::from(1_u32));
 
     // prove
     let local_judgment_circuit = WinningJudgeCircuit {

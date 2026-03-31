@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use ark_crypto_primitives::{CommitmentScheme, CRH};
 use ark_ff::{BigInteger, BigInteger256, FpParameters, PrimeField, UniformRand};
@@ -17,6 +18,7 @@ use mpc_algebra::{
 };
 use mpc_net::multi::MPCNetConnection;
 use mpc_net::MpcMultiNet as Net;
+use mpc_net::MpcNet;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -474,6 +476,51 @@ async fn test_share() {
     }
 }
 
+async fn profile_single_shot_latency() {
+    let mut rng = ark_std::test_rng();
+
+    let (_, a) = MBF::rand_number_bitwise_less_than_half_modulus(&mut rng).await;
+    let (_, b) = MBF::rand_number_bitwise_less_than_half_modulus(&mut rng).await;
+    let z: MpcField<
+        ark_ff::Fp256<ark_bn254::FrParameters>,
+        AdditiveFieldShare<ark_ff::Fp256<ark_bn254::FrParameters>>,
+    > = MF::from_add_shared(F::zero());
+
+    let (up0, down0) = Net.get_comm();
+    let t0 = Instant::now();
+    let _ = a.is_smaller_than(&b).await;
+    let dt_lt = t0.elapsed();
+    let (up1, down1) = Net.get_comm();
+    println!(
+        "single_shot less_than: {:?}, up +{}B, down +{}B",
+        dt_lt,
+        up1.saturating_sub(up0),
+        down1.saturating_sub(down0)
+    );
+
+    let t1 = Instant::now();
+    let _ = z.is_zero_shared().await;
+    let dt_eqz = t1.elapsed();
+    let (up2, down2) = Net.get_comm();
+    println!(
+        "single_shot equality_zero: {:?}, up +{}B, down +{}B",
+        dt_eqz,
+        up2.saturating_sub(up1),
+        down2.saturating_sub(down1)
+    );
+
+    let t2 = Instant::now();
+    let _ = a.bit_decomposition().await;
+    let dt_bd = t2.elapsed();
+    let (up3, down3) = Net.get_comm();
+    println!(
+        "single_shot bit_decomposition: {:?}, up +{}B, down +{}B",
+        dt_bd,
+        up3.saturating_sub(up2),
+        down3.saturating_sub(down2)
+    );
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::builder().format_timestamp(None).init();
@@ -525,6 +572,8 @@ async fn main() {
         println!("Test bit_add passed");
         test_bit_decomposition().await;
         println!("Test bit_decomposition passed");
+        profile_single_shot_latency().await;
+        println!("single_shot profile done");
 
         test_pedersen_commitment().await;
         println!("Test pedersen commitment passed");

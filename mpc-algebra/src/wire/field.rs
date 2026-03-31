@@ -306,7 +306,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> LessThan for MpcField<F,
     }
 }
 
-impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcBooleanField<F, S>> {
+impl<F: PrimeField, S: FieldShare<F>> LogicalOperations for Vec<MpcBooleanField<F, S>> {
     type Output = MpcBooleanField<F, S>;
     // TODO: Implement kary_nand
 
@@ -320,8 +320,29 @@ impl<F: Field, S: FieldShare<F>> LogicalOperations for Vec<MpcBooleanField<F, S>
             .into_iter()
             .all(|x| x)
         });
-        self.iter()
-            .fold(Self::Output::pub_true(), |acc, &x| acc & x)
+        if self.is_empty() {
+            return Self::Output::pub_true();
+        }
+
+        let mut level = self.clone();
+        while level.len() > 1 {
+            let mut lhs = Vec::with_capacity(level.len() / 2);
+            let mut rhs = Vec::with_capacity(level.len() / 2);
+            let mut next = Vec::with_capacity((level.len() + 1) / 2);
+
+            for pair in level.chunks_exact(2) {
+                lhs.push(pair[0]);
+                rhs.push(pair[1]);
+            }
+            next.extend(MpcBooleanField::<F, S>::batch_and(&lhs, &rhs));
+
+            if level.len() % 2 == 1 {
+                next.push(*level.last().unwrap());
+            }
+            level = next;
+        }
+
+        level[0]
     }
 
     async fn kary_or(&self) -> Self::Output {

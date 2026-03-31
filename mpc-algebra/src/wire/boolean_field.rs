@@ -113,18 +113,27 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcBooleanField<F,
         assert_eq!(self.len(), modulus_size);
         assert_eq!(other.len(), modulus_size);
 
-        // [c_i] = [a_i \oplus b_i]
-        let c = self
-            .iter()
-            .zip(other.iter())
-            .map(|(&a, &b)| a ^ b)
-            .collect::<Vec<_>>();
-        let rev_c = c.into_iter().rev().collect::<Vec<_>>();
+        // c_i = a_i xor b_i, computed with batched products.
+        let c = MpcBooleanField::<F, S>::batch_xor(self, other);
+        let mut d = c.into_iter().rev().collect::<Vec<_>>();
 
-        // d_i = OR_{j=i}^{modulus_size-1} c_j
-        let mut d = vec![rev_c[0]];
-        for i in 0..modulus_size - 1 {
-            d.push(d[i] | rev_c[i + 1]);
+        // Prefix-OR on reversed bits using a parallel-prefix schedule.
+        // This reduces the interaction depth from O(n) to O(log n).
+        let mut offset = 1usize;
+        while offset < modulus_size {
+            let mut lhs = Vec::with_capacity(modulus_size - offset);
+            let mut rhs = Vec::with_capacity(modulus_size - offset);
+            let mut idx = Vec::with_capacity(modulus_size - offset);
+            for i in offset..modulus_size {
+                lhs.push(d[i]);
+                rhs.push(d[i - offset]);
+                idx.push(i);
+            }
+            let ors = MpcBooleanField::<F, S>::batch_or(&lhs, &rhs);
+            for (i, v) in idx.into_iter().zip(ors.into_iter()) {
+                d[i] = v;
+            }
+            offset <<= 1;
         }
         d.reverse();
 
@@ -138,12 +147,10 @@ impl<F: PrimeField, S: FieldShare<F>> BitwiseLessThan for Vec<MpcBooleanField<F,
             })
             .collect::<Vec<MpcField<F, S>>>();
 
-        Self::Output::from(
-            e.iter()
-                .zip(other.iter())
-                .map(|(&e, &b)| e * b.field())
-                .sum::<MpcField<F, S>>(),
-        )
+        let mut prod = e;
+        let other_fields = other.iter().map(|b| b.field()).collect::<Vec<_>>();
+        <MpcField<F, S> as Field>::batch_product_in_place(&mut prod, &other_fields);
+        Self::Output::from(prod.into_iter().sum::<MpcField<F, S>>())
     }
 }
 
@@ -151,22 +158,7 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
     type BaseField = MpcField<F, S>;
 
     async fn bit_rand<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
-        let r = Self::BaseField::rand(rng);
-        let r2 = (r * r).reveal().await;
-        let mut root_r2;
-
-        loop {
-            root_r2 = r2.sqrt().unwrap();
-
-            if !root_r2.is_zero() {
-                break;
-            }
-        }
-
-        Self(
-            (r / Self::BaseField::from_public(root_r2) + Self::BaseField::one())
-                / Self::BaseField::from_public(F::from(2u8)),
-        )
+        Self::rand_bits_batched_internal(rng, 1).await[0]
     }
 
     async fn rand_number_bitwise<R: Rng + ?Sized>(rng: &mut R) -> (Vec<Self>, Self::BaseField) {
@@ -181,13 +173,8 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
         modulus_bits = modulus_bits[..modulus_size].to_vec();
 
         let valid_bits = loop {
-            let mut bits = Vec::with_capacity(modulus_size);
-            for _ in 0..modulus_size {
-                bits.push(Self::bit_rand(rng).await);
-            }
-
+            let bits = Self::rand_bits_batched_internal(rng, modulus_size).await;
             if bits
-                .clone()
                 .is_smaller_than_le(&modulus_bits)
                 .field()
                 .reveal()
@@ -224,13 +211,8 @@ impl<F: PrimeField + SquareRootField, S: FieldShare<F>> UniformBitRand for MpcBo
         half_modulus_bits = half_modulus_bits[..modulus_size].to_vec();
 
         let valid_bits = loop {
-            let mut bits = Vec::with_capacity(modulus_size);
-            for _ in 0..modulus_size {
-                bits.push(Self::bit_rand(rng).await);
-            }
-
+            let bits = Self::rand_bits_batched_internal(rng, modulus_size).await;
             if bits
-                .clone()
                 .is_smaller_than_le(&half_modulus_bits)
                 .field()
                 .reveal()
@@ -274,7 +256,86 @@ impl<F: Field, S: FieldShare<F>> MpcWire for MpcBooleanField<F, S> {
     }
 }
 
-impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
+impl<F: PrimeField, S: FieldShare<F>> MpcBooleanField<F, S> {
+    pub(crate) fn batch_and(lhs: &[Self], rhs: &[Self]) -> Vec<Self> {
+        assert_eq!(lhs.len(), rhs.len());
+        let mut prods = lhs.iter().map(|x| x.field()).collect::<Vec<_>>();
+        let rhs_fields = rhs.iter().map(|x| x.field()).collect::<Vec<_>>();
+        <MpcField<F, S> as Field>::batch_product_in_place(&mut prods, &rhs_fields);
+        prods.into_iter().map(Self::from).collect()
+    }
+
+    pub(crate) fn batch_or(lhs: &[Self], rhs: &[Self]) -> Vec<Self> {
+        assert_eq!(lhs.len(), rhs.len());
+        let ands = Self::batch_and(lhs, rhs);
+        lhs.iter()
+            .zip(rhs.iter())
+            .zip(ands.into_iter())
+            .map(|((&a, &b), ab)| Self::from(a.field() + b.field() - ab.field()))
+            .collect()
+    }
+
+    pub(crate) fn batch_xor(lhs: &[Self], rhs: &[Self]) -> Vec<Self> {
+        assert_eq!(lhs.len(), rhs.len());
+        let two = MpcField::<F, S>::from(2u8);
+        let ands = Self::batch_and(lhs, rhs);
+        lhs.iter()
+            .zip(rhs.iter())
+            .zip(ands.into_iter())
+            .map(|((&a, &b), ab)| Self::from(a.field() + b.field() - (ab.field() * two)))
+            .collect()
+    }
+}
+
+impl<F: PrimeField + SquareRootField, S: FieldShare<F>> MpcBooleanField<F, S> {
+    async fn bit_rand_single_slow<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
+        loop {
+            let r = MpcField::<F, S>::rand(rng);
+            let r2 = (r * r).reveal().await;
+            let root_r2 = r2.sqrt().unwrap();
+            if !root_r2.is_zero() {
+                return Self(
+                    (r / MpcField::<F, S>::from_public(root_r2) + MpcField::<F, S>::one())
+                        / MpcField::<F, S>::from_public(F::from(2u8)),
+                );
+            }
+        }
+    }
+
+    async fn rand_bits_batched_internal<R: rand::Rng + ?Sized>(rng: &mut R, n: usize) -> Vec<Self> {
+        let mut rs = (0..n)
+            .map(|_| MpcField::<F, S>::rand(rng))
+            .collect::<Vec<_>>();
+        let mut squares = rs.clone();
+        <MpcField<F, S> as Field>::batch_product_in_place(&mut squares, &rs);
+        let opened_squares = S::batch_open(
+            squares
+                .into_iter()
+                .map(|x| match x {
+                    MpcField::Shared(s) => s,
+                    MpcField::Public(v) => S::from_public(v),
+                })
+                .collect::<Vec<_>>(),
+        )
+        .await;
+
+        let mut bits = Vec::with_capacity(n);
+        for (r, r2) in rs.drain(..).zip(opened_squares.into_iter()) {
+            let root_r2 = r2.sqrt().unwrap();
+            if root_r2.is_zero() {
+                bits.push(Self::bit_rand_single_slow(rng).await);
+            } else {
+                bits.push(Self(
+                    (r / MpcField::<F, S>::from_public(root_r2) + MpcField::<F, S>::one())
+                        / MpcField::<F, S>::from_public(F::from(2u8)),
+                ));
+            }
+        }
+        bits
+    }
+}
+
+impl<F: PrimeField, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
     type Output = Self;
 
     fn carries(&self, other: &Self) -> Self::Output {
@@ -283,27 +344,52 @@ impl<F: Field, S: FieldShare<F>> BitAdd for Vec<MpcBooleanField<F, S>> {
                 assert_eq!(self.len(), other.len());
                 let l = self.len(); // l is the bit length.
 
-                let s_vec = self
-                    .iter()
-                    .zip(other.iter())
-                    .map(|(a, b)| *a & *b)
-                    .collect::<Vec<_>>();
+                let s_vec = MpcBooleanField::<F, S>::batch_and(self, other);
+                let p_vec = MpcBooleanField::<F, S>::batch_xor(self, other);
 
-                let p_vec = (0..l)
-                    .map(|i| {
-                        self[i].field() + other[i].field()
-                            - MpcField::<F, S>::from_public(F::from(2u64)) * s_vec[i].field()
-                    })
-                    .collect::<Vec<_>>();
+                // Parallel-prefix carry computation.
+                // For each bit i, maintain (G_i, P_i) where carry_i = G_i and:
+                // combine((G, P), (g, p)) = (G + P * g, P * p).
+                let mut g_vec = s_vec.iter().map(|b| b.field()).collect::<Vec<_>>();
+                let mut p_fields = p_vec.iter().map(|b| b.field()).collect::<Vec<_>>();
 
-                let ret = (0..l)
-                    .scan(MpcField::<F, S>::zero(), |is_s, i| {
-                        *is_s = s_vec[i].field() + p_vec[i] * *is_s;
-                        Some(*is_s)
-                    })
-                    .collect::<Vec<_>>();
+                let mut offset = 1usize;
+                while offset < l {
+                    let m = l - offset;
+                    let mut lhs_p = Vec::with_capacity(m);
+                    let mut rhs_g = Vec::with_capacity(m);
+                    let mut rhs_p = Vec::with_capacity(m);
+                    let mut idx = Vec::with_capacity(m);
 
-                ret.into_iter().map(MpcBooleanField::<F, S>::from).collect()
+                    for i in offset..l {
+                        lhs_p.push(p_fields[i]);
+                        rhs_g.push(g_vec[i - offset]);
+                        rhs_p.push(p_fields[i - offset]);
+                        idx.push(i);
+                    }
+
+                    let mut p_times_g = lhs_p.clone();
+                    <MpcField<F, S> as Field>::batch_product_in_place(&mut p_times_g, &rhs_g);
+
+                    let mut p_times_p = lhs_p;
+                    <MpcField<F, S> as Field>::batch_product_in_place(&mut p_times_p, &rhs_p);
+
+                    for ((i, pg), pp) in idx
+                        .into_iter()
+                        .zip(p_times_g.into_iter())
+                        .zip(p_times_p.into_iter())
+                    {
+                        g_vec[i] = g_vec[i] + pg;
+                        p_fields[i] = pp;
+                    }
+
+                    offset <<= 1;
+                }
+
+                g_vec
+                    .into_iter()
+                    .map(MpcBooleanField::<F, S>::from)
+                    .collect()
             }
             false => {
                 panic!("public is not expected here");
