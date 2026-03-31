@@ -482,8 +482,8 @@ async fn profile_single_shot_latency() {
     let (_, a) = MBF::rand_number_bitwise_less_than_half_modulus(&mut rng).await;
     let (_, b) = MBF::rand_number_bitwise_less_than_half_modulus(&mut rng).await;
     let z: MpcField<
-        ark_ff::Fp256<ark_bls12_377::FrParameters>,
-        AdditiveFieldShare<ark_ff::Fp256<ark_bls12_377::FrParameters>>,
+        ark_ff::Fp256<ark_bn254::FrParameters>,
+        AdditiveFieldShare<ark_ff::Fp256<ark_bn254::FrParameters>>,
     > = MF::from_add_shared(F::zero());
 
     let (up0, down0) = Net.get_comm();
